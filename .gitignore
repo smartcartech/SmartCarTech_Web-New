@@ -1,0 +1,12 @@
+# File rác của hệ điều hành / OneDrive
+Thumbs.db
+desktop.ini
+.DS_Store
+~$*
+
+# Cài đặt riêng của trình soạn thảo
+.vscode/
+.idea/
+
+# File logo gốc — web không dùng (đã chuyển thành logo-smartcartech*.png/webp)
+assets/img/Logo_*

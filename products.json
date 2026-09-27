@@ -1,0 +1,239 @@
+{
+  "_huong_dan": [
+    "ĐÂY LÀ FILE DỮ LIỆU DUY NHẤT CỦA WEBSITE. Sửa ở đây, không cần sửa code.",
+    "Giá ghi số nguyên, đơn vị đồng, không dấu chấm. VD: 1590000 (hiển thị 1.590.000 ₫).",
+    "Các link (Shopee, PDF, .zip, app, YouTube...) để \"\" nếu chưa có — nút tương ứng sẽ báo 'đang cập nhật'.",
+    "youtube: dán mã video (phần sau v= trong link), VD: \"dQw4w9WgXcQ\".",
+    "Chữ trong [NGOẶC VUÔNG] là chỗ trống cần điền nội dung thật.",
+    "LINK SHOPEE HIỆN TẠI LÀ DỮ LIỆU MẪU — thay trước khi đưa web lên."
+  ],
+
+  "site": {
+    "brand": "SmartCarTech",
+    "zalo": "0374 489 282",
+    "hotline": "0374 489 282",
+    "email": "smartcartech.vn@gmail.com",
+    "facebook_url": "https://www.facebook.com/smartcartechvietnam",
+    "tiktok_url": "https://www.tiktok.com/@smartcartech",
+    "youtube_url": "https://www.youtube.com/@smartcartechvietnam",
+    "order_endpoint": "",
+    "payment_note": "Miễn phí vận chuyển toàn quốc. Thanh toán khi nhận hàng (COD). Shop sẽ gọi hoặc nhắn Zalo để xác nhận đơn trước khi gửi hàng.",
+    "warranty_url": "chinh-sach.html#bao-hanh",
+    "shipping_url": "chinh-sach.html#van-chuyen"
+  },
+
+  "components": [
+    { "id": "khung", "name": "Khung xe mica 2 tầng" },
+    { "id": "dong-co", "name": "Động cơ" },
+    { "id": "banh", "name": "Bánh xe cao su" },
+    { "id": "mach", "name": "Mạch điều khiển" },
+    { "id": "cam-bien", "name": "Cảm biến siêu âm" },
+    { "id": "pin", "name": "Pin sạc 18650 ×4" },
+    { "id": "ha-ap", "name": "Mạch hạ áp có màn hình" }
+  ],
+
+  "lines": [
+    {
+      "id": "pro",
+      "name": "SC Tech Pro",
+      "badge": "PRO",
+      "highlight": "[ĐIỂM NỔI BẬT CỦA DÒNG PRO — VD: MẠCH MẠNH HƠN, NHIỀU CẢM BIẾN HƠN]",
+      "tagline": "[MÔ TẢ NGẮN DÒNG PRO — ĐIỂM MẠNH, DÀNH CHO AI]",
+      "guide_blurb": "Sơ đồ, video, code và app cho dòng Pro",
+      "seo": {
+        "title": "SC Tech Pro – Xe robot 4 bánh tự lắp, lập trình được | SmartCarTech",
+        "description": "SC Tech Pro: xe robot 4 bánh khung mica 2 tầng, cảm biến siêu âm, pin sạc 18650. 3 lựa chọn bộ linh kiện, kèm sơ đồ mạch, video, code mẫu và app điều khiển."
+      },
+      "image": { "src": "assets/img/xe-toan-canh.webp", "src_small": "assets/img/xe-toan-canh-640.webp", "thumb": "assets/img/xe-toan-canh-thumb.webp", "alt": "Xe robot SC Tech Pro" },
+      "gallery": [
+        { "src": "assets/img/xe-toan-canh.webp", "thumb": "assets/img/xe-toan-canh-thumb.webp", "label": "Ảnh toàn cảnh", "alt": "Xe robot SC Tech Pro nhìn toàn cảnh, khung mica 2 tầng và 4 bánh cao su" },
+        { "src": "assets/img/xe-cam-bien.webp", "thumb": "assets/img/xe-cam-bien-thumb.webp", "label": "Ảnh cận cảnh cảm biến", "alt": "Cận cảnh cụm cảm biến siêu âm ở đầu xe SC Tech Pro" },
+        { "src": "assets/img/xe-mach.webp", "thumb": "assets/img/xe-mach-thumb.webp", "label": "Ảnh cận cảnh mạch điều khiển", "alt": "Cận cảnh mạch điều khiển và pin trên xe SC Tech Pro" }
+      ],
+      "video": { "youtube": "", "duration": "[THỜI LƯỢNG]", "poster": "assets/img/xe-toan-canh.webp" },
+      "kits": [
+        {
+          "id": "day-du",
+          "name": "Bộ đầy đủ linh kiện",
+          "short": "Bộ đầy đủ",
+          "note": "Lắp xong là chạy — hợp người mới bắt đầu",
+          "contents": "Khung, động cơ, bánh, mạch, cảm biến, pin",
+          "price": 1490000,
+          "shopee": "https://shopee.vn/",
+          "includes": ["khung", "dong-co", "banh", "mach", "cam-bien", "pin", "ha-ap"],
+          "missing": "",
+          "buy_more": ""
+        },
+        {
+          "id": "khung-dong-co-banh",
+          "name": "Khung + động cơ + bánh xe",
+          "short": "Khung + động cơ + bánh",
+          "note": "Tự chọn mạch và cảm biến theo ý bạn",
+          "contents": "Chưa gồm mạch, cảm biến và pin",
+          "price": 390000,
+          "shopee": "https://shopee.vn/",
+          "includes": ["khung", "dong-co", "banh"],
+          "missing": "mạch điều khiển, cảm biến và pin",
+          "buy_more": "[DANH SÁCH LINH KIỆN CẦN MUA THÊM]"
+        },
+        {
+          "id": "chi-khung",
+          "name": "Chỉ khung xe",
+          "short": "Chỉ khung",
+          "note": "Cho người đã có sẵn linh kiện",
+          "contents": "Chỉ gồm khung mica 2 tầng",
+          "price": 290000,
+          "shopee": "https://shopee.vn/",
+          "includes": ["khung"],
+          "missing": "động cơ, bánh xe, mạch điều khiển, cảm biến và pin",
+          "buy_more": "[DANH SÁCH LINH KIỆN CẦN MUA THÊM]"
+        }
+      ],
+      "features": [
+        { "tag": "TRÁNH VẬT CẢN", "title": "Cụm cảm biến siêu âm phía trước", "text": "Đo khoảng cách theo nhiều hướng để xe tự tìm đường khi gặp vật cản.", "image": "assets/img/tinh-nang-cam-bien.webp", "alt": "Cận cảnh cụm cảm biến siêu âm ở đầu xe" },
+        { "tag": "LẬP TRÌNH ĐƯỢC", "title": "Mạch điều khiển mở", "text": "Nạp code mẫu hoặc tự viết chương trình, dễ đấu thêm module qua các cổng terminal.", "image": "assets/img/tinh-nang-mach.webp", "alt": "Cận cảnh mạch điều khiển" },
+        { "tag": "NGUỒN ĐIỆN", "title": "Pin sạc, theo dõi điện áp", "text": "Bốn pin 18650 sạc lại được, mạch hạ áp có màn hình hiển thị điện áp.", "image": "assets/img/tinh-nang-pin.webp", "alt": "Cận cảnh pin sạc và màn hình điện áp" },
+        { "tag": "DẪN ĐỘNG 4 BÁNH", "title": "Bánh cao su gai lớn", "text": "Bốn bánh cao su gai lớn, dẫn động cả 4 bánh giúp xe chạy chắc chắn.", "image": "assets/img/tinh-nang-banh.webp", "alt": "Cận cảnh bánh xe cao su" }
+      ],
+      "guide": {
+        "video": { "youtube": "", "duration": "[THỜI LƯỢNG]", "poster": "assets/img/xe-toan-canh.webp" },
+        "chapters": [
+          { "time": "[mm:ss]", "title": "Kiểm tra linh kiện trong hộp" },
+          { "time": "[mm:ss]", "title": "Lắp khung và động cơ" },
+          { "time": "[mm:ss]", "title": "Lắp bánh xe" },
+          { "time": "[mm:ss]", "title": "Gắn mạch điều khiển và cảm biến" },
+          { "time": "[mm:ss]", "title": "Đấu dây và lắp pin" }
+        ],
+        "circuit_image": "",
+        "circuit_pdf": "",
+        "assembly_pdf": "",
+        "software": "[TÊN PHẦN MỀM, VD: ARDUINO IDE]",
+        "github": "",
+        "code": [
+          { "title": "Chạy thử động cơ", "desc": "Kiểm tra 4 bánh quay đúng chiều", "zip": "" },
+          { "title": "Tránh vật cản", "desc": "Xe tự chạy và né vật cản bằng cảm biến siêu âm", "zip": "" },
+          { "title": "Điều khiển qua app", "desc": "Kết nối xe với app trên điện thoại", "zip": "" }
+        ],
+        "app": {
+          "name": "[TÊN APP]",
+          "connection": "[BLUETOOTH / WI-FI]",
+          "google_play": "",
+          "app_store": "",
+          "qr_image": "",
+          "screenshot": ""
+        }
+      }
+    },
+    {
+      "id": "std",
+      "name": "SC Tech",
+      "badge": "TIÊU CHUẨN",
+      "highlight": "[ĐIỂM NỔI BẬT CỦA DÒNG TIÊU CHUẨN — VD: GIÁ DỄ TIẾP CẬN, HỢP NGƯỜI MỚI]",
+      "tagline": "[MÔ TẢ NGẮN DÒNG TIÊU CHUẨN — ĐIỂM MẠNH, DÀNH CHO AI]",
+      "guide_blurb": "Sơ đồ, video, code và app cho dòng tiêu chuẩn",
+      "seo": {
+        "title": "SC Tech – Xe robot 4 bánh tự lắp cho người mới | SmartCarTech",
+        "description": "SC Tech: xe robot 4 bánh tự lắp ráp, tự lập trình cho người mới bắt đầu. 3 lựa chọn bộ linh kiện, kèm sơ đồ mạch, video hướng dẫn, code mẫu và app điều khiển."
+      },
+      "image": { "src": "assets/img/xe-toan-canh.webp", "src_small": "assets/img/xe-toan-canh-640.webp", "thumb": "assets/img/xe-toan-canh-thumb.webp", "alt": "Xe robot SC Tech" },
+      "gallery": [
+        { "src": "assets/img/xe-toan-canh.webp", "thumb": "assets/img/xe-toan-canh-thumb.webp", "label": "Ảnh toàn cảnh", "alt": "Xe robot SC Tech nhìn toàn cảnh, khung mica 2 tầng và 4 bánh cao su" },
+        { "src": "assets/img/xe-cam-bien.webp", "thumb": "assets/img/xe-cam-bien-thumb.webp", "label": "Ảnh cận cảnh cảm biến", "alt": "Cận cảnh cụm cảm biến siêu âm ở đầu xe SC Tech" },
+        { "src": "assets/img/xe-mach.webp", "thumb": "assets/img/xe-mach-thumb.webp", "label": "Ảnh cận cảnh mạch điều khiển", "alt": "Cận cảnh mạch điều khiển và pin trên xe SC Tech" }
+      ],
+      "video": { "youtube": "", "duration": "[THỜI LƯỢNG]", "poster": "assets/img/xe-toan-canh.webp" },
+      "kits": [
+        {
+          "id": "day-du",
+          "name": "Bộ đầy đủ linh kiện",
+          "short": "Bộ đầy đủ",
+          "note": "Lắp xong là chạy — hợp người mới bắt đầu",
+          "contents": "Khung, động cơ, bánh, mạch, cảm biến, pin",
+          "price": 990000,
+          "shopee": "https://shopee.vn/",
+          "includes": ["khung", "dong-co", "banh", "mach", "cam-bien", "pin", "ha-ap"],
+          "missing": "",
+          "buy_more": ""
+        },
+        {
+          "id": "khung-dong-co-banh",
+          "name": "Khung + động cơ + bánh xe",
+          "short": "Khung + động cơ + bánh",
+          "note": "Tự chọn mạch và cảm biến theo ý bạn",
+          "contents": "Chưa gồm mạch, cảm biến và pin",
+          "price": 360000,
+          "shopee": "https://shopee.vn/",
+          "includes": ["khung", "dong-co", "banh"],
+          "missing": "mạch điều khiển, cảm biến và pin",
+          "buy_more": "[DANH SÁCH LINH KIỆN CẦN MUA THÊM]"
+        },
+        {
+          "id": "chi-khung",
+          "name": "Chỉ khung xe",
+          "short": "Chỉ khung",
+          "note": "Cho người đã có sẵn linh kiện",
+          "contents": "Chỉ gồm khung mica 2 tầng",
+          "price": 260000,
+          "shopee": "https://shopee.vn/",
+          "includes": ["khung"],
+          "missing": "động cơ, bánh xe, mạch điều khiển, cảm biến và pin",
+          "buy_more": "[DANH SÁCH LINH KIỆN CẦN MUA THÊM]"
+        }
+      ],
+      "features": [
+        { "tag": "TRÁNH VẬT CẢN", "title": "Cụm cảm biến siêu âm phía trước", "text": "Đo khoảng cách theo nhiều hướng để xe tự tìm đường khi gặp vật cản.", "image": "assets/img/tinh-nang-cam-bien.webp", "alt": "Cận cảnh cụm cảm biến siêu âm ở đầu xe" },
+        { "tag": "LẬP TRÌNH ĐƯỢC", "title": "Mạch điều khiển mở", "text": "Nạp code mẫu hoặc tự viết chương trình, dễ đấu thêm module qua các cổng terminal.", "image": "assets/img/tinh-nang-mach.webp", "alt": "Cận cảnh mạch điều khiển" },
+        { "tag": "NGUỒN ĐIỆN", "title": "Pin sạc, theo dõi điện áp", "text": "Bốn pin 18650 sạc lại được, mạch hạ áp có màn hình hiển thị điện áp.", "image": "assets/img/tinh-nang-pin.webp", "alt": "Cận cảnh pin sạc và màn hình điện áp" },
+        { "tag": "DẪN ĐỘNG 4 BÁNH", "title": "Bánh cao su gai lớn", "text": "Bốn bánh cao su gai lớn, dẫn động cả 4 bánh giúp xe chạy chắc chắn.", "image": "assets/img/tinh-nang-banh.webp", "alt": "Cận cảnh bánh xe cao su" }
+      ],
+      "guide": {
+        "video": { "youtube": "", "duration": "[THỜI LƯỢNG]", "poster": "assets/img/xe-toan-canh.webp" },
+        "chapters": [
+          { "time": "[mm:ss]", "title": "Kiểm tra linh kiện trong hộp" },
+          { "time": "[mm:ss]", "title": "Lắp khung và động cơ" },
+          { "time": "[mm:ss]", "title": "Lắp bánh xe" },
+          { "time": "[mm:ss]", "title": "Gắn mạch điều khiển và cảm biến" },
+          { "time": "[mm:ss]", "title": "Đấu dây và lắp pin" }
+        ],
+        "circuit_image": "",
+        "circuit_pdf": "",
+        "assembly_pdf": "",
+        "software": "[TÊN PHẦN MỀM, VD: ARDUINO IDE]",
+        "github": "",
+        "code": [
+          { "title": "Chạy thử động cơ", "desc": "Kiểm tra 4 bánh quay đúng chiều", "zip": "" },
+          { "title": "Tránh vật cản", "desc": "Xe tự chạy và né vật cản bằng cảm biến siêu âm", "zip": "" },
+          { "title": "Điều khiển qua app", "desc": "Kết nối xe với app trên điện thoại", "zip": "" }
+        ],
+        "app": {
+          "name": "[TÊN APP]",
+          "connection": "[BLUETOOTH / WI-FI]",
+          "google_play": "",
+          "app_store": "",
+          "qr_image": "",
+          "screenshot": ""
+        }
+      }
+    }
+  ],
+
+  "specs": [
+    { "label": "Mạch điều khiển", "pro": "[ĐIỀN]", "std": "[ĐIỀN]" },
+    { "label": "Cảm biến", "pro": "Siêu âm × [SỐ LƯỢNG]", "std": "[ĐIỀN]" },
+    { "label": "Động cơ", "pro": "[ĐIỀN]", "std": "[ĐIỀN]" },
+    { "label": "Nguồn điện", "pro": "4 × pin sạc 18650", "std": "[ĐIỀN]" },
+    { "label": "Khung xe", "pro": "Mica 2 tầng", "std": "[ĐIỀN]" },
+    { "label": "Kết nối điện thoại", "pro": "[ĐIỀN]", "std": "[ĐIỀN]" },
+    { "label": "Kích thước", "pro": "[D × R × C] mm", "std": "[D × R × C] mm" },
+    { "label": "Trọng lượng", "pro": "[KHỐI LƯỢNG]", "std": "[KHỐI LƯỢNG]" },
+    { "label": "Phù hợp cho", "pro": "[ĐỐI TƯỢNG]", "std": "[ĐỐI TƯỢNG]" }
+  ],
+
+  "faq": [
+    { "q": "Chưa biết lập trình có tự làm được không?", "a": "Có đầy đủ video hướng dẫn, code và App có sẵn trên CH Play để bạn có thể tự làm được, cùng đội ngũ tư vấn sẵn sàng giải đáp các thắc mắc của bạn." },
+    { "q": "Nên chọn SC Tech Pro hay SC Tech?", "a": "Xem bảng so sánh chi tiết ở trang Sản phẩm, hoặc nhắn Zalo để được tư vấn theo nhu cầu của bạn." },
+    { "q": "Mua bộ chỉ có khung thì cần mua thêm gì?", "a": "Chọn “Bộ đầy đủ linh kiện” ở trang Sản phẩm để biết những linh kiện còn thiếu." },
+    { "q": "Pin có kèm theo bộ không, sạc bằng gì?", "a": "“Bộ đầy đủ linh kiện” đã có đủ pin và bộ sạc đi kèm.\n• SC Tech Pro: được tích hợp mạch sạc cân bằng trên xe, chỉ cần cắm sạc bằng cục sạc đi kèm.\n• SC Tech: tháo pin và gắn vào bộ sạc pin đi kèm." },
+    { "q": "Phí vận chuyển, thời gian giao hàng và bảo hành thế nào?", "a": "Miễn phí vận chuyển toàn quốc cho tất cả sản phẩm, giao từ 2 đến 3 ngày tùy vào khu vực của bạn. Bảo hành 1 đổi 1 trong vòng 7 ngày." }
+  ]
+}

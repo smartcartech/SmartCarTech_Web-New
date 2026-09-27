@@ -1,0 +1,111 @@
+# Website SmartCarTech
+
+Website bán xe robot SC Tech Pro / SC Tech của SmartCarTech. Được viết bằng HTML, CSS và JavaScript thuần: không có bước build, không dùng thư viện ngoài, chỉ tải font từ Google Fonts.
+
+> **Tên gọi:** **SmartCarTech** là tên thương hiệu (logo, tiêu đề trang, footer, `site.brand`). **SC Tech Pro** và **SC Tech** chỉ là tên 2 dòng sản phẩm — đừng dùng "SC Tech" để chỉ shop.
+
+```
+index.html            Trang chủ
+san-pham.html         Sản phẩm (?dong=pro|std&bo=day-du|khung-dong-co-banh|chi-khung)
+huong-dan.html        Hướng dẫn (?dong=…&bo=…)
+dat-hang.html         Đặt hàng (?mua=pro:day-du:2  hoặc  ?tu=gio-hang)
+chinh-sach.html       Chính sách bảo hành (#bao-hanh), vận chuyển & đổi trả (#van-chuyen)
+products.json         ★ DỮ LIỆU — file duy nhất bạn cần sửa
+google-apps-script.gs (Tùy chọn) Lưu đơn vào Google Sheet
+robots.txt, sitemap.xml  Cho Google biết các trang cần hiển thị
+assets/css/style.css  Toàn bộ giao diện (màu, font, khoảng cách ở đầu file)
+assets/js/core.js     Phần dùng chung: tải dữ liệu, giỏ hàng, menu, gửi Zalo
+assets/js/*.js        Mã riêng của từng trang
+assets/img/           Ảnh WebP, icon (icons.svg), favicon, ảnh chia sẻ (og-image.jpg)
+                      Logo: logo-smartcartech-nen-toi.webp (header/footer, viền trắng cho nền tối)
+                            logo-smartcartech.png (màu gốc, cho nền sáng — Google dùng file này)
+```
+
+## 1. Chạy thử trên máy
+
+Trình duyệt chặn việc đọc `products.json` khi bạn mở file bằng cách nhấp đúp. Vì vậy cần chạy qua một web server nhỏ:
+
+- **VS Code:** cài extension *Live Server* → chuột phải vào `index.html` → *Open with Live Server*.
+- **Hoặc dùng Python:** mở terminal trong thư mục này, chạy `python -m http.server 8080`, rồi mở http://localhost:8080
+
+## 2. Đưa lên mạng
+
+Tải **cả thư mục** lên một hosting tĩnh bất kỳ:
+
+- **Netlify:** kéo thả thư mục vào app.netlify.com/drop
+- **GitHub Pages**
+- **Hosting cPanel:** upload vào `public_html`
+
+Không cần cài đặt thêm gì trên server.
+
+Tên miền **smartcartech.vn** đã được ghi sẵn trong: `og:image` (4 file HTML), `og:url` + `canonical` (index.html), `SITE_URL` (assets/js/core.js), `robots.txt` và `sitemap.xml`. Nếu đổi tên miền, sửa hết các chỗ này.
+
+- Web phải chạy ở **gốc tên miền** (`https://smartcartech.vn/index.html`), không đặt trong thư mục con.
+- Bật **HTTPS** trên hosting và chuyển hướng `www.smartcartech.vn` → `smartcartech.vn` cho thống nhất.
+- Sau khi web chạy: khai báo `https://smartcartech.vn/sitemap.xml` trong Google Search Console. Dán link vào developers.facebook.com/tools/debug để kiểm tra ảnh chia sẻ.
+
+## 3. Sửa nội dung — chỉ sửa `products.json`
+
+| Muốn đổi | Sửa ở |
+|---|---|
+| Số Zalo, hotline, email, link Facebook / TikTok / YouTube | `site` |
+| Giá từng bộ | `lines[].kits[].price` — số nguyên, không có dấu chấm. VD: `1590000` |
+| Link Shopee từng bộ | `lines[].kits[].shopee` |
+| Bộ nào gồm linh kiện gì (bảng "Mỗi bộ gồm những gì") | `lines[].kits[].includes` — dùng các `id` trong `components` |
+| Ghi chú "chưa gồm… / chuẩn bị thêm…" ở trang Hướng dẫn | `lines[].kits[].missing`, `buy_more` |
+| Tên, mô tả, điểm nổi bật, huy hiệu từng dòng | `lines[].name / tagline / highlight / badge` |
+| Tiêu đề & mô tả SEO của trang sản phẩm | `lines[].seo` |
+| Ảnh sản phẩm, ảnh gallery | `lines[].image`, `lines[].gallery` |
+| Video giới thiệu / video lắp ráp | `video.youtube`, `guide.video.youtube`: dán **mã** video (phần sau `v=`) |
+| Mốc thời gian các chương video | `guide.chapters[].time`, dạng `"02:15"` — bấm vào chương thì video nhảy đến đúng giây đó |
+| Sơ đồ mạch, file PDF, code .zip, GitHub | `guide.circuit_image`, `circuit_pdf`, `assembly_pdf`, `code[].zip`, `github` |
+| Nội dung chính sách bảo hành, vận chuyển & đổi trả | Sửa trực tiếp trong `chinh-sach.html` (không nằm trong `products.json`) |
+| App: tên, kết nối, link cửa hàng, mã QR, ảnh chụp màn hình | `guide.app` |
+| Chức năng ("Xe làm được gì?") | `lines[].features` |
+| Bảng thông số & so sánh | `specs` — mỗi dòng có `label`, `pro`, `std` |
+| Câu hỏi thường gặp | `faq` |
+
+**Lưu ý khi sửa:**
+
+- **Link còn trống `""`:** nút vẫn hiện. Khi khách bấm, web báo "đang cập nhật".
+- **Chữ trong `[NGOẶC VUÔNG]`** là chỗ trống còn chờ nội dung thật.
+- **Kiểm tra lỗi cú pháp:** sau khi sửa, dán nội dung file vào jsonlint.com. Một dấu phẩy thừa hoặc thiếu cũng làm web không tải được dữ liệu.
+- **Thêm ảnh mới:** lưu ảnh dạng **WebP**, rộng khoảng 1600px, đặt vào `assets/img/`, rồi sửa đường dẫn trong JSON.
+
+## 4. Nút mua hàng hoạt động thế nào
+
+- **Mua ngay:** mở `dat-hang.html` với đúng dòng xe, bộ và số lượng đang chọn. Nút này không thêm gì vào giỏ.
+- **Thêm vào giỏ:** giỏ hàng được lưu trên trình duyệt của khách, nên vẫn còn khi khách chuyển trang hoặc tải lại trang. Mở giỏ, bấm *Đặt hàng* để sang cùng trang đặt hàng.
+- **Mua trên Shopee:** mở link Shopee riêng của bộ đang chọn.
+- **Tư vấn Zalo:** mở `https://zalo.me/<số Zalo>`.
+
+### Đơn hàng đến Zalo của shop bằng cách nào?
+
+Zalo **không cho** website tự gửi tin nhắn tới số Zalo cá nhân, và link `zalo.me` cũng không điền sẵn được nội dung. Vì vậy web làm như sau:
+
+1. Khách điền tên, số điện thoại, địa chỉ rồi bấm **Gửi đơn qua Zalo**.
+2. Web kiểm tra thông tin, tạo mã đơn (VD: `#SC260926-4821`) và **tự sao chép** nội dung đơn gồm: sản phẩm, bộ, số lượng, giá, tổng, thông tin người nhận.
+3. Khách bấm **Mở Zalo gửi cho shop**, dán nội dung vào ô chat rồi gửi.
+
+Nếu khách quên bấm gửi thì shop mất đơn. Để tránh việc này, hãy **bật lưu đơn vào Google Sheet**: làm theo hướng dẫn ở đầu file `google-apps-script.gs`, rồi dán URL vào `site.order_endpoint`. Script này có thể gửi thêm email báo đơn mới cho bạn. Form "Gửi yêu cầu tư vấn" ở Trang chủ cũng hoạt động theo cách này.
+
+Nếu muốn tin nhắn tự động vào Zalo, cần đăng ký **Zalo Official Account** (tài khoản doanh nghiệp) và có một server riêng để giữ token. Phần này làm sau được, không cần sửa giao diện.
+
+## 5. Việc cần làm trước khi đưa web lên
+
+- [ ] Thay **link Shopee mẫu** của từng bộ trong `products.json`.
+- [ ] Thay **ảnh sản phẩm**. Ảnh hiện tại lấy từ file thiết kế: đó là ảnh do AI tạo (có dấu ✦ ở góc), chỉ rộng 1024px và dùng chung cho cả 2 dòng. Nên thay bằng ảnh chụp thật của từng dòng.
+- [ ] Điền các chỗ trống `[…]`: mô tả, thông số, câu trả lời FAQ, tên app, v.v.
+- [ ] Đọc lại **bản nháp `chinh-sach.html`** và sửa cho đúng với cách shop làm. Các điểm giả định được ghi trong comment ở đầu thẻ `<main>`.
+
+## 6. Ghi chú kỹ thuật
+
+- **Giao diện co giãn:** thiết kế cho 390px (mobile) và 1440px (desktop). Khoảng cách và cỡ chữ co giãn mượt giữa hai mốc này bằng `clamp()`. Bố cục đổi ở 768px và 1024px, riêng phần đầu trang chủ đổi ở 1200px.
+- **Mọi màu, font, bo góc, khoảng cách** được khai báo ở phần `:root` đầu file `style.css`.
+- **SEO:**
+  - Mỗi trang có title và description riêng.
+  - Trang Sản phẩm và Hướng dẫn tự đổi title theo dòng xe đang chọn.
+  - Có dữ liệu cấu trúc Product và FAQ (JSON-LD).
+  - Trang Đặt hàng đặt `noindex` để không hiện trên Google.
+- **Ảnh:** định dạng WebP, `loading="lazy"` (trừ ảnh đầu trang) và có `alt` đầy đủ.
+- **Trình duyệt hỗ trợ:** Chrome, Edge, Safari, Firefox bản từ 2023 trở lên.

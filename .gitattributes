@@ -1,0 +1,2 @@
+# Giữ xuống dòng kiểu LF cho mọi file chữ, kể cả khi sửa trên Windows
+* text=auto eol=lf
