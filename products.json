@@ -22,23 +22,13 @@
     "shipping_url": "chinh-sach.html#van-chuyen"
   },
 
-  "components": [
-    { "id": "khung", "name": "Khung xe mica 2 tầng" },
-    { "id": "dong-co", "name": "Động cơ" },
-    { "id": "banh", "name": "Bánh xe cao su" },
-    { "id": "mach", "name": "Mạch điều khiển" },
-    { "id": "cam-bien", "name": "Cảm biến siêu âm" },
-    { "id": "pin", "name": "Pin sạc 18650 ×4" },
-    { "id": "ha-ap", "name": "Mạch hạ áp có màn hình" }
-  ],
-
   "lines": [
     {
       "id": "pro",
       "name": "SC Tech Pro",
       "badge": "PRO",
-      "highlight": "[ĐIỂM NỔI BẬT CỦA DÒNG PRO — VD: MẠCH MẠNH HƠN, NHIỀU CẢM BIẾN HƠN]",
-      "tagline": "[MÔ TẢ NGẮN DÒNG PRO — ĐIỂM MẠNH, DÀNH CHO AI]",
+      "highlight": "Có chế độ tự động tránh vật cản với 4 cảm biến siêu âm, encoder đo tốc độ, 4 pin 18650 sạc cân bằng ngay trên xe.",
+      "tagline": "Xe robot 4 bánh cho người muốn học nâng cao: lái bằng app hoặc để xe tự chạy tránh vật cản, pin khỏe, sạc ngay trên xe.",
       "guide_blurb": "Sơ đồ, video, code và app cho dòng Pro",
       "seo": {
         "title": "SC Tech Pro – Xe robot 4 bánh tự lắp, lập trình được | SmartCarTech",
@@ -51,16 +41,30 @@
         { "src": "assets/img/xe-mach.webp", "thumb": "assets/img/xe-mach-thumb.webp", "label": "Ảnh cận cảnh mạch điều khiển", "alt": "Cận cảnh mạch điều khiển và pin trên xe SC Tech Pro" }
       ],
       "video": { "youtube": "", "duration": "[THỜI LƯỢNG]", "poster": "assets/img/xe-toan-canh.webp" },
+      "components": [
+        { "id": "khung", "name": "Khung mica 2 tầng", "detail": "Kèm ốc vít, đai ốc, 12 trụ đồng 30mm" },
+        { "id": "dong-co", "name": "Động cơ giảm tốc V1 + bánh xe × 4", "detail": "Dẫn động cả 4 bánh" },
+        { "id": "mach", "name": "Arduino Nano V3.0 (ATmega328P)", "detail": "Kèm đế IO Shield V1.0, cáp Mini USB" },
+        { "id": "bluetooth", "name": "Module Bluetooth HC-06" },
+        { "id": "driver", "name": "Driver động cơ L298N" },
+        { "id": "cam-bien", "name": "Cảm biến siêu âm HC-SR04 × 4" },
+        { "id": "encoder", "name": "Cảm biến tốc độ encoder V2", "detail": "Kèm đĩa encoder 20 xung" },
+        { "id": "pin", "name": "Pin 18650 2000 mAh × 4", "detail": "Dòng xả 20A, kèm đế pin 4 cell" },
+        { "id": "sac", "name": "Mạch sạc & bảo vệ pin 4S 20A", "detail": "Sạc cân bằng ngay trên xe, kèm adapter 16,8V 2A và jack DC" },
+        { "id": "ha-ap", "name": "Mạch hạ áp LM2596 có màn hình", "detail": "Hiển thị điện áp pin" },
+        { "id": "den-coi", "name": "Đèn LED × 4 + còi buzzer 5V", "detail": "LED 7 màu + LED trắng siêu sáng" },
+        { "id": "phu-kien", "name": "Phụ kiện đấu dây", "detail": "Công tắc, điện trở, dây bus, dây điện 5 màu, ống co nhiệt" }
+      ],
       "kits": [
         {
           "id": "day-du",
           "name": "Bộ đầy đủ linh kiện",
           "short": "Bộ đầy đủ",
           "note": "Lắp xong là chạy — hợp người mới bắt đầu",
-          "contents": "Khung, động cơ, bánh, mạch, cảm biến, pin",
+          "contents": "Khung, động cơ, bánh, mạch, 4 cảm biến siêu âm, pin + mạch sạc",
           "price": 1490000,
           "shopee": "https://shopee.vn/",
-          "includes": ["khung", "dong-co", "banh", "mach", "cam-bien", "pin", "ha-ap"],
+          "includes": ["khung", "dong-co", "mach", "bluetooth", "driver", "cam-bien", "encoder", "pin", "sac", "ha-ap", "den-coi", "phu-kien"],
           "missing": "",
           "buy_more": ""
         },
@@ -69,24 +73,26 @@
           "name": "Khung + động cơ + bánh xe",
           "short": "Khung + động cơ + bánh",
           "note": "Tự chọn mạch và cảm biến theo ý bạn",
-          "contents": "Chưa gồm mạch, cảm biến và pin",
+          "contents": "Chưa gồm mạch, cảm biến, pin và bộ sạc",
           "price": 390000,
           "shopee": "https://shopee.vn/",
-          "includes": ["khung", "dong-co", "banh"],
-          "missing": "mạch điều khiển, cảm biến và pin",
-          "buy_more": "[DANH SÁCH LINH KIỆN CẦN MUA THÊM]"
+          "includes": ["khung", "dong-co"],
+          "partial": { "phu-kien": "Chỉ dây nối động cơ" },
+          "missing": "mạch điều khiển, cảm biến, pin và bộ sạc",
+          "buy_more": "Arduino Nano V3.0 + đế IO Shield, Bluetooth HC-06, driver L298N, 4 cảm biến siêu âm HC-SR04, encoder + đĩa 20 xung, 4 pin 18650 + đế pin 4 cell, mạch sạc 4S + adapter 16,8V, mạch hạ áp LM2596, đèn LED, còi buzzer, công tắc và dây điện"
         },
         {
           "id": "chi-khung",
           "name": "Chỉ khung xe",
           "short": "Chỉ khung",
           "note": "Cho người đã có sẵn linh kiện",
-          "contents": "Chỉ gồm khung mica 2 tầng",
+          "contents": "Khung mica 2 tầng, ốc vít, trụ đồng",
           "price": 290000,
           "shopee": "https://shopee.vn/",
           "includes": ["khung"],
-          "missing": "động cơ, bánh xe, mạch điều khiển, cảm biến và pin",
-          "buy_more": "[DANH SÁCH LINH KIỆN CẦN MUA THÊM]"
+          "partial": { "phu-kien": "Chỉ dây nối động cơ" },
+          "missing": "động cơ, bánh xe, mạch điều khiển, cảm biến, pin và bộ sạc",
+          "buy_more": "4 động cơ giảm tốc V1 + bánh xe, Arduino Nano V3.0 + đế IO Shield, Bluetooth HC-06, driver L298N, 4 cảm biến siêu âm HC-SR04, encoder + đĩa 20 xung, 4 pin 18650 + đế pin 4 cell, mạch sạc 4S + adapter 16,8V, mạch hạ áp LM2596, đèn LED, còi buzzer, công tắc và dây điện"
         }
       ],
       "features": [
@@ -96,18 +102,17 @@
         { "tag": "DẪN ĐỘNG 4 BÁNH", "title": "Bánh cao su gai lớn", "text": "Bốn bánh cao su gai lớn, dẫn động cả 4 bánh giúp xe chạy chắc chắn.", "image": "assets/img/tinh-nang-banh.webp", "alt": "Cận cảnh bánh xe cao su" }
       ],
       "guide": {
-        "video": { "youtube": "", "duration": "[THỜI LƯỢNG]", "poster": "assets/img/xe-toan-canh.webp" },
-        "chapters": [
-          { "time": "[mm:ss]", "title": "Kiểm tra linh kiện trong hộp" },
-          { "time": "[mm:ss]", "title": "Lắp khung và động cơ" },
-          { "time": "[mm:ss]", "title": "Lắp bánh xe" },
-          { "time": "[mm:ss]", "title": "Gắn mạch điều khiển và cảm biến" },
-          { "time": "[mm:ss]", "title": "Đấu dây và lắp pin" }
+        "poster": "assets/img/xe-toan-canh.webp",
+        "videos": [
+          { "title": "Video hướng dẫn phần 1", "youtube": "G8z73FrHeUU", "duration": "13:36" },
+          { "title": "Video hướng dẫn phần 2", "youtube": "KCNC0n9yu4Y", "duration": "14:18" },
+          { "title": "Video hướng dẫn phần 3", "youtube": "iWCx6mnD9A0", "duration": "8:51" }
         ],
-        "circuit_image": "",
-        "circuit_pdf": "",
-        "assembly_pdf": "",
-        "software": "[TÊN PHẦN MỀM, VD: ARDUINO IDE]",
+        "circuit_image": "assets/img/so-do-mach-sc-tech-pro.webp",
+        "circuit_download": "https://drive.google.com/drive/folders/1F0oON8hwdz0fbQke0oqF0t1nHqst42zV?usp=sharing",
+        "cad_download": "https://drive.google.com/drive/folders/1yNRV_582DXAd5sLXivhxiFuKtpddJsaa?usp=sharing",
+        "software": "Arduino IDE",
+        "upload_note": "Khi nạp code cho Arduino Nano, nếu chọn Processor là “ATmega328P (Old Bootloader)” mà không nạp được thì chọn lại Processor là “ATmega328P” và thử lại.",
         "github": "",
         "code": [
           { "title": "Chạy thử động cơ", "desc": "Kiểm tra 4 bánh quay đúng chiều", "zip": "" },
@@ -115,12 +120,16 @@
           { "title": "Điều khiển qua app", "desc": "Kết nối xe với app trên điện thoại", "zip": "" }
         ],
         "app": {
-          "name": "[TÊN APP]",
-          "connection": "[BLUETOOTH / WI-FI]",
-          "google_play": "",
+          "name": "SC Tech Pro",
+          "connection": "Bluetooth",
+          "google_play": "https://play.google.com/store/apps/details?id=com.smartcartech.SC_Tech_Pro",
           "app_store": "",
-          "qr_image": "",
-          "screenshot": ""
+          "qr_image": "assets/img/qr-app-sc-tech-pro.png",
+          "screens": [
+            { "label": "Đăng nhập", "src": "assets/img/app-dang-nhap.webp", "alt": "Màn hình đăng nhập của app, ô nhập mật khẩu" },
+            { "label": "Kết nối xe", "src": "assets/img/app-ket-noi-xe.webp", "alt": "Màn hình Setting của app với nút Scan Car" },
+            { "label": "Điều khiển", "src": "assets/img/app-dieu-khien-sc-tech-pro.webp", "alt": "Màn hình điều khiển app SC Tech Pro: nút tiến, lùi, trái, phải, 2 nút đèn, nút AUTO và tốc độ km/h" }
+          ]
         }
       }
     },
@@ -128,8 +137,8 @@
       "id": "std",
       "name": "SC Tech",
       "badge": "TIÊU CHUẨN",
-      "highlight": "[ĐIỂM NỔI BẬT CỦA DÒNG TIÊU CHUẨN — VD: GIÁ DỄ TIẾP CẬN, HỢP NGƯỜI MỚI]",
-      "tagline": "[MÔ TẢ NGẮN DÒNG TIÊU CHUẨN — ĐIỂM MẠNH, DÀNH CHO AI]",
+      "highlight": "Giá dễ tiếp cận, hợp người mới: tự lắp xe, nạp code, lái bằng app qua Bluetooth, có đèn LED và còi.",
+      "tagline": "Xe robot 4 bánh cho người mới bắt đầu: mạch Arduino Nano, điều khiển bằng app qua Bluetooth, đèn LED và còi, 3 pin 18650 kèm bộ sạc.",
       "guide_blurb": "Sơ đồ, video, code và app cho dòng tiêu chuẩn",
       "seo": {
         "title": "SC Tech – Xe robot 4 bánh tự lắp cho người mới | SmartCarTech",
@@ -138,20 +147,30 @@
       "image": { "src": "assets/img/xe-toan-canh.webp", "src_small": "assets/img/xe-toan-canh-640.webp", "thumb": "assets/img/xe-toan-canh-thumb.webp", "alt": "Xe robot SC Tech" },
       "gallery": [
         { "src": "assets/img/xe-toan-canh.webp", "thumb": "assets/img/xe-toan-canh-thumb.webp", "label": "Ảnh toàn cảnh", "alt": "Xe robot SC Tech nhìn toàn cảnh, khung mica 2 tầng và 4 bánh cao su" },
-        { "src": "assets/img/xe-cam-bien.webp", "thumb": "assets/img/xe-cam-bien-thumb.webp", "label": "Ảnh cận cảnh cảm biến", "alt": "Cận cảnh cụm cảm biến siêu âm ở đầu xe SC Tech" },
-        { "src": "assets/img/xe-mach.webp", "thumb": "assets/img/xe-mach-thumb.webp", "label": "Ảnh cận cảnh mạch điều khiển", "alt": "Cận cảnh mạch điều khiển và pin trên xe SC Tech" }
+        { "src": "assets/img/xe-mach.webp", "thumb": "assets/img/xe-mach-thumb.webp", "label": "Ảnh cận cảnh mạch điều khiển", "alt": "Cận cảnh mạch điều khiển trên xe SC Tech" }
       ],
       "video": { "youtube": "", "duration": "[THỜI LƯỢNG]", "poster": "assets/img/xe-toan-canh.webp" },
+      "components": [
+        { "id": "khung", "name": "Khung mica 2 tầng", "detail": "Kèm ốc vít, đai ốc, 10 trụ đồng 30mm" },
+        { "id": "dong-co", "name": "Động cơ giảm tốc V1 + bánh xe × 4", "detail": "Dẫn động cả 4 bánh" },
+        { "id": "mach", "name": "Arduino Nano V3.0 (ATmega328P)", "detail": "Kèm đế IO Shield V1.0, cáp Mini USB" },
+        { "id": "bluetooth", "name": "Module Bluetooth HC-06" },
+        { "id": "driver", "name": "Driver động cơ L298N" },
+        { "id": "pin", "name": "Pin 18650 2000 mAh × 3", "detail": "Dòng xả 20A, kèm hộp đế pin 3 cell" },
+        { "id": "sac", "name": "Bộ sạc pin 18650 (2 khe)", "detail": "Tháo pin ra để sạc" },
+        { "id": "den-coi", "name": "Đèn LED × 4 + còi buzzer 5V", "detail": "LED 7 màu + LED trắng siêu sáng" },
+        { "id": "phu-kien", "name": "Phụ kiện đấu dây", "detail": "Công tắc, điện trở, dây bus, dây điện 5 màu, ống co nhiệt" }
+      ],
       "kits": [
         {
           "id": "day-du",
           "name": "Bộ đầy đủ linh kiện",
           "short": "Bộ đầy đủ",
           "note": "Lắp xong là chạy — hợp người mới bắt đầu",
-          "contents": "Khung, động cơ, bánh, mạch, cảm biến, pin",
+          "contents": "Khung, động cơ, bánh, mạch, Bluetooth, pin + bộ sạc",
           "price": 990000,
           "shopee": "https://shopee.vn/",
-          "includes": ["khung", "dong-co", "banh", "mach", "cam-bien", "pin", "ha-ap"],
+          "includes": ["khung", "dong-co", "mach", "bluetooth", "driver", "pin", "sac", "den-coi", "phu-kien"],
           "missing": "",
           "buy_more": ""
         },
@@ -160,73 +179,81 @@
           "name": "Khung + động cơ + bánh xe",
           "short": "Khung + động cơ + bánh",
           "note": "Tự chọn mạch và cảm biến theo ý bạn",
-          "contents": "Chưa gồm mạch, cảm biến và pin",
+          "contents": "Chưa gồm mạch, pin và bộ sạc",
           "price": 360000,
           "shopee": "https://shopee.vn/",
-          "includes": ["khung", "dong-co", "banh"],
-          "missing": "mạch điều khiển, cảm biến và pin",
-          "buy_more": "[DANH SÁCH LINH KIỆN CẦN MUA THÊM]"
+          "includes": ["khung", "dong-co"],
+          "partial": { "phu-kien": "Chỉ dây nối động cơ" },
+          "missing": "mạch điều khiển, pin và bộ sạc",
+          "buy_more": "Arduino Nano V3.0 + đế IO Shield, Bluetooth HC-06, driver L298N, 3 pin 18650 + hộp pin 3 cell, bộ sạc pin 18650, đèn LED, còi buzzer, công tắc và dây điện"
         },
         {
           "id": "chi-khung",
           "name": "Chỉ khung xe",
           "short": "Chỉ khung",
           "note": "Cho người đã có sẵn linh kiện",
-          "contents": "Chỉ gồm khung mica 2 tầng",
+          "contents": "Khung mica 2 tầng, ốc vít, trụ đồng",
           "price": 260000,
           "shopee": "https://shopee.vn/",
           "includes": ["khung"],
-          "missing": "động cơ, bánh xe, mạch điều khiển, cảm biến và pin",
-          "buy_more": "[DANH SÁCH LINH KIỆN CẦN MUA THÊM]"
+          "partial": { "phu-kien": "Chỉ dây nối động cơ" },
+          "missing": "động cơ, bánh xe, mạch điều khiển, pin và bộ sạc",
+          "buy_more": "4 động cơ giảm tốc V1 + bánh xe, Arduino Nano V3.0 + đế IO Shield, Bluetooth HC-06, driver L298N, 3 pin 18650 + hộp pin 3 cell, bộ sạc pin 18650, đèn LED, còi buzzer, công tắc và dây điện"
         }
       ],
       "features": [
-        { "tag": "TRÁNH VẬT CẢN", "title": "Cụm cảm biến siêu âm phía trước", "text": "Đo khoảng cách theo nhiều hướng để xe tự tìm đường khi gặp vật cản.", "image": "assets/img/tinh-nang-cam-bien.webp", "alt": "Cận cảnh cụm cảm biến siêu âm ở đầu xe" },
-        { "tag": "LẬP TRÌNH ĐƯỢC", "title": "Mạch điều khiển mở", "text": "Nạp code mẫu hoặc tự viết chương trình, dễ đấu thêm module qua các cổng terminal.", "image": "assets/img/tinh-nang-mach.webp", "alt": "Cận cảnh mạch điều khiển" },
-        { "tag": "NGUỒN ĐIỆN", "title": "Pin sạc, theo dõi điện áp", "text": "Bốn pin 18650 sạc lại được, mạch hạ áp có màn hình hiển thị điện áp.", "image": "assets/img/tinh-nang-pin.webp", "alt": "Cận cảnh pin sạc và màn hình điện áp" },
+        { "tag": "ĐIỀU KHIỂN QUA APP", "title": "Lái xe bằng điện thoại", "text": "Kết nối Bluetooth (HC-06) với app trên điện thoại để điều khiển xe tiến, lùi, rẽ trái, rẽ phải.", "image": "assets/img/tinh-nang-mach.webp", "alt": "Cận cảnh mạch điều khiển trên xe" },
+        { "tag": "ĐÈN & CÒI", "title": "Đèn LED và còi báo", "text": "4 đèn LED (7 màu + trắng siêu sáng) và còi 5V — bật đèn, bấm còi khi điều khiển xe.", "image": "assets/img/xe-toan-canh.webp", "alt": "Xe robot SC Tech nhìn toàn cảnh" },
+        { "tag": "LẬP TRÌNH ĐƯỢC", "title": "Mạch Arduino Nano", "text": "Nạp code mẫu hoặc tự viết chương trình qua cáp Mini USB, đế IO Shield giúp cắm dây dễ dàng.", "image": "assets/img/xe-mach.webp", "alt": "Cận cảnh mạch Arduino Nano trên xe" },
         { "tag": "DẪN ĐỘNG 4 BÁNH", "title": "Bánh cao su gai lớn", "text": "Bốn bánh cao su gai lớn, dẫn động cả 4 bánh giúp xe chạy chắc chắn.", "image": "assets/img/tinh-nang-banh.webp", "alt": "Cận cảnh bánh xe cao su" }
       ],
       "guide": {
-        "video": { "youtube": "", "duration": "[THỜI LƯỢNG]", "poster": "assets/img/xe-toan-canh.webp" },
-        "chapters": [
-          { "time": "[mm:ss]", "title": "Kiểm tra linh kiện trong hộp" },
-          { "time": "[mm:ss]", "title": "Lắp khung và động cơ" },
-          { "time": "[mm:ss]", "title": "Lắp bánh xe" },
-          { "time": "[mm:ss]", "title": "Gắn mạch điều khiển và cảm biến" },
-          { "time": "[mm:ss]", "title": "Đấu dây và lắp pin" }
+        "poster": "assets/img/xe-toan-canh.webp",
+        "videos": [
+          { "title": "Lắp ráp, đấu dây, nạp code và điều khiển", "youtube": "jqxYmdSYLkE", "duration": "13:37" }
         ],
-        "circuit_image": "",
-        "circuit_pdf": "",
-        "assembly_pdf": "",
-        "software": "[TÊN PHẦN MỀM, VD: ARDUINO IDE]",
+        "circuit_image": "assets/img/so-do-mach-sc-tech.webp",
+        "circuit_download": "https://drive.google.com/drive/folders/1F0oON8hwdz0fbQke0oqF0t1nHqst42zV?usp=sharing",
+        "cad_download": "https://drive.google.com/drive/folders/1yNRV_582DXAd5sLXivhxiFuKtpddJsaa?usp=sharing",
+        "software": "Arduino IDE",
+        "upload_note": "Khi nạp code cho Arduino Nano, nếu chọn Processor là “ATmega328P (Old Bootloader)” mà không nạp được thì chọn lại Processor là “ATmega328P” và thử lại.",
         "github": "",
         "code": [
           { "title": "Chạy thử động cơ", "desc": "Kiểm tra 4 bánh quay đúng chiều", "zip": "" },
-          { "title": "Tránh vật cản", "desc": "Xe tự chạy và né vật cản bằng cảm biến siêu âm", "zip": "" },
-          { "title": "Điều khiển qua app", "desc": "Kết nối xe với app trên điện thoại", "zip": "" }
+          { "title": "Đèn LED và còi", "desc": "Chạy thử 4 đèn LED và còi buzzer", "zip": "" },
+          { "title": "Điều khiển qua app", "desc": "Kết nối xe với app trên điện thoại qua Bluetooth", "zip": "" }
         ],
         "app": {
-          "name": "[TÊN APP]",
-          "connection": "[BLUETOOTH / WI-FI]",
-          "google_play": "",
+          "name": "SC Tech",
+          "connection": "Bluetooth",
+          "google_play": "https://play.google.com/store/apps/details?id=com.smartcartech.SC_Tech",
           "app_store": "",
-          "qr_image": "",
-          "screenshot": ""
+          "qr_image": "assets/img/qr-app-sc-tech.png",
+          "screens": [
+            { "label": "Đăng nhập", "src": "assets/img/app-dang-nhap.webp", "alt": "Màn hình đăng nhập của app, ô nhập mật khẩu" },
+            { "label": "Kết nối xe", "src": "assets/img/app-ket-noi-xe.webp", "alt": "Màn hình Setting của app với nút Scan Car" },
+            { "label": "Điều khiển", "src": "assets/img/app-dieu-khien-sc-tech.webp", "alt": "Màn hình điều khiển app SC Tech: nút tiến, lùi, trái, phải, 2 nút đèn và nút còi" }
+          ]
         }
       }
     }
   ],
 
   "specs": [
-    { "label": "Mạch điều khiển", "pro": "[ĐIỀN]", "std": "[ĐIỀN]" },
-    { "label": "Cảm biến", "pro": "Siêu âm × [SỐ LƯỢNG]", "std": "[ĐIỀN]" },
-    { "label": "Động cơ", "pro": "[ĐIỀN]", "std": "[ĐIỀN]" },
-    { "label": "Nguồn điện", "pro": "4 × pin sạc 18650", "std": "[ĐIỀN]" },
-    { "label": "Khung xe", "pro": "Mica 2 tầng", "std": "[ĐIỀN]" },
-    { "label": "Kết nối điện thoại", "pro": "[ĐIỀN]", "std": "[ĐIỀN]" },
-    { "label": "Kích thước", "pro": "[D × R × C] mm", "std": "[D × R × C] mm" },
-    { "label": "Trọng lượng", "pro": "[KHỐI LƯỢNG]", "std": "[KHỐI LƯỢNG]" },
-    { "label": "Phù hợp cho", "pro": "[ĐỐI TƯỢNG]", "std": "[ĐỐI TƯỢNG]" }
+    { "label": "Chế độ chạy", "pro": "Điều khiển bằng app + chế độ tự động tránh vật cản", "std": "Điều khiển bằng app" },
+    { "label": "Mạch điều khiển", "pro": "Arduino Nano V3.0 (ATmega328P) + đế IO Shield", "std": "Arduino Nano V3.0 (ATmega328P) + đế IO Shield" },
+    { "label": "Kết nối điện thoại", "pro": "Bluetooth (module HC-06)", "std": "Bluetooth (module HC-06)" },
+    { "label": "Driver động cơ", "pro": "L298N", "std": "L298N" },
+    { "label": "Động cơ", "pro": "4 × động cơ giảm tốc V1, dẫn động 4 bánh", "std": "4 × động cơ giảm tốc V1, dẫn động 4 bánh" },
+    { "label": "Cảm biến siêu âm", "pro": "4 × HC-SR04", "std": "Không kèm" },
+    { "label": "Cảm biến tốc độ", "pro": "Encoder V2 + đĩa 20 xung", "std": "Không kèm" },
+    { "label": "Pin", "pro": "4 × 18650 2000 mAh, mắc 4S", "std": "3 × 18650 2000 mAh" },
+    { "label": "Sạc pin", "pro": "Sạc cân bằng tích hợp trên xe (mạch 4S + adapter 16,8V 2A)", "std": "Tháo pin, sạc bằng bộ sạc rời 2 khe" },
+    { "label": "Hiển thị điện áp", "pro": "Mạch hạ áp LM2596 có màn hình", "std": "Không có" },
+    { "label": "Đèn & còi", "pro": "4 đèn LED (7 màu + trắng siêu sáng), còi 5V", "std": "4 đèn LED (7 màu + trắng siêu sáng), còi 5V" },
+    { "label": "Khung xe", "pro": "Mica 2 tầng, 12 trụ đồng", "std": "Mica 2 tầng, 10 trụ đồng" },
+    { "label": "Kích thước (D × R × C)", "pro": "28 × 15 × 8 cm", "std": "28 × 15 × 8 cm" },
+    { "label": "Phù hợp cho", "pro": "Người muốn học nâng cao: xe tự tránh vật cản, đo tốc độ, pin khỏe, sạc ngay trên xe", "std": "Người mới bắt đầu: tự lắp xe, nạp code, lái bằng app với đèn và còi cơ bản" }
   ],
 
   "faq": [

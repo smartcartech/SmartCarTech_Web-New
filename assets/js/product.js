@@ -119,10 +119,18 @@ boot((data) => {
   function renderBox() {
     const l = line();
     const k = kit();
-    const comps = data.components;
+    const comps = l.components || [];
     const has = (kitObj, c) => kitObj.includes.includes(c.id);
+    const part = (kitObj, c) => (has(kitObj, c) ? '' : kitObj.partial?.[c.id] || '');
     const yes = `${icon('check', 'icon--md box-yes')}<span class="sr-only">Có</span>`;
     const no = `${icon('dash', 'icon--md box-no')}<span class="sr-only">Không kèm</span>`;
+    const cell = (kitObj, c) => {
+      if (has(kitObj, c)) return yes;
+      const p = part(kitObj, c);
+      return p ? `<span class="box-part">${esc(p)}</span>` : no;
+    };
+    const compName = (c) => `
+      <span class="box-comp">${esc(c.name)}</span>${c.detail ? `<span class="box-comp__detail">${esc(c.detail)}</span>` : ''}`;
     const on = (kitObj) => (kitObj.id === k.id ? ' is-col-on' : '');
 
     $('[data-box-table]').innerHTML = `
@@ -137,8 +145,8 @@ boot((data) => {
         <tbody>
           ${comps.map((c) => `
             <tr>
-              <th scope="row">${esc(c.name)}</th>
-              ${l.kits.map((kk) => `<td class="${on(kk)}">${has(kk, c) ? yes : no}</td>`).join('')}
+              <th scope="row">${compName(c)}</th>
+              ${l.kits.map((kk) => `<td class="${on(kk)}">${cell(kk, c)}</td>`).join('')}
             </tr>`).join('')}
           <tr class="box-table__price">
             <th scope="row">Giá</th>
@@ -151,11 +159,15 @@ boot((data) => {
       <ul class="box-list" role="list" aria-label="Linh kiện trong ${esc(k.name)}">
         ${comps.map((c) => {
           const ok = has(k, c);
+          const p = part(k, c);
+          let mark = icon('dash', 'icon--md box-no');
+          if (ok) mark = icon('check', 'icon--md box-yes');
+          else if (p) mark = icon('info', 'icon--md box-part-icon');
           return `
-            <li class="box-list__item${ok ? '' : ' is-off'}">
-              ${ok ? icon('check', 'icon--md box-yes') : icon('dash', 'icon--md box-no')}
-              <span class="box-list__name">${esc(c.name)}</span>
-              <span class="box-list__tag">${ok ? 'Có' : 'Không kèm'}</span>
+            <li class="box-list__item${ok ? '' : p ? ' is-part' : ' is-off'}">
+              ${mark}
+              <span class="box-list__name">${compName(c)}</span>
+              <span class="box-list__tag">${ok ? 'Có' : esc(p) || 'Không kèm'}</span>
             </li>`;
         }).join('')}
       </ul>
@@ -180,6 +192,8 @@ boot((data) => {
   function renderCompare() {
     const lines = data.lines;
     const on = (l) => (l.id === state.line ? ' is-col-on' : '');
+    // A row is a difference when the lines don't all share the same value
+    const differs = (s) => new Set(lines.map((l) => String(s[l.id] ?? '').trim())).size > 1;
     $('[data-compare]').innerHTML = `
       <table class="table compare-table">
         <caption class="sr-only">So sánh thông số ${lines.map((l) => esc(l.name)).join(' và ')}. Cột được làm nổi bật là dòng đang chọn.</caption>
@@ -194,8 +208,8 @@ boot((data) => {
         </thead>
         <tbody>
           ${data.specs.map((s) => `
-            <tr>
-              <th scope="row">${esc(s.label)}</th>
+            <tr${differs(s) ? ' class="is-diff"' : ''}>
+              <th scope="row">${esc(s.label)}${differs(s) ? '<span class="sr-only"> (khác nhau)</span>' : ''}</th>
               ${lines.map((l) => `<td class="${on(l)}">${esc(s[l.id] ?? '')}</td>`).join('')}
             </tr>`).join('')}
           <tr>

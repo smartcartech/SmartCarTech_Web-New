@@ -4,13 +4,6 @@ import {
   buyNow, addToCart, setLink, setMeta, toast,
 } from './core.js';
 
-/** "1:30" → 90, "01:02:03" → 3723, anything else → 0 */
-function toSeconds(time) {
-  const parts = String(time || '').trim().split(':').map(Number);
-  if (!parts.length || parts.some((n) => !Number.isFinite(n))) return 0;
-  return parts.reduce((acc, n) => acc * 60 + n, 0);
-}
-
 function openLightbox(src, alt) {
   const box = document.createElement('div');
   box.className = 'lightbox';
@@ -38,12 +31,14 @@ function openLightbox(src, alt) {
 
 boot((data) => {
   const q = params();
-  const state = { line: getLine(data, q.get('dong')).id, kit: null };
+  // screen: which app screenshot is shown (-1 = the last one, the driving screen)
+  const state = { line: getLine(data, q.get('dong')).id, kit: null, video: 0, screen: -1 };
   state.kit = getKit(getLine(data, state.line), q.get('bo')).id;
 
   const line = () => getLine(data, state.line);
   const kit = () => getKit(line(), state.kit);
   const fullKit = () => line().kits[0];
+  const videos = () => line().guide?.videos || [];
 
   /* ---------- Chọn dòng xe ---------- */
   function renderLineCards() {
@@ -89,17 +84,18 @@ boot((data) => {
     const g = l.guide || {};
     $$('[data-line-name]').forEach((el) => { el.textContent = l.name; });
 
-    // Step 1 — video + chapters
+    // Step 1 — video + video list
     resetVideo();
-    $('[data-video-poster]').src = g.video?.poster || l.image.src;
-    $('[data-guide-duration]').textContent = g.video?.duration || '';
-    $('[data-chapters]').innerHTML = (g.chapters || []).map((c) => `
+    $('[data-video-poster]').src = g.poster || l.image.src;
+    $('[data-video-list]').innerHTML = videos().map((v, i) => `
       <li>
-        <button type="button" class="chapter" data-time="${toSeconds(c.time)}">
-          <span class="chapter__time">${esc(c.time)}</span>
-          <span class="chapter__title">${esc(c.title)}</span>
+        <button type="button" class="video-item" data-video="${i}" aria-pressed="false">
+          <span class="video-item__num">${icon('play')}<span class="sr-only">Phát</span></span>
+          <span class="video-item__title">${esc(v.title)}</span>
+          <span class="video-item__dur">${esc(v.duration || '')}</span>
         </button>
       </li>`).join('');
+    renderVideoState();
 
     // Circuit diagram
     const preview = $('[data-zoom]');
@@ -109,12 +105,21 @@ boot((data) => {
       preview.insertAdjacentHTML('afterbegin',
         `<img class="circuit__img" src="${esc(g.circuit_image)}" alt="Sơ đồ mạch ${esc(l.name)}" loading="lazy" decoding="async">`);
     }
-    setLink($('[data-pdf="circuit_pdf"]'), g.circuit_pdf, 'File sơ đồ mạch (PDF) đang được cập nhật.');
-    setLink($('[data-pdf="assembly_pdf"]'), g.assembly_pdf, 'File sơ đồ lắp ráp (PDF) đang được cập nhật.');
-    $$('[data-pdf]').forEach((a) => { if (a.getAttribute('aria-disabled') !== 'true') a.setAttribute('download', ''); });
+    setLink($('[data-file="circuit_download"]'), g.circuit_download, 'File sơ đồ mạch đang được cập nhật.');
+    setLink($('[data-file="cad_download"]'), g.cad_download, 'Bản vẽ 3D đang được cập nhật.');
+    // Files on this site download directly; external links (Google Drive) open in a new tab
+    $$('[data-file]').forEach((a) => {
+      const url = g[a.dataset.file];
+      a.toggleAttribute('download', Boolean(url) && !/^https?:/i.test(url));
+    });
 
     // Step 2 — software & sample code
     $('[data-software]').textContent = g.software || '';
+    const uploadNote = $('[data-upload-note]');
+    uploadNote.hidden = !g.upload_note;
+    uploadNote.innerHTML = g.upload_note
+      ? `<span class="note__text">${icon('info', 'icon--md')}<span><strong>Lưu ý:</strong> ${esc(g.upload_note)}</span></span>`
+      : '';
     setLink($('[data-github]'), g.github, 'Trang GitHub đang được cập nhật.');
     $('[data-code-list]').innerHTML = (g.code || []).map((c, i) => `
       <li class="code-item">
@@ -138,14 +143,14 @@ boot((data) => {
     $('[data-app-name]').textContent = app.name || '';
     $('[data-app-connection]').textContent = app.connection || '';
     setLink($('[data-store="google_play"]'), app.google_play, 'Link Google Play đang được cập nhật.');
-    setLink($('[data-store="app_store"]'), app.app_store, 'Link App Store đang được cập nhật.');
+    // No iOS app yet: hide the App Store button instead of promising one
+    $('[data-store="app_store"]').hidden = !app.app_store;
+    setLink($('[data-store="app_store"]'), app.app_store);
     $('[data-qr]').innerHTML = app.qr_image
-      ? `<img src="${esc(app.qr_image)}" alt="Mã QR tải app ${esc(app.name)}" width="116" height="116" loading="lazy">`
+      ? `<img src="${esc(app.qr_image)}" alt="Mã QR tải app ${esc(app.name)} trên Google Play" width="116" height="116" loading="lazy">`
       : '[MÃ QR]';
-    if (app.screenshot) {
-      $('[data-app-screen]').innerHTML = `<img src="${esc(app.screenshot)}" alt="Màn hình app ${esc(app.name)} điều khiển ${esc(l.name)}" loading="lazy">`;
-      $('[data-app-screen]').classList.add('has-img');
-    }
+    $('[data-qr]').classList.toggle('has-img', Boolean(app.qr_image));
+    renderAppScreen();
 
     // Buy band — full kit of this line
     const fk = fullKit();
@@ -159,6 +164,27 @@ boot((data) => {
     });
   }
 
+  /* ---------- App screenshots: phone mock + tabs ---------- */
+  const screenPlaceholder = $('[data-app-screen]').innerHTML;
+  const screens = () => line().guide?.app?.screens || [];
+
+  function renderAppScreen() {
+    const list = screens();
+    const box = $('[data-app-screen]');
+    const tabs = $('[data-app-tabs]');
+    tabs.hidden = list.length < 2;
+    box.classList.toggle('has-img', list.length > 0);
+    if (!list.length) {
+      box.innerHTML = screenPlaceholder;
+      tabs.innerHTML = '';
+      return;
+    }
+    const s = list[state.screen] || list[list.length - 1];
+    box.innerHTML = `<img src="${esc(s.src)}" alt="${esc(s.alt || `Màn hình app ${line().guide.app.name}`)}" width="1600" height="768" loading="lazy" decoding="async">`;
+    tabs.innerHTML = list.map((t, i) => `
+      <button type="button" class="pill-btn" data-screen="${i}" aria-pressed="${t === s}">${esc(t.label)}</button>`).join('');
+  }
+
   /* ---------- Video ---------- */
   function resetVideo() {
     const card = $('[data-guide-video]');
@@ -166,10 +192,20 @@ boot((data) => {
     $('[data-video-overlay]').hidden = false;
   }
 
-  function playVideo(start = 0) {
+  /** Tag on the video card + highlighted item in the list */
+  function renderVideoState() {
+    const list = videos();
+    const v = list[state.video];
+    let tag = 'Video';
+    if (list.length > 1) tag = `Phần ${state.video + 1}/${list.length}`;
+    $('[data-guide-tag]').textContent = v?.duration ? `${tag} · ${v.duration}` : tag;
+    $$('[data-video-list] .video-item').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.video) === state.video)));
+  }
+
+  function playVideo() {
     const l = line();
-    const id = l.guide?.video?.youtube;
-    if (!id) {
+    const v = videos()[state.video];
+    if (!v?.youtube) {
       toast('Video hướng dẫn đang được cập nhật.');
       return;
     }
@@ -177,8 +213,8 @@ boot((data) => {
     $('iframe', card)?.remove();
     const frame = document.createElement('iframe');
     frame.className = 'video-frame';
-    frame.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0&start=${start}`;
-    frame.title = `Video lắp ráp ${l.name}`;
+    frame.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(v.youtube)}?autoplay=1&rel=0`;
+    frame.title = `${v.title} – ${l.name}`;
     frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
     $('[data-video-overlay]').hidden = true;
     card.appendChild(frame);
@@ -204,6 +240,8 @@ boot((data) => {
     if (!b || b.dataset.line === state.line) return;
     state.line = b.dataset.line;
     state.kit = getKit(line(), state.kit).id;
+    state.video = 0;
+    state.screen = -1;
     renderAll();
     $(`.line-card[data-line="${state.line}"]`)?.focus();
   });
@@ -217,12 +255,22 @@ boot((data) => {
     $(`.pill-btn[data-kit="${state.kit}"]`)?.focus();
   });
 
-  $('[data-play-guide]').addEventListener('click', () => playVideo(0));
-  $('[data-chapters]').addEventListener('click', (e) => {
-    const c = e.target.closest('.chapter');
-    if (!c) return;
-    playVideo(Number(c.dataset.time) || 0);
+  $('[data-play-guide]').addEventListener('click', playVideo);
+  $('[data-video-list]').addEventListener('click', (e) => {
+    const b = e.target.closest('.video-item');
+    if (!b) return;
+    state.video = Number(b.dataset.video) || 0;
+    renderVideoState();
+    playVideo();
     $('[data-guide-video]').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
+  $('[data-app-tabs]').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-screen]');
+    if (!b) return;
+    state.screen = Number(b.dataset.screen);
+    renderAppScreen();
+    $(`[data-app-tabs] [data-screen="${state.screen}"]`)?.focus();
   });
 
   $('[data-zoom]').addEventListener('click', () => {

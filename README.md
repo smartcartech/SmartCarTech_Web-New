@@ -51,23 +51,29 @@ Tên miền **smartcartech.vn** đã được ghi sẵn trong: `og:image` (4 fil
 | Số Zalo, hotline, email, link Facebook / TikTok / YouTube | `site` |
 | Giá từng bộ | `lines[].kits[].price` — số nguyên, không có dấu chấm. VD: `1590000` |
 | Link Shopee từng bộ | `lines[].kits[].shopee` |
-| Bộ nào gồm linh kiện gì (bảng "Mỗi bộ gồm những gì") | `lines[].kits[].includes` — dùng các `id` trong `components` |
+| Danh sách linh kiện của từng dòng (các hàng trong bảng "Mỗi bộ gồm những gì") | `lines[].components` — mỗi linh kiện có `id`, `name`, `detail` (mô tả nhỏ, có thể bỏ) |
+| Bộ nào gồm linh kiện gì | `lines[].kits[].includes` — dùng các `id` trong `components` của dòng đó. Linh kiện chỉ có một phần: ghi vào `partial`, VD: `{ "phu-kien": "Chỉ dây nối động cơ" }` |
 | Ghi chú "chưa gồm… / chuẩn bị thêm…" ở trang Hướng dẫn | `lines[].kits[].missing`, `buy_more` |
 | Tên, mô tả, điểm nổi bật, huy hiệu từng dòng | `lines[].name / tagline / highlight / badge` |
 | Tiêu đề & mô tả SEO của trang sản phẩm | `lines[].seo` |
 | Ảnh sản phẩm, ảnh gallery | `lines[].image`, `lines[].gallery` |
-| Video giới thiệu / video lắp ráp | `video.youtube`, `guide.video.youtube`: dán **mã** video (phần sau `v=`) |
-| Mốc thời gian các chương video | `guide.chapters[].time`, dạng `"02:15"` — bấm vào chương thì video nhảy đến đúng giây đó |
-| Sơ đồ mạch, file PDF, code .zip, GitHub | `guide.circuit_image`, `circuit_pdf`, `assembly_pdf`, `code[].zip`, `github` |
+| Video giới thiệu (trang Sản phẩm) | `video.youtube`: dán **mã** video (phần sau `v=` hoặc sau `/embed/`) |
+| Video hướng dẫn (trang Hướng dẫn) | `guide.videos` — mỗi video có `title`, `youtube` (mã video), `duration` (VD `"13:36"`). Nhiều video thì hiện thành danh sách Phần 1, 2, 3… |
+| Lưu ý khi nạp code (bước 2) | `guide.upload_note` — để `""` thì ẩn |
+| Ảnh sơ đồ mạch (bấm để phóng to) | `guide.circuit_image` |
+| Nút "Tải sơ đồ mạch", "Bản vẽ 3D (SolidWorks)" | `guide.circuit_download`, `guide.cad_download` — link Google Drive hoặc file trong `assets/` |
+| Code .zip, GitHub | `guide.code[].zip`, `guide.github` |
 | Nội dung chính sách bảo hành, vận chuyển & đổi trả | Sửa trực tiếp trong `chinh-sach.html` (không nằm trong `products.json`) |
-| App: tên, kết nối, link cửa hàng, mã QR, ảnh chụp màn hình | `guide.app` |
+| App: tên, kết nối, link cửa hàng, mã QR | `guide.app` |
+| Ảnh chụp màn hình app (khung điện thoại nằm ngang) | `guide.app.screens` — mỗi ảnh có `label` (tên nút chuyển), `src`, `alt`. Mặc định hiện ảnh cuối cùng |
+| Các bước kết nối app (HC-06, mật khẩu 1234…) | Sửa trực tiếp trong `huong-dan.html`, phần Bước 3 |
 | Chức năng ("Xe làm được gì?") | `lines[].features` |
-| Bảng thông số & so sánh | `specs` — mỗi dòng có `label`, `pro`, `std` |
+| Bảng thông số & so sánh | `specs` — mỗi dòng có `label`, `pro`, `std`. Hàng nào `pro` khác `std` sẽ tự được đánh dấu vạch xanh |
 | Câu hỏi thường gặp | `faq` |
 
 **Lưu ý khi sửa:**
 
-- **Link còn trống `""`:** nút vẫn hiện. Khi khách bấm, web báo "đang cập nhật".
+- **Link còn trống `""`:** nút vẫn hiện. Khi khách bấm, web báo "đang cập nhật". Riêng nút App Store (`guide.app.app_store`) sẽ ẩn hẳn khi để trống, vì app hiện chỉ có trên Google Play.
 - **Chữ trong `[NGOẶC VUÔNG]`** là chỗ trống còn chờ nội dung thật.
 - **Kiểm tra lỗi cú pháp:** sau khi sửa, dán nội dung file vào jsonlint.com. Một dấu phẩy thừa hoặc thiếu cũng làm web không tải được dữ liệu.
 - **Thêm ảnh mới:** lưu ảnh dạng **WebP**, rộng khoảng 1600px, đặt vào `assets/img/`, rồi sửa đường dẫn trong JSON.

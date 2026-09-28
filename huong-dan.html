@@ -124,16 +124,16 @@
         <div class="video-card" data-guide-video>
           <img class="media-img video-card__poster" data-video-poster src="assets/img/xe-toan-canh.webp" alt="" width="1024" height="697" loading="lazy" decoding="async">
           <div class="video-card__overlay" data-video-overlay>
-            <span class="video-card__tag">Video · <span data-guide-duration>[THỜI LƯỢNG]</span></span>
+            <span class="video-card__tag" data-guide-tag>Video</span>
             <button type="button" class="play-btn video-card__play" data-play-guide aria-label="Phát video lắp ráp">
               <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-play"></use></svg>
             </button>
             <span class="video-card__title">Video lắp ráp <span data-line-name>SC Tech Pro</span></span>
           </div>
         </div>
-        <div class="chapters">
-          <p class="label-caps chapters__label" id="chapters-label">Các chương trong video</p>
-          <ol class="chapters__list" role="list" aria-labelledby="chapters-label" data-chapters></ol>
+        <div class="video-list">
+          <p class="label-caps video-list__label" id="video-list-label">Danh sách video</p>
+          <ol class="video-list__list" role="list" aria-labelledby="video-list-label" data-video-list></ol>
         </div>
       </div>
 
@@ -143,13 +143,13 @@
           <h3 class="circuit__title">Sơ đồ mạch <span data-line-name>SC Tech Pro</span></h3>
         </div>
         <div class="circuit__actions">
-          <a class="btn btn--ghost circuit__assembly" data-pdf="assembly_pdf" href="#">
+          <a class="btn btn--ghost circuit__cad" data-file="cad_download" href="#">
             <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-download"></use></svg>
-            <span class="hide-mobile">Sơ đồ lắp ráp (PDF)</span><span class="show-mobile">Tải sơ đồ lắp ráp (PDF)</span>
+            <span class="hide-mobile">Bản vẽ 3D (SolidWorks)</span><span class="show-mobile">Tải bản vẽ 3D (SolidWorks)</span>
           </a>
-          <a class="btn btn--outline-accent btn--md circuit__pdf" data-pdf="circuit_pdf" href="#">
+          <a class="btn btn--outline-accent btn--md circuit__dl" data-file="circuit_download" href="#">
             <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-download"></use></svg>
-            <span class="hide-mobile">Sơ đồ mạch (PDF)</span><span class="show-mobile">Tải sơ đồ mạch (PDF)</span>
+            Tải sơ đồ mạch
           </a>
         </div>
         <button type="button" class="circuit__preview" data-zoom aria-label="Phóng to sơ đồ mạch">
@@ -174,24 +174,27 @@
       </div>
 
       <div class="upload">
-        <ol class="how-list" role="list">
-          <li>
-            <span class="num-dot" aria-hidden="true">1</span>
-            <span class="how-list__body"><span class="how-list__title">Cài phần mềm nạp code</span><span class="how-list__text">Tải và cài <span data-software>[TÊN PHẦN MỀM]</span> cho máy tính.</span></span>
-          </li>
-          <li>
-            <span class="num-dot" aria-hidden="true">2</span>
-            <span class="how-list__body"><span class="how-list__title">Tải code mẫu</span><span class="how-list__text">Chọn chương trình <span class="hide-mobile">ở bên cạnh</span><span class="show-mobile">bên dưới</span>, tải về và giải nén.</span></span>
-          </li>
-          <li>
-            <span class="num-dot" aria-hidden="true">3</span>
-            <span class="how-list__body"><span class="how-list__title">Cắm cáp USB</span><span class="how-list__text">Nối mạch điều khiển trên xe với máy tính bằng cáp USB.</span></span>
-          </li>
-          <li>
-            <span class="num-dot" aria-hidden="true">4</span>
-            <span class="how-list__body"><span class="how-list__title">Mở file và bấm Nạp</span><span class="how-list__text">Chọn đúng cổng kết nối rồi bấm Nạp (Upload). Xe sẵn sàng khi nạp xong.</span></span>
-          </li>
-        </ol>
+        <div class="upload__steps">
+          <ol class="how-list" role="list">
+            <li>
+              <span class="num-dot" aria-hidden="true">1</span>
+              <span class="how-list__body"><span class="how-list__title">Cài phần mềm nạp code</span><span class="how-list__text">Tải và cài <span data-software>[TÊN PHẦN MỀM]</span> cho máy tính.</span></span>
+            </li>
+            <li>
+              <span class="num-dot" aria-hidden="true">2</span>
+              <span class="how-list__body"><span class="how-list__title">Tải code mẫu</span><span class="how-list__text">Chọn chương trình <span class="hide-mobile">ở bên cạnh</span><span class="show-mobile">bên dưới</span>, tải về và giải nén.</span></span>
+            </li>
+            <li>
+              <span class="num-dot" aria-hidden="true">3</span>
+              <span class="how-list__body"><span class="how-list__title">Cắm cáp USB</span><span class="how-list__text">Nối mạch điều khiển trên xe với máy tính bằng cáp USB.</span></span>
+            </li>
+            <li>
+              <span class="num-dot" aria-hidden="true">4</span>
+              <span class="how-list__body"><span class="how-list__title">Mở file và bấm Nạp</span><span class="how-list__text">Chọn đúng cổng kết nối rồi bấm Nạp (Upload). Xe sẵn sàng khi nạp xong.</span></span>
+            </li>
+          </ol>
+          <p class="note upload__note" data-upload-note hidden></p>
+        </div>
 
         <div class="card code-card">
           <div class="code-card__head">
@@ -219,28 +222,35 @@
       </div>
 
       <div class="app-guide">
-        <div class="phone-mock">
-          <div class="phone-mock__screen" data-app-screen>
-            <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-phone"></use></svg>
-            <span>[ẢNH CHỤP<br>MÀN HÌNH APP]</span>
+        <div class="app-shots">
+          <div class="phone-mock">
+            <div class="phone-mock__screen" data-app-screen>
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-phone"></use></svg>
+              <span>[ẢNH CHỤP MÀN HÌNH APP]</span>
+            </div>
           </div>
+          <div class="pill-group app-shots__tabs" role="group" aria-label="Chọn màn hình app để xem" data-app-tabs hidden></div>
         </div>
         <div class="app-guide__body">
           <ol class="how-list how-list--tight" role="list">
             <li>
               <span class="num-dot" aria-hidden="true">1</span>
-              <span class="how-list__body"><span class="how-list__title">Tải app <span data-app-name>[TÊN APP]</span></span><span class="how-list__text">Dùng nút bên dưới<span class="hide-mobile"> hoặc quét mã QR</span> để tải về điện thoại.</span></span>
+              <span class="how-list__body"><span class="how-list__title">Tải app <span data-app-name>[TÊN APP]</span></span><span class="how-list__text">Dùng nút bên dưới<span class="hide-mobile"> hoặc quét mã QR</span> để tải về điện thoại Android.</span></span>
             </li>
             <li>
               <span class="num-dot" aria-hidden="true">2</span>
-              <span class="how-list__body"><span class="how-list__title">Bật xe và bật kết nối</span><span class="how-list__text">Bật công tắc nguồn trên xe, bật <span data-app-connection>[BLUETOOTH / WI-FI]</span> trên điện thoại.</span></span>
+              <span class="how-list__body"><span class="how-list__title">Ghép <span data-app-connection>Bluetooth</span> với xe</span><span class="how-list__text">Bật công tắc trên xe. Trên điện thoại, bật Bluetooth rồi ghép nối với <span class="nowrap">“HC-06”</span> (nhập mật khẩu <strong>1234</strong> nếu được hỏi).</span></span>
             </li>
             <li>
               <span class="num-dot" aria-hidden="true">3</span>
-              <span class="how-list__body"><span class="how-list__title">Kết nối với <span data-line-name>SC Tech Pro</span></span><span class="how-list__text">Mở app, chọn xe của bạn trong danh sách thiết bị.</span></span>
+              <span class="how-list__body"><span class="how-list__title">Mở app và đăng nhập</span><span class="how-list__text">Mật khẩu đăng nhập: <strong>1234</strong>.</span></span>
             </li>
             <li>
               <span class="num-dot" aria-hidden="true">4</span>
+              <span class="how-list__body"><span class="how-list__title">Kết nối app với <span data-line-name>SC Tech Pro</span></span><span class="how-list__text">Chọn Setting → Scan Car rồi chọn <span class="nowrap">“HC-06”</span>. App hiện “Status: Connected” là đã kết nối thành công.</span></span>
+            </li>
+            <li>
+              <span class="num-dot" aria-hidden="true">5</span>
               <span class="how-list__body"><span class="how-list__title">Lái thử</span><span class="how-list__text">Dùng các nút điều hướng trên app để lái xe.</span></span>
             </li>
           </ol>
