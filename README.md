@@ -66,7 +66,7 @@ Tên miền **smartcartech.vn** đã được ghi sẵn trong: `og:image` (4 fil
 |---|---|
 | Số Zalo, hotline, email, link Facebook / TikTok / YouTube | `site` |
 | Giá từng bộ | `lines[].kits[].price` — số nguyên, không có dấu chấm. VD: `1590000` |
-| Link Shopee từng bộ | `lines[].kits[].shopee` |
+| Link Shopee từng bộ | `lines[].kits[].shopee` — 2 bộ khung của cùng một dòng dùng chung 1 link, khách chọn phân loại trên Shopee |
 | Danh sách linh kiện của từng dòng (các hàng trong bảng "Mỗi bộ gồm những gì") | `lines[].components` — mỗi linh kiện có `id`, `name`, `detail` (mô tả nhỏ, có thể bỏ) |
 | Bộ nào gồm linh kiện gì | `lines[].kits[].includes` — dùng các `id` trong `components` của dòng đó. Linh kiện chỉ có một phần: ghi vào `partial`, VD: `{ "phu-kien": "Chỉ dây nối động cơ" }` |
 | Ghi chú "chưa gồm… / chuẩn bị thêm…" ở trang Hướng dẫn | `lines[].kits[].missing`, `buy_more` |
@@ -98,7 +98,7 @@ Tên miền **smartcartech.vn** đã được ghi sẵn trong: `og:image` (4 fil
 
 - **Mua ngay:** mở `dat-hang.html` với đúng dòng xe, bộ và số lượng đang chọn. Nút này không thêm gì vào giỏ.
 - **Thêm vào giỏ:** giỏ hàng được lưu trên trình duyệt của khách, nên vẫn còn khi khách chuyển trang hoặc tải lại trang. Mở giỏ, bấm *Đặt hàng* để sang cùng trang đặt hàng.
-- **Mua trên Shopee:** mở link Shopee riêng của bộ đang chọn.
+- **Mua trên Shopee:** mở link Shopee của bộ đang chọn. Với 2 bộ khung, khách chọn phân loại "Chỉ khung" hay "Khung + động cơ + bánh" ngay trên Shopee.
 - **Tư vấn Zalo:** mở `https://zalo.me/<số Zalo>`.
 
 ### Đơn hàng đến Zalo của shop bằng cách nào?
@@ -115,7 +115,6 @@ Nếu muốn tin nhắn tự động vào Zalo, cần đăng ký **Zalo Official
 
 ## 5. Việc cần làm trước khi đưa web lên
 
-- [ ] Thay **link Shopee mẫu** của từng bộ trong `products.json`.
 - [ ] Thay **ảnh sản phẩm**. Ảnh hiện tại lấy từ file thiết kế: đó là ảnh do AI tạo (có dấu ✦ ở góc), chỉ rộng 1024px và dùng chung cho cả 2 dòng. Nên thay bằng ảnh chụp thật của từng dòng.
 - [ ] Điền các chỗ trống `[…]`: mô tả, thông số, câu trả lời FAQ, tên app, v.v.
 - [ ] Đọc lại **bản nháp `chinh-sach.html`** và sửa cho đúng với cách shop làm. Các điểm giả định được ghi trong comment ở đầu thẻ `<main>`.

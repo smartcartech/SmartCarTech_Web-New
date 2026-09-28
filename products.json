@@ -5,7 +5,7 @@
     "Các link (Shopee, PDF, .zip, app, YouTube...) để \"\" nếu chưa có — nút tương ứng sẽ báo 'đang cập nhật'.",
     "youtube: dán mã video (phần sau v= trong link), VD: \"dQw4w9WgXcQ\".",
     "Chữ trong [NGOẶC VUÔNG] là chỗ trống cần điền nội dung thật.",
-    "LINK SHOPEE HIỆN TẠI LÀ DỮ LIỆU MẪU — thay trước khi đưa web lên."
+    "shopee: 2 bộ khung của cùng một dòng dùng chung 1 link (khách chọn phân loại trên Shopee)."
   ],
 
   "site": {
@@ -63,7 +63,7 @@
           "note": "Lắp xong là chạy — hợp người mới bắt đầu",
           "contents": "Khung, động cơ, bánh, mạch, 4 cảm biến siêu âm, pin + mạch sạc",
           "price": 1490000,
-          "shopee": "https://shopee.vn/",
+          "shopee": "https://shopee.vn/Xe-L%E1%BA%ADp-Tr%C3%ACnh-Arduino-Bluetooth-%C4%90%E1%BA%A7y-%C4%90%E1%BB%A7-Linh-Ki%E1%BB%87n-(c%C3%B3-T%E1%BA%B7ng-Code-App)-i.1077117645.14199599899",
           "includes": ["khung", "dong-co", "mach", "bluetooth", "driver", "cam-bien", "encoder", "pin", "sac", "ha-ap", "den-coi", "phu-kien"],
           "missing": "",
           "buy_more": ""
@@ -75,7 +75,7 @@
           "note": "Tự chọn mạch và cảm biến theo ý bạn",
           "contents": "Chưa gồm mạch, cảm biến, pin và bộ sạc",
           "price": 390000,
-          "shopee": "https://shopee.vn/",
+          "shopee": "https://shopee.vn/Khung-Xe-Mica-%C4%90%E1%BB%99ng-C%C6%A1-B%C3%A1nh-Xe-Arduino-Bluetooth-SC-Tech-i.1077117645.19584307416",
           "includes": ["khung", "dong-co"],
           "partial": { "phu-kien": "Chỉ dây nối động cơ" },
           "missing": "mạch điều khiển, cảm biến, pin và bộ sạc",
@@ -88,7 +88,7 @@
           "note": "Cho người đã có sẵn linh kiện",
           "contents": "Khung mica 2 tầng, ốc vít, trụ đồng",
           "price": 290000,
-          "shopee": "https://shopee.vn/",
+          "shopee": "https://shopee.vn/Khung-Xe-Mica-%C4%90%E1%BB%99ng-C%C6%A1-B%C3%A1nh-Xe-Arduino-Bluetooth-SC-Tech-i.1077117645.19584307416",
           "includes": ["khung"],
           "partial": { "phu-kien": "Chỉ dây nối động cơ" },
           "missing": "động cơ, bánh xe, mạch điều khiển, cảm biến, pin và bộ sạc",
@@ -169,7 +169,7 @@
           "note": "Lắp xong là chạy — hợp người mới bắt đầu",
           "contents": "Khung, động cơ, bánh, mạch, Bluetooth, pin + bộ sạc",
           "price": 990000,
-          "shopee": "https://shopee.vn/",
+          "shopee": "https://shopee.vn/SC-Tech-Xe-%C4%90i%E1%BB%81u-Khi%E1%BB%83n-Arduino-Bluetooth-%C4%90%E1%BA%A7y-%C4%90%E1%BB%A7-Linh-Ki%E1%BB%87n-(c%C3%B3-T%E1%BA%B7ng-Code-App)-i.1077117645.49516301145?extraParams=%7B%22display_model_id%22%3A386387788074%2C%22model_selection_logic%22%3A3%7D",
           "includes": ["khung", "dong-co", "mach", "bluetooth", "driver", "pin", "sac", "den-coi", "phu-kien"],
           "missing": "",
           "buy_more": ""
@@ -181,7 +181,7 @@
           "note": "Tự chọn mạch và cảm biến theo ý bạn",
           "contents": "Chưa gồm mạch, pin và bộ sạc",
           "price": 360000,
-          "shopee": "https://shopee.vn/",
+          "shopee": "https://shopee.vn/Khung-Xe-Mica-Arduino-Bluetooth-SC-Tech-i.1077117645.22655193627",
           "includes": ["khung", "dong-co"],
           "partial": { "phu-kien": "Chỉ dây nối động cơ" },
           "missing": "mạch điều khiển, pin và bộ sạc",
@@ -194,7 +194,7 @@
           "note": "Cho người đã có sẵn linh kiện",
           "contents": "Khung mica 2 tầng, ốc vít, trụ đồng",
           "price": 260000,
-          "shopee": "https://shopee.vn/",
+          "shopee": "https://shopee.vn/Khung-Xe-Mica-Arduino-Bluetooth-SC-Tech-i.1077117645.22655193627",
           "includes": ["khung"],
           "partial": { "phu-kien": "Chỉ dây nối động cơ" },
           "missing": "động cơ, bánh xe, mạch điều khiển, pin và bộ sạc",
