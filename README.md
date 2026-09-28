@@ -11,8 +11,9 @@ huong-dan.html        Hướng dẫn (?dong=…&bo=…)
 dat-hang.html         Đặt hàng (?mua=pro:day-du:2  hoặc  ?tu=gio-hang)
 chinh-sach.html       Chính sách bảo hành (#bao-hanh), vận chuyển & đổi trả (#van-chuyen)
 products.json         ★ DỮ LIỆU — file duy nhất bạn cần sửa
-google-apps-script.gs (Tùy chọn) Lưu đơn vào Google Sheet
+google-apps-script.gs (Tùy chọn) Lưu đơn vào Google Sheet — không tải lên hosting
 robots.txt, sitemap.xml  Cho Google biết các trang cần hiển thị
+_config.yml           Danh sách file GitHub Pages không đưa lên web
 assets/css/style.css  Toàn bộ giao diện (màu, font, khoảng cách ở đầu file)
 assets/js/core.js     Phần dùng chung: tải dữ liệu, giỏ hàng, menu, gửi Zalo
 assets/js/*.js        Mã riêng của từng trang
@@ -30,13 +31,28 @@ Trình duyệt chặn việc đọc `products.json` khi bạn mở file bằng c
 
 ## 2. Đưa lên mạng
 
-Tải **cả thư mục** lên một hosting tĩnh bất kỳ:
+Web chạy trên mọi hosting tĩnh, không cần cài đặt thêm gì trên server. Nhưng **chỉ đưa lên các file của website**. File nào có trên hosting thì ai cũng mở được, VD `smartcartech.vn/README.md`.
 
-- **Netlify:** kéo thả thư mục vào app.netlify.com/drop
-- **GitHub Pages**
-- **Hosting cPanel:** upload vào `public_html`
+**Tải lên:**
 
-Không cần cài đặt thêm gì trên server.
+```
+index.html  san-pham.html  huong-dan.html  dat-hang.html  chinh-sach.html
+products.json  robots.txt  sitemap.xml
+assets/        (cả thư mục)
+```
+
+**Không tải lên:**
+
+- `README.md`: ghi chú nội bộ (việc cần làm, nguồn ảnh…).
+- `google-apps-script.gs`: chỉ dùng để dán vào Google Apps Script. Nếu điền email báo đơn vào file này rồi tải lên thì email bị lộ.
+- `_config.yml`, `.git/`, `.gitignore`, `.gitattributes`: file cấu hình.
+
+Cách làm với từng loại hosting:
+
+- **GitHub Pages** (web cũ đang dùng cách này): đẩy code lên GitHub như bình thường. GitHub Pages tự bỏ qua các file đã khai báo trong `_config.yml`. Nếu thêm file nội bộ mới, ghi tên vào mục `exclude` trong file đó. Dùng tên miền riêng thì thêm file `CNAME` chứa một dòng `smartcartech.vn`.
+  - Lưu ý: nếu kho GitHub để **công khai (public)**, ai cũng xem được mọi file trong kho trên github.com, kể cả README. `_config.yml` chỉ giữ chúng khỏi web smartcartech.vn.
+- **Hosting cPanel:** chỉ upload các file trong danh sách "Tải lên" vào `public_html`.
+- **Netlify:** chép các file trong danh sách "Tải lên" sang một thư mục riêng, rồi kéo thả thư mục đó vào app.netlify.com/drop. Đừng kéo thả cả thư mục dự án.
 
 Tên miền **smartcartech.vn** đã được ghi sẵn trong: `og:image` (4 file HTML), `og:url` + `canonical` (index.html), `SITE_URL` (assets/js/core.js), `robots.txt` và `sitemap.xml`. Nếu đổi tên miền, sửa hết các chỗ này.
 

@@ -1,0 +1,6 @@
+# Cấu hình cho GitHub Pages.
+# Các file / thư mục dưới đây KHÔNG được đưa lên web smartcartech.vn
+# (vẫn nằm trong kho git). Thêm file nội bộ mới thì ghi tên vào đây.
+exclude:
+  - README.md
+  - google-apps-script.gs
