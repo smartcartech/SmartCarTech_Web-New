@@ -36,7 +36,8 @@
       },
       "image": { "src": "assets/img/sc-tech-pro/toan-canh.webp", "src_small": "assets/img/sc-tech-pro/toan-canh-640.webp", "thumb": "assets/img/sc-tech-pro/toan-canh-thumb.webp", "width": 1536, "height": 1024, "alt": "Xe mẫu SC Tech Pro đã lắp ráp, nhìn từ phía trước bên trái" },
       "gallery": [
-        { "src": "assets/img/sc-tech-pro/toan-canh.webp", "thumb": "assets/img/sc-tech-pro/toan-canh-thumb.webp", "label": "Toàn cảnh xe", "caption": "Xe mẫu SC Tech Pro đã lắp ráp từ bộ đầy đủ linh kiện.", "alt": "Xe mẫu SC Tech Pro nhìn từ phía trước bên trái, khung mica trong và bánh xe vàng" },
+        { "src": "assets/img/sc-tech-pro/toan-canh.webp", "thumb": "assets/img/sc-tech-pro/toan-canh-thumb.webp", "label": "Toàn cảnh xe", "caption": "Xe mẫu SC Tech Pro minh họa sau khi lắp ráp. Bộ đầy đủ được giao dưới dạng linh kiện rời để bạn tự lắp.", "alt": "Xe mẫu SC Tech Pro nhìn từ phía trước bên trái, khung mica trong và bánh xe vàng" },
+        { "src": "assets/img/sc-tech-pro/linh-kien-day-du.webp", "thumb": "assets/img/sc-tech-pro/linh-kien-day-du-thumb.webp", "label": "Linh kiện bộ đầy đủ — tự lắp ráp", "caption": "Bộ đầy đủ linh kiện gồm các linh kiện rời để bạn tự lắp ráp theo hướng dẫn. Shop không giao xe lắp sẵn.", "hide_badge": true, "alt": "Linh kiện rời của bộ đầy đủ SC Tech Pro: khung mica, bốn bánh và động cơ, mạch điều khiển, bốn cảm biến siêu âm, pin, bộ sạc, dây và phụ kiện" },
         { "src": "assets/img/sc-tech-pro/mat-truoc.webp", "thumb": "assets/img/sc-tech-pro/mat-truoc-thumb.webp", "label": "Cảm biến và đèn phía trước", "alt": "SC Tech Pro nhìn chính diện với ba module siêu âm phía trước và đèn LED đang bật" },
         { "src": "assets/img/sc-tech-pro/mach-va-pin.webp", "thumb": "assets/img/sc-tech-pro/mach-va-pin-thumb.webp", "label": "Mạch và pin nhìn từ trên", "alt": "SC Tech Pro nhìn từ trên: Arduino Nano, Bluetooth, mạch hạ áp, driver L298N và bốn pin 18650" },
         { "src": "assets/img/sc-tech-pro/mat-sau.webp", "thumb": "assets/img/sc-tech-pro/mat-sau-thumb.webp", "label": "Pin và cảm biến phía sau", "alt": "SC Tech Pro nhìn từ phía sau với cụm bốn pin 18650 và module siêu âm phía sau" }
@@ -62,7 +63,8 @@
           "id": "day-du",
           "name": "Bộ đầy đủ linh kiện",
           "short": "Bộ đầy đủ",
-          "note": "Lắp xong là chạy — hợp người mới bắt đầu",
+          "note": "Giao linh kiện rời — khách tự lắp ráp theo hướng dẫn",
+          "assembly_note": "Bộ đầy đủ linh kiện được giao dưới dạng linh kiện rời để bạn tự lắp ráp theo hướng dẫn. Shop không giao xe lắp sẵn.",
           "contents": "Khung, động cơ, bánh, mạch, 4 cảm biến siêu âm, pin + mạch sạc",
           "price": 1490000,
           "shopee": "https://shopee.vn/Xe-L%E1%BA%ADp-Tr%C3%ACnh-Arduino-Bluetooth-%C4%90%E1%BA%A7y-%C4%90%E1%BB%A7-Linh-Ki%E1%BB%87n-(c%C3%B3-T%E1%BA%B7ng-Code-App)-i.1077117645.14199599899",

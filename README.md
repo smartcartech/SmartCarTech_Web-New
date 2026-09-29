@@ -72,7 +72,8 @@ Tên miền **smartcartech.vn** đã được ghi sẵn trong: `og:image` (4 fil
 | Ghi chú "chưa gồm… / chuẩn bị thêm…" ở trang Hướng dẫn | `lines[].kits[].missing`, `buy_more` |
 | Tên, mô tả, điểm nổi bật, huy hiệu từng dòng | `lines[].name / tagline / highlight / badge` |
 | Tiêu đề & mô tả SEO của trang sản phẩm | `lines[].seo` |
-| Ảnh sản phẩm, ảnh gallery | `lines[].image`, `lines[].gallery`. Bộ có ảnh riêng: `kits[].image`, `kits[].gallery` |
+| Ảnh sản phẩm, ảnh gallery | `lines[].image`, `lines[].gallery`. Bộ có ảnh riêng: `kits[].image`, `kits[].gallery`. Đặt `hide_badge: true` trên ảnh gallery nếu huy hiệu che linh kiện |
+| Lưu ý giao linh kiện để tự lắp trên trang Sản phẩm | `kits[].assembly_note` — hiển thị theo bộ đang chọn; bỏ trống thì ẩn |
 | Video giới thiệu (trang Sản phẩm) | `video.src`: đường dẫn MP4 trong `assets/video/`, hoặc `video.youtube`: **mã** YouTube. Điền `title`, `poster`, `duration`. Video bổ sung: `videos[]`. Bộ có gallery riêng dùng `kits[].video` / `kits[].videos[]` |
 | Video hướng dẫn (trang Hướng dẫn) | `guide.videos` — mỗi video có `title`, `youtube` (mã video), `duration` (VD `"13:36"`). Nhiều video thì hiện thành danh sách Phần 1, 2, 3… |
 | Lưu ý khi nạp code (bước 2) | `guide.upload_note` — để `""` thì ẩn |
@@ -120,7 +121,7 @@ Nếu muốn tin nhắn tự động vào Zalo, cần đăng ký **Zalo Official
 
 ## 5. Việc cần làm trước khi đưa web lên
 
-- [x] Bổ sung **ảnh và video SC Tech Pro** từ tư liệu gốc: 8 ảnh hậu kỳ nền bằng AI, 2 clip quay thực tế không có phông xanh; ảnh riêng theo từng bộ.
+- [x] Bổ sung **ảnh và video SC Tech Pro** từ tư liệu gốc: 9 ảnh hậu kỳ nền bằng AI (gồm ảnh linh kiện bộ đầy đủ từ `All.jpg`), 2 clip quay thực tế không có phông xanh; ảnh riêng theo từng bộ, ghi rõ bộ đầy đủ giao linh kiện để khách tự lắp.
 - [ ] Thay **ảnh SC Tech** khi có tư liệu: dòng này vẫn dùng ảnh minh họa AI cũ từ file thiết kế, rộng 1024px.
 - [ ] Điền các chỗ trống `[…]`: mô tả, thông số, câu trả lời FAQ, tên app, v.v.
 - [ ] Đọc lại **bản nháp `chinh-sach.html`** và sửa cho đúng với cách shop làm. Các điểm giả định được ghi trong comment ở đầu thẻ `<main>`.

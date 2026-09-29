@@ -22,7 +22,7 @@ VIDEOS = ROOT / 'assets' / 'video' / 'sc-tech-pro'
 IMAGE_NAMES = (
     'toan-canh', 'mat-truoc', 'mat-sau', 'mach-va-pin',
     'khung-dong-co-banh', 'linh-kien-khung-dong-co-banh',
-    'khung', 'linh-kien-khung',
+    'khung', 'linh-kien-khung', 'linh-kien-day-du',
 )
 VIDEO_EDITS = {
     'cau-tao': [

@@ -110,6 +110,10 @@ boot((data) => {
     const k = kit();
     $$('[data-kits] .kit-opt, [data-box-chips] .pill-btn').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.kit === k.id)));
 
+    const assemblyNote = $('[data-assembly-note]');
+    assemblyNote.textContent = k.assembly_note || '';
+    assemblyNote.hidden = !k.assembly_note;
+
     const total = (Number(k.price) || 0) * state.qty;
     $('[data-price]').textContent = fmtPrice(k.price);
     $('[data-price-note]').textContent = state.qty > 1
@@ -254,6 +258,7 @@ boot((data) => {
     const img = $('[data-main-img]');
     const layer = $('[data-video-layer]');
     resetPlayer();
+    $('[data-line-badge]').hidden = !isVideo && Boolean(images[state.view]?.hide_badge);
 
     if (isVideo) {
       img.src = video.poster || l.image.src;
