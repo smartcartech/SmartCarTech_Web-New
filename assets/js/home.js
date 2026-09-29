@@ -22,7 +22,7 @@ function kitCard(line, index, active) {
   return `
     <article class="kit-card${featured ? ' kit-card--featured' : ''}${active ? ' is-active' : ''}" id="card-${esc(line.id)}" data-line="${esc(line.id)}" aria-labelledby="card-${esc(line.id)}-title">
       <div class="kit-card__media">
-        <img class="media-img" src="${esc(line.image.src)}" srcset="${esc(line.image.src_small)} 640w, ${esc(line.image.src)} 1024w"
+        <img class="media-img" src="${esc(line.image.src)}" srcset="${esc(line.image.src_small)} 640w, ${esc(line.image.src)} ${line.image.width || 1024}w"
              sizes="(min-width: 1024px) 620px, 100vw" width="1024" height="697" loading="lazy" decoding="async" alt="${esc(line.image.alt)}">
         <span class="badge${featured ? ' badge--pro' : ''}">${esc(line.badge)}</span>
       </div>
@@ -68,6 +68,11 @@ function initKitCards(data) {
     const card = $(`.kit-card[data-line="${lineId}"]`, wrap);
     const line = getLine(data, lineId);
     const kit = getKit(line, selected[lineId]);
+    const image = kit.image || line.image;
+    const photo = $('.kit-card__media img', card);
+    photo.src = image.src;
+    photo.srcset = `${image.src_small} 640w, ${image.src} ${image.width || 1024}w`;
+    photo.alt = image.alt;
     $$('.kit-opt', card).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.kit === kit.id)));
     setLink($('[data-act="shopee"]', card), kit.shopee, 'Link Shopee cho bộ này đang được cập nhật.');
     $('[data-detail]', card).href = `san-pham.html?dong=${encodeURIComponent(line.id)}&bo=${encodeURIComponent(kit.id)}`;

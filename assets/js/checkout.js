@@ -50,7 +50,7 @@ boot((data) => {
       <button type="button" class="icon-btn line-item__remove" data-act="remove" ${ids} aria-label="Xóa ${esc(r.line.name)} – ${esc(r.kit.name)} khỏi đơn">${icon('trash', 'icon--md')}</button>`;
     return `
       <div class="line-item">
-        <img class="line-item__img" src="${esc(r.line.image.thumb)}" alt="" width="72" height="56" loading="lazy">
+        <img class="line-item__img" src="${esc((r.kit.image || r.line.image).thumb)}" alt="" width="72" height="56" loading="lazy">
         <div class="line-item__info">
           <span class="line-item__name">${esc(r.line.name)}</span>
           <span class="line-item__kit">${esc(r.kit.name)} · ${fmtPrice(r.price)}</span>
