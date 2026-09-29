@@ -6,7 +6,7 @@ Website tĩnh gồm 5 trang HTML, CSS chung và JavaScript ES modules, không c�
 
 Lần cập nhật này bổ sung media SC Tech Pro trên trang chủ, sản phẩm, hướng dẫn, giỏ hàng và trang đặt hàng. Gallery đổi theo bộ đang chọn, hỗ trợ MP4 và nhiều video, vẫn tương thích trường YouTube cũ. Giá, link mua, thông số phần cứng, video hướng dẫn YouTube và dữ liệu dòng SC Tech được giữ nguyên.
 
-Nguồn có 50 ảnh JPG và 5 video HEVC, chia thành ba bộ. Toàn bộ file gốc được giữ nguyên. Ảnh master PNG đã hậu kỳ nằm trong `source image and video/SC Tech Pro/edited/`; các bản WebP và MP4 phục vụ website nằm trong `assets/`. Tư liệu gốc, master, script và báo cáo không được đưa lên GitHub Pages.
+Nguồn có 51 ảnh JPG (gồm `All.jpg` mới bổ sung) và 5 video HEVC, chia thành ba bộ. Toàn bộ file gốc được giữ nguyên. Ảnh master PNG đã hậu kỳ nằm trong `source image and video/SC Tech Pro/edited/`; các bản WebP và MP4 phục vụ website nằm trong `assets/`. Tư liệu gốc, master, script và báo cáo không được đưa lên GitHub Pages.
 
 ## Ảnh đã chọn
 
@@ -15,6 +15,7 @@ Các đường dẫn nguồn dưới đây tính từ `source image and video/SC
 | Nguồn | WebP | Mục đích |
 |---|---|---|
 | `SC Tech Pro day du/20260418_143846.jpg` | `toan-canh.webp` | Góc trước bên trái; hero, bộ đầy đủ, ảnh hướng dẫn |
+| `SC Tech Pro day du/All.jpg` | `linh-kien-day-du.webp` | Linh kiện rời của bộ đầy đủ; ảnh thứ hai trong gallery bộ đầy đủ |
 | `SC Tech Pro day du/20260418_144002.jpg` | `mat-truoc.webp` | Ba module siêu âm phía trước và đèn LED |
 | `SC Tech Pro day du/20260418_144016.jpg` | `mach-va-pin.webp` | Góc từ trên: Arduino, Bluetooth, driver, nguồn và pin |
 | `SC Tech Pro day du/20260418_143937.jpg` | `mat-sau.webp` | Bốn pin và một module siêu âm phía sau |
@@ -26,6 +27,8 @@ Các đường dẫn nguồn dưới đây tính từ `source image and video/SC
 Các ảnh trùng góc, có tay che sản phẩm hoặc có quá nhiều bàn, cửa sổ và dây bên ngoài được giữ làm nguồn tham khảo, không đưa thêm vào gallery. Hai ảnh có laptop hiện chưa đưa vào bộ ảnh để giữ gallery tập trung vào sản phẩm.
 
 Ảnh được hậu kỳ bằng công cụ **image_gen tích hợp**, thay nền vải xanh/bàn gỗ bằng nền studio than tối, giảm ám xanh, cân bằng sáng và giữ bố cục sản phẩm. Không dùng CLI/API image generation. Mỗi ảnh có bản lớn, bản `-640.webp` và thumbnail `-thumb.webp`. Các thao tác xuất WebP chỉ đổi định dạng và giảm kích thước; không chỉnh nội dung bằng Python.
+
+`All.jpg` được thay nền trắng bằng nền studio than tối phủ kín khung 1536 × 1024, giữ bố cục linh kiện rời với khoảng nền hai bên. Huy hiệu trên ảnh này được ẩn để không che linh kiện ở mobile. Trang sản phẩm có lưu ý theo bộ đang chọn, ngay trước giá: bộ đầy đủ giao linh kiện rời để khách tự lắp theo hướng dẫn, shop không giao xe lắp sẵn. Ghi chú ở thẻ trang chủ và caption ảnh cũng nêu rõ việc tự lắp.
 
 **Giới hạn:** hậu kỳ bằng AI không bảo đảm giữ từng pixel, chữ in nhỏ hay số trên màn hình điện áp. Ảnh dùng để giới thiệu hình thức sản phẩm; không dùng ảnh hậu kỳ làm sơ đồ đấu dây hoặc tài liệu xác định thông số. Video giữ hình quay thật để người xem đối chiếu cấu tạo.
 
@@ -53,6 +56,8 @@ Các bản ghép nền bị loại và script thử nghiệm được lưu trong
 ## Prompt hậu kỳ
 
 Toàn bộ prompt cuối cùng cho từng ảnh lưu trong `source image and video/SC Tech Pro/edited/retouch-prompts.json`, gồm file nguồn, tên đầu ra, công cụ và prompt nguyên văn. Ảnh nguồn là **edit target**; ảnh toàn cảnh đã hậu kỳ chỉ làm tham chiếu nền cho các ảnh tiếp theo.
+
+Prompt và tham chiếu hậu kỳ `All.jpg` lưu riêng tại `edited/linh-kien-day-du-prompt.json`; master tại `edited/linh-kien-day-du.png`. Ảnh `linh-kien-khung-dong-co-banh.webp` chỉ được dùng làm tham chiếu nền/ánh sáng.
 
 Yêu cầu chung: thay **chỉ nền**, nền studio matte charcoal `#111a22`, bóng tiếp xúc nhẹ, giảm ám xanh, cân bằng trắng/sáng; giữ góc chụp, tỷ lệ khung, linh kiện, dây, vít và mica; có khoảng trống quanh sản phẩm, không chữ/logo mới, không phản chiếu giả hoặc thêm vật thể. Yêu cầu riêng: ảnh mặt trước giữ sáu vòng transducer; mặt sau giữ hai vòng; ảnh khung không thêm bánh/mạch; ảnh bộ khung có bánh không thêm pin/cảm biến; ảnh linh kiện rời giữ đúng số tấm, bánh và động cơ.
 
@@ -84,8 +89,10 @@ SC Tech chờ ảnh/video gốc ở lần cập nhật sau. Hình chia sẻ mạ
 
 - JSON hợp lệ và `git diff --check`.
 - Kiểm tra file ảnh/video được tham chiếu tồn tại; xác minh dữ liệu SC Tech và giá/link/thông số từ bản gốc Git.
-- Chrome headless: **56 kiểm tra đều đạt** với bản chỉ giữ nền quay gốc, gồm gallery bộ đầy đủ chỉ có bốn ảnh/một clip, thời lượng `0:10`, phát hai MP4, chuyển ảnh/bộ/dòng, giỏ hàng/đặt hàng, trang hướng dẫn/chính sách và không tràn ngang ở 390 px.
-- 51 đường dẫn file cục bộ được tham chiếu đều tồn tại; 24 bản WebP, hai poster và cả hai MP4 giải mã được. Tổng media SC Tech Pro sau khi chọn lại poster là 8.033.546 byte (khoảng 7,66 MiB).
+- Sau khi thêm `All.jpg`: **73 kiểm tra Chrome đều đạt**, gồm năm ảnh/một clip ở bộ đầy đủ, ảnh linh kiện ở vị trí thứ hai, ghi chú tự lắp hiển thị đúng theo bộ/dòng, huy hiệu không che linh kiện và chức năng gallery/giỏ hàng/đặt hàng. Rà soát ba ảnh chụp desktop 1440 px/mobile 390 px, gồm ghi chú trước giá và nút mua. Kết quả lưu tại `tmp/media-review/all-kit/`.
+- Ba WebP mới giải mã được ở 1536 × 1024, 640 × 427 và 324 × 216; 40 đường dẫn asset trong `products.json` tồn tại. SHA-256 của `All.jpg`, 24 WebP cũ, hai MP4 và hai poster không đổi so với trước khi thêm ảnh mới. Dữ liệu SC Tech, giá, link, thông số và video được đối chiếu với bản trước khi thêm `All.jpg`. Tổng media hiện tại là 8.251.892 byte (khoảng 7,87 MiB).
+- Chrome headless trước khi thêm `All.jpg`: **56 kiểm tra đều đạt** với bản chỉ giữ nền quay gốc, gồm gallery bộ đầy đủ có bốn ảnh/một clip, thời lượng `0:10`, phát hai MP4, chuyển ảnh/bộ/dòng, giỏ hàng/đặt hàng, trang hướng dẫn/chính sách và không tràn ngang ở 390 px.
+- Trước khi thêm `All.jpg`, 51 đường dẫn file cục bộ được tham chiếu đều tồn tại; 24 bản WebP, hai poster và cả hai MP4 giải mã được. Tổng media SC Tech Pro sau khi chọn lại poster là 8.033.546 byte (khoảng 7,66 MiB).
 - Khi làm mới ảnh bìa, SHA-256 của 5 video nguồn, 24 ảnh WebP và hai MP4 không đổi. Đã rà soát tám frame xuyên suốt clip cấu tạo mới, gồm các điểm chuyển đoạn; các vùng nền mẫu không có phông xanh.
 - Ảnh bìa mới được kiểm tra trên Chrome cho cả bộ đầy đủ và bộ chỉ khung ở desktop 1440 px/mobile 390 px: tải đúng poster, thời lượng và gallery đúng, không tràn ngang. Đã rà soát ảnh chụp của bốn trường hợp này.
 - Đã sửa dải nền trống hai bên gallery bằng `object-fit: cover` cho ảnh. Rà soát đủ tám ảnh ở desktop 1686 px/mobile 390 px: ảnh phủ kín khung, chỉ cắt nền thừa và vẫn thấy trọn sản phẩm/linh kiện. Hai ảnh bìa video tiếp tục dùng `contain`; 20 trường hợp ảnh/ảnh bìa đều đạt, 56 kiểm tra chức năng được chạy lại và đạt. Ảnh chụp và kết quả lưu trong `tmp/media-review/gallery-fit/`.
