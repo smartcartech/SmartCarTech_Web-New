@@ -411,7 +411,7 @@ function renderDrawer() {
 
   body.innerHTML = rows.map((r) => `
     <div class="line-item">
-      <img class="line-item__img" src="${esc(r.line.image.thumb)}" alt="" width="72" height="56" loading="lazy">
+      <img class="line-item__img" src="${esc((r.kit.image || r.line.image).thumb)}" alt="" width="72" height="56" loading="lazy">
       <div class="line-item__info">
         <span class="line-item__name">${esc(r.line.name)}</span>
         <span class="line-item__kit">${esc(r.kit.name)} · ${fmtPrice(r.price)}</span>

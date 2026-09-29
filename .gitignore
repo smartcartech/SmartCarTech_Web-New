@@ -8,3 +8,7 @@ desktop.ini
 .vscode/
 .idea/
 
+# Tư liệu gốc và file kiểm tra, không đưa vào bản website
+source image and video/
+tmp/
+

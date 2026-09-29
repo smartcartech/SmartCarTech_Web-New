@@ -72,8 +72,8 @@ Tên miền **smartcartech.vn** đã được ghi sẵn trong: `og:image` (4 fil
 | Ghi chú "chưa gồm… / chuẩn bị thêm…" ở trang Hướng dẫn | `lines[].kits[].missing`, `buy_more` |
 | Tên, mô tả, điểm nổi bật, huy hiệu từng dòng | `lines[].name / tagline / highlight / badge` |
 | Tiêu đề & mô tả SEO của trang sản phẩm | `lines[].seo` |
-| Ảnh sản phẩm, ảnh gallery | `lines[].image`, `lines[].gallery` |
-| Video giới thiệu (trang Sản phẩm) | `video.youtube`: dán **mã** video (phần sau `v=` hoặc sau `/embed/`) |
+| Ảnh sản phẩm, ảnh gallery | `lines[].image`, `lines[].gallery`. Bộ có ảnh riêng: `kits[].image`, `kits[].gallery` |
+| Video giới thiệu (trang Sản phẩm) | `video.src`: đường dẫn MP4 trong `assets/video/`, hoặc `video.youtube`: **mã** YouTube. Điền `title`, `poster`, `duration`. Video bổ sung: `videos[]`. Bộ có gallery riêng dùng `kits[].video` / `kits[].videos[]` |
 | Video hướng dẫn (trang Hướng dẫn) | `guide.videos` — mỗi video có `title`, `youtube` (mã video), `duration` (VD `"13:36"`). Nhiều video thì hiện thành danh sách Phần 1, 2, 3… |
 | Lưu ý khi nạp code (bước 2) | `guide.upload_note` — để `""` thì ẩn |
 | Ảnh sơ đồ mạch (bấm để phóng to) | `guide.circuit_image` |
@@ -93,6 +93,11 @@ Tên miền **smartcartech.vn** đã được ghi sẵn trong: `og:image` (4 fil
 - **Chữ trong `[NGOẶC VUÔNG]`** là chỗ trống còn chờ nội dung thật.
 - **Kiểm tra lỗi cú pháp:** sau khi sửa, dán nội dung file vào jsonlint.com. Một dấu phẩy thừa hoặc thiếu cũng làm web không tải được dữ liệu.
 - **Thêm ảnh mới:** lưu ảnh dạng **WebP**, rộng khoảng 1600px, đặt vào `assets/img/`, rồi sửa đường dẫn trong JSON.
+- **SC Tech Pro:** ảnh đã hậu kỳ trong `assets/img/sc-tech-pro/`, clip giới thiệu/cấu tạo trong `assets/video/sc-tech-pro/`. Xem [SC_TECH_PRO_MEDIA.md](SC_TECH_PRO_MEDIA.md) để biết nguồn, đoạn cắt, prompt hậu kỳ và cách xuất lại.
+- **Ảnh/video gốc:** giữ trong `source image and video/`; thư mục này được bỏ qua bởi Git và GitHub Pages. Chỉ upload bản tối ưu trong `assets/`. Thư mục `scripts/`, `tmp/` và báo cáo media cũng không đưa lên hosting.
+- **Video MP4:** tải và phát sau khi khách bấm, có điều khiển và phát nội tuyến trên điện thoại. Video dọc giữ đúng tỷ lệ. Khi đổi ảnh, bộ hoặc dòng xe, trình phát cũ được dừng và gỡ.
+- **Video SC Tech Pro:** chỉ dùng cảnh quay nền gỗ, giữ nền gốc. Các đoạn phông xanh và bản ghép nền đã được gỡ khỏi website; bản cũ và video nguồn vẫn được lưu để tham khảo.
+- **Ảnh bìa video:** chọn frame tại `POSTER_TIMES` trong script xuất. Chạy `python scripts/prepare-sc-tech-pro-media.py --posters-only --force` để cập nhật ảnh bìa riêng, giữ nguyên MP4.
 
 ## 4. Nút mua hàng hoạt động thế nào
 
@@ -115,7 +120,8 @@ Nếu muốn tin nhắn tự động vào Zalo, cần đăng ký **Zalo Official
 
 ## 5. Việc cần làm trước khi đưa web lên
 
-- [ ] Thay **ảnh sản phẩm**. Ảnh hiện tại lấy từ file thiết kế: đó là ảnh do AI tạo (có dấu ✦ ở góc), chỉ rộng 1024px và dùng chung cho cả 2 dòng. Nên thay bằng ảnh chụp thật của từng dòng.
+- [x] Bổ sung **ảnh và video SC Tech Pro** từ tư liệu gốc: 8 ảnh hậu kỳ nền bằng AI, 2 clip quay thực tế không có phông xanh; ảnh riêng theo từng bộ.
+- [ ] Thay **ảnh SC Tech** khi có tư liệu: dòng này vẫn dùng ảnh minh họa AI cũ từ file thiết kế, rộng 1024px.
 - [ ] Điền các chỗ trống `[…]`: mô tả, thông số, câu trả lời FAQ, tên app, v.v.
 - [ ] Đọc lại **bản nháp `chinh-sach.html`** và sửa cho đúng với cách shop làm. Các điểm giả định được ghi trong comment ở đầu thẻ `<main>`.
 

@@ -19,6 +19,12 @@ boot((data) => {
   const line = () => getLine(data, state.line);
   const kit = () => getKit(line(), state.kit);
   const isFeatured = (l) => data.lines.indexOf(l) === 0;
+  const gallery = () => kit().gallery || line().gallery;
+  // A kit with its own photos uses only its own videos. Old line-level data still works.
+  const videos = () => {
+    const media = kit().gallery ? kit() : line();
+    return [media.video, ...(media.videos || [])].filter(Boolean);
+  };
 
   /* ---------- Static renders (once) ---------- */
   $('[data-line-switch]').innerHTML = data.lines.map((l) => `
@@ -37,24 +43,10 @@ boot((data) => {
     badge.classList.toggle('badge--pro', isFeatured(l));
     $$('[data-line-switch] .seg__btn').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.line === l.id)));
     $$('[data-guide-link]').forEach((a) => { a.href = `huong-dan.html?dong=${encodeURIComponent(l.id)}`; });
-    $('[data-video-duration]').textContent = l.video?.duration || '';
-
-    // Thumbnails: gallery images + the video (last)
-    const thumbs = l.gallery.map((g, i) => `
-      <button type="button" class="thumb" data-view="${i}" aria-label="${esc(g.label)}" aria-pressed="false">
-        <img src="${esc(g.thumb)}" alt="" width="162" height="110" loading="lazy" decoding="async">
-      </button>`);
-    thumbs.push(`
-      <button type="button" class="thumb thumb--video" data-view="${l.gallery.length}" aria-label="Video giới thiệu" aria-pressed="false">
-        <img src="${esc(l.image.thumb)}" alt="" width="162" height="110" loading="lazy" decoding="async">
-        <span class="thumb__play">${icon('play', 'icon--md')}</span>
-      </button>`);
-    $('[data-thumbs]').innerHTML = thumbs.join('');
-
     renderKits();
+    renderGallery();
     renderFeatures();
     renderCompare();
-    renderView();
 
     setMeta({ title: l.seo?.title, description: l.seo?.description, path: `san-pham.html?dong=${encodeURIComponent(l.id)}` });
     setJsonLd('ld-product', {
@@ -73,6 +65,24 @@ boot((data) => {
         availability: 'https://schema.org/InStock',
       },
     });
+  }
+
+  function renderGallery() {
+    const images = gallery();
+    const clips = videos();
+    if (state.view >= images.length + clips.length) state.view = 0;
+    const thumbs = images.map((g, i) => `
+      <button type="button" class="thumb" data-view="${i}" aria-label="${esc(g.label)}" aria-pressed="false">
+        <img src="${esc(g.thumb)}" alt="" width="162" height="110" loading="lazy" decoding="async">
+      </button>`);
+    clips.forEach((v, i) => thumbs.push(`
+      <button type="button" class="thumb thumb--video" data-view="${images.length + i}" aria-label="${esc(v.title || 'Video giới thiệu')}" aria-pressed="false">
+        <img src="${esc(v.poster || line().image.thumb)}" alt="" width="162" height="110" loading="lazy" decoding="async">
+        <span class="thumb__play">${icon('play', 'icon--md')}</span>
+        ${v.duration && !v.duration.startsWith('[') ? `<span class="thumb__duration" aria-hidden="true">${esc(v.duration)}</span>` : ''}
+      </button>`));
+    $('[data-thumbs]').innerHTML = thumbs.join('');
+    renderView();
   }
 
   function renderKits() {
@@ -220,22 +230,43 @@ boot((data) => {
       </table>`;
   }
 
-  /* Gallery main view: image i, or the video (last) */
+  function resetPlayer() {
+    const main = $('.gallery__main');
+    const player = $('video', main);
+    if (player) {
+      player.pause();
+      player.removeAttribute('src');
+      player.load();
+      player.remove();
+    }
+    $('iframe', main)?.remove();
+    main.classList.remove('is-playing');
+    $('[data-main-img]').hidden = false;
+  }
+
+  /* Gallery main view: images first, then one or more videos. */
   function renderView() {
     const l = line();
-    const isVideo = state.view >= l.gallery.length;
+    const images = gallery();
+    const video = videos()[state.view - images.length];
+    const isVideo = Boolean(video);
     const main = $('.gallery__main');
     const img = $('[data-main-img]');
     const layer = $('[data-video-layer]');
-    $('iframe', main)?.remove();
+    resetPlayer();
 
     if (isVideo) {
-      img.src = l.video?.poster || l.image.src;
-      img.alt = `Ảnh bìa video giới thiệu ${l.name}`;
+      img.src = video.poster || l.image.src;
+      img.alt = `Ảnh bìa ${video.title || `video giới thiệu ${l.name}`}`;
+      $('[data-video-title]').textContent = video.title || 'Video giới thiệu';
+      $('[data-video-duration]').textContent = video.duration ? ` · ${video.duration}` : '';
+      $('[data-play]').setAttribute('aria-label', `Phát ${video.title || `video giới thiệu ${l.name}`}`);
+      $('[data-media-caption]').textContent = video.caption || video.title || 'Video giới thiệu';
     } else {
-      const g = l.gallery[state.view] || l.gallery[0];
+      const g = images[state.view] || images[0];
       img.src = g.src;
       img.alt = g.alt;
+      $('[data-media-caption]').textContent = g.caption || g.label;
     }
     layer.hidden = !isVideo;
     main.classList.toggle('is-video', isVideo);
@@ -244,18 +275,44 @@ boot((data) => {
 
   function playVideo() {
     const l = line();
-    const id = l.video?.youtube;
-    if (!id) {
+    const video = videos()[state.view - gallery().length];
+    if (!video?.src && !video?.youtube) {
       toast('Video giới thiệu đang được cập nhật.');
       return;
     }
     const main = $('.gallery__main');
+    resetPlayer();
+    if (video.src) {
+      const player = document.createElement('video');
+      player.className = 'video-frame';
+      player.src = video.src;
+      player.poster = video.poster || l.image.src;
+      player.controls = true;
+      player.playsInline = true;
+      player.preload = 'metadata';
+      player.tabIndex = 0;
+      player.setAttribute('aria-label', video.title || `Video giới thiệu ${l.name}`);
+      player.addEventListener('error', () => {
+        if (!player.isConnected) return;
+        renderView();
+        toast('Không tải được video. Vui lòng thử lại sau.');
+      }, { once: true });
+      $('[data-video-layer]').hidden = true;
+      $('[data-main-img]').hidden = true;
+      main.classList.add('is-playing');
+      main.appendChild(player);
+      player.play().catch(() => { /* Native controls remain available if autoplay is blocked. */ });
+      player.focus();
+      return;
+    }
     const frame = document.createElement('iframe');
     frame.className = 'video-frame';
-    frame.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0`;
+    frame.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(video.youtube)}?autoplay=1&rel=0`;
     frame.title = `Video giới thiệu ${l.name}`;
     frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+    frame.allowFullscreen = true;
     $('[data-video-layer]').hidden = true;
+    main.classList.add('is-playing');
     main.appendChild(frame);
     frame.focus();
   }
@@ -279,9 +336,11 @@ boot((data) => {
 
   const pickKit = (e) => {
     const b = e.target.closest('[data-kit]');
-    if (!b) return;
+    if (!b || b.dataset.kit === state.kit) return;
     state.kit = b.dataset.kit;
+    state.view = 0;
     renderKitState();
+    renderGallery();
   };
   $('[data-kits]').addEventListener('click', pickKit);
   $('[data-box-chips]').addEventListener('click', pickKit);
