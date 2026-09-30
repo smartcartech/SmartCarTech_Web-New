@@ -2036,6 +2036,9 @@ a.contact-item:hover .contact-item__value { color: var(--c-accent); }
 .code-card__help .icon { color: var(--c-accent); margin-top: 1px; }
 .code-card__help a { color: var(--c-accent); }
 .code-card__help a:hover { text-decoration: underline; }
+.code-card__key { display: flex; flex-direction: column; gap: 8px; }
+.code-card__key .field__input { text-transform: uppercase; letter-spacing: 0.06em; }
+.code-item__dl[aria-busy="true"] { opacity: 0.6; cursor: progress; }
 
 @media (min-width: 768px) {
   .how-list li { gap: 16px; padding: 20px 0; }

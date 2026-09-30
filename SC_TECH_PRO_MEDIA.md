@@ -2,7 +2,7 @@
 
 ## Dự án và phạm vi thay đổi
 
-Website tĩnh gồm 5 trang HTML, CSS chung và JavaScript ES modules, không có bước build hay thư viện JavaScript ngoài. `products.json` chứa hai dòng xe và ba bộ linh kiện mỗi dòng, giá, link mua, thông số, FAQ, ảnh, video và tài liệu hướng dẫn. `core.js` tải dữ liệu, xử lý menu, giỏ hàng localStorage, SEO và luồng sao chép đơn để gửi qua Zalo. `home.js`, `product.js`, `guide.js`, `checkout.js` và `policy.js` xử lý từng trang. Google Apps Script là tích hợp lưu đơn tùy chọn; endpoint hiện để trống.
+Website tĩnh gồm 5 trang HTML, CSS chung và JavaScript ES modules, không có bước build hay thư viện JavaScript ngoài. `products.json` chứa hai dòng xe và ba bộ linh kiện mỗi dòng, giá, link mua, thông số, FAQ, ảnh, video và tài liệu hướng dẫn. `core.js` tải dữ liệu, xử lý menu, giỏ hàng localStorage, SEO và luồng sao chép đơn để gửi qua Zalo. `home.js`, `product.js`, `guide.js`, `checkout.js` và `policy.js` xử lý từng trang. Google Apps Script lưu đơn và kiểm tra mã tải code mẫu (README mục 5); endpoint hiện để trống.
 
 Lần cập nhật này bổ sung media SC Tech Pro trên trang chủ, sản phẩm, hướng dẫn, giỏ hàng và trang đặt hàng. Gallery đổi theo bộ đang chọn, hỗ trợ MP4 và nhiều video, vẫn tương thích trường YouTube cũ. Giá, link mua, thông số phần cứng, video hướng dẫn YouTube và dữ liệu dòng SC Tech được giữ nguyên.
 

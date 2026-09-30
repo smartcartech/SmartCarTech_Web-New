@@ -1,8 +1,27 @@
 /* SmartCarTech — Trang Hướng dẫn */
 import {
   boot, $, $$, esc, icon, fmtPrice, getLine, getKit, params,
-  buyNow, addToCart, setLink, setMeta, toast,
+  buyNow, addToCart, setLink, setMeta, toast, fieldError,
 } from './core.js';
+
+const CODE_KEY = 'sct_code_key';
+
+// Sample code: a plain file name lives in the shop's private Google Drive folder and needs the code
+// printed on the card in the box (checked by google-apps-script.gs). A link or path downloads for anyone.
+const isPrivateZip = (zip) => Boolean(zip) && !/[/:]/.test(zip);
+
+/** Save a base64 file returned by Apps Script as a normal download. */
+function saveFile(name, base64) {
+  const bytes = Uint8Array.from(atob(base64), (ch) => ch.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/zip' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
 
 function openLightbox(src, alt) {
   const box = document.createElement('div');
@@ -120,22 +139,33 @@ boot((data) => {
     uploadNote.innerHTML = g.upload_note
       ? `<span class="note__text">${icon('info', 'icon--md')}<span><strong>Lưu ý:</strong> ${esc(g.upload_note)}</span></span>`
       : '';
-    setLink($('[data-github]'), g.github, 'Trang GitHub đang được cập nhật.');
-    $('[data-code-list]').innerHTML = (g.code || []).map((c, i) => `
+    // Code is for buyers only: no GitHub button unless a link is set
+    $('[data-github]').hidden = !g.github;
+    setLink($('[data-github]'), g.github);
+    const codes = g.code || [];
+    $('[data-code-key-box]').hidden = !codes.some((c) => isPrivateZip(c.zip));
+    $('[data-code-list]').innerHTML = codes.map((c, i) => {
+      const tag = isPrivateZip(c.zip) ? 'button' : 'a';
+      return `
       <li class="code-item">
         <span class="code-item__icon">${icon(['wheels', 'sensor', 'phone'][i % 3], 'icon--md')}</span>
         <span class="code-item__body">
           <span class="code-item__title">${esc(c.title)}</span>
           <span class="code-item__desc">${esc(c.desc)}</span>
         </span>
-        <a class="btn btn--outline-accent btn--sm code-item__dl" data-zip="${i}" href="#" aria-label="Tải .zip – ${esc(c.title)}">
+        <${tag} class="btn btn--outline-accent btn--sm code-item__dl" data-zip="${i}" ${tag === 'a' ? 'href="#"' : 'type="button"'} aria-label="Tải .zip – ${esc(c.title)}">
           ${icon('download', 'show-mobile')}<span class="hide-mobile">Tải .zip</span>
-        </a>
-      </li>`).join('');
-    $$('[data-zip]').forEach((a) => {
-      const c = g.code[Number(a.dataset.zip)];
-      setLink(a, c.zip, `Code "${c.title}" đang được cập nhật.`);
-      if (c.zip) a.setAttribute('download', '');
+        </${tag}>
+      </li>`;
+    }).join('');
+    $$('[data-zip]').forEach((el) => {
+      const c = codes[Number(el.dataset.zip)];
+      if (isPrivateZip(c.zip)) {
+        el.addEventListener('click', () => downloadCode(c, el));
+        return;
+      }
+      setLink(el, c.zip, `Code "${c.title}" đang được cập nhật.`);
+      if (c.zip) el.setAttribute('download', '');
     });
 
     // Step 3 — app
@@ -218,6 +248,49 @@ boot((data) => {
     frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
     $('[data-video-overlay]').hidden = true;
     card.appendChild(frame);
+  }
+
+  /* ---------- Code mẫu: mã in trên thẻ trong hộp ---------- */
+  const keyInput = $('[data-code-key]');
+  try { keyInput.value = localStorage.getItem(CODE_KEY) || ''; } catch { /* private mode */ }
+  keyInput.addEventListener('input', () => fieldError(keyInput, ''));
+
+  async function downloadCode(c, button) {
+    const endpoint = data.site.order_endpoint;
+    if (!endpoint) {
+      toast(`Code "${c.title}" đang được cập nhật.`);
+      return;
+    }
+    const key = keyInput.value.trim();
+    if (!fieldError(keyInput, key ? '' : 'Nhập mã in trên thẻ trong hộp để tải code.')) {
+      keyInput.focus();
+      return;
+    }
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    try {
+      // text/plain keeps this a simple request, so Apps Script needs no CORS preflight
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ type: 'tai-code', code: key, file: c.zip }),
+        signal: AbortSignal.timeout(30000),
+      });
+      const out = await res.json();
+      if (!out.ok) {
+        fieldError(keyInput, out.error || 'Mã không đúng. Kiểm tra lại mã in trên thẻ trong hộp.');
+        keyInput.focus();
+        return;
+      }
+      try { localStorage.setItem(CODE_KEY, key); } catch { /* private mode */ }
+      saveFile(out.name || c.zip, out.data);
+      toast(`Đã tải ${out.name || c.zip}.`);
+    } catch {
+      toast('Chưa tải được code. Kiểm tra kết nối mạng rồi thử lại, hoặc nhắn Zalo cho shop.');
+    } finally {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+    }
   }
 
   function syncUrl() {
