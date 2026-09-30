@@ -81,7 +81,7 @@ python scripts/prepare-sc-tech-pro-media.py --videos-only --force --video cau-ta
 
 MP4 mới được render xong vào file tạm rồi mới thay bản phục vụ website. `--video` có thể lặp lại để chọn `cau-tao` hoặc `khung`; không chọn thì xuất cả hai clip đang sử dụng.
 
-`lines[].video` là clip đầu, `lines[].videos[]` là clip bổ sung. Bộ có `kits[].gallery` riêng dùng media riêng, không kế thừa clip của xe đầy đủ; có thể thêm `kits[].video` và `kits[].videos[]` khi có tư liệu. `kits[].image` được dùng cho thẻ trang chủ, giỏ hàng và trang đặt hàng.
+`lines[].video` là clip đầu, `lines[].videos[]` là clip bổ sung. Bộ có `kits[].gallery` riêng dùng media riêng, không kế thừa clip của xe đầy đủ; có thể thêm `kits[].video` và `kits[].videos[]` khi có tư liệu. `kits[].image` được dùng cho thẻ trang chủ, giỏ hàng và trang đặt hàng. Ảnh gallery có `src_small` trỏ tới bản `-640.webp`; trang Sản phẩm đưa bản này vào `srcset`. Đo trên Chrome ở khung 390 px: màn hình 1× tải bản 640 px, còn màn hình 2×–3× (đa số điện thoại) vẫn tải bản lớn để ảnh không bị mờ.
 
 SC Tech chờ ảnh/video gốc ở lần cập nhật sau. Hình chia sẻ mạng xã hội `og-image.jpg` hiện vẫn dùng thiết kế cũ.
 

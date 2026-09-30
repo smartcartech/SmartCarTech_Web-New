@@ -19,12 +19,10 @@ boot((data) => {
   const line = () => getLine(data, state.line);
   const kit = () => getKit(line(), state.kit);
   const isFeatured = (l) => data.lines.indexOf(l) === 0;
-  const gallery = () => kit().gallery || line().gallery;
-  // A kit with its own photos uses only its own videos. Old line-level data still works.
-  const videos = () => {
-    const media = kit().gallery ? kit() : line();
-    return [media.video, ...(media.videos || [])].filter(Boolean);
-  };
+  // A kit with its own photos uses only its own photos and videos. Old line-level data still works.
+  const media = () => (kit().gallery ? kit() : line());
+  const gallery = () => media().gallery;
+  const videos = () => [media().video, ...(media().videos || [])].filter(Boolean);
 
   /* ---------- Static renders (once) ---------- */
   $('[data-line-switch]').innerHTML = data.lines.map((l) => `
@@ -248,6 +246,13 @@ boot((data) => {
     $('[data-main-img]').hidden = false;
   }
 
+  /** Swap the main photo. With a 640px copy (src_small) the browser picks it when the screen doesn't need the large file. */
+  function showMainImg(img, src, small, width = 1024) {
+    if (small) img.srcset = `${small} 640w, ${src} ${width}w`;
+    else img.removeAttribute('srcset');
+    img.src = src;
+  }
+
   /* Gallery main view: images first, then one or more videos. */
   function renderView() {
     const l = line();
@@ -261,7 +266,7 @@ boot((data) => {
     $('[data-line-badge]').hidden = !isVideo && Boolean(images[state.view]?.hide_badge);
 
     if (isVideo) {
-      img.src = video.poster || l.image.src;
+      showMainImg(img, video.poster || l.image.src);
       img.alt = `Ảnh bìa ${video.title || `video giới thiệu ${l.name}`}`;
       $('[data-video-title]').textContent = video.title || 'Video giới thiệu';
       $('[data-video-duration]').textContent = video.duration ? ` · ${video.duration}` : '';
@@ -269,7 +274,8 @@ boot((data) => {
       $('[data-media-caption]').textContent = video.caption || video.title || 'Video giới thiệu';
     } else {
       const g = images[state.view] || images[0];
-      img.src = g.src;
+      // Gallery photos are exported at about the width of the line/kit main photo
+      showMainImg(img, g.src, g.src_small, media().image?.width);
       img.alt = g.alt;
       $('[data-media-caption]').textContent = g.caption || g.label;
     }
