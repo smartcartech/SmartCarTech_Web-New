@@ -11,7 +11,7 @@ huong-dan.html        Hướng dẫn (?dong=…&bo=…)
 dat-hang.html         Đặt hàng (?mua=pro:day-du:2  hoặc  ?tu=gio-hang)
 chinh-sach.html       Chính sách bảo hành (#bao-hanh), vận chuyển & đổi trả (#van-chuyen)
 products.json         ★ DỮ LIỆU — file duy nhất bạn cần sửa
-google-apps-script.gs (Tùy chọn) Lưu đơn vào Google Sheet — không tải lên hosting
+google-apps-script.gs Lưu đơn vào Google Sheet + kiểm tra mã tải code mẫu — không tải lên hosting
 robots.txt, sitemap.xml  Cho Google biết các trang cần hiển thị
 _config.yml           Danh sách file GitHub Pages không đưa lên web
 assets/css/style.css  Toàn bộ giao diện (màu, font, khoảng cách ở đầu file)
@@ -79,7 +79,7 @@ Tên miền **smartcartech.vn** đã được ghi sẵn trong: `og:image` (4 fil
 | Lưu ý khi nạp code (bước 2) | `guide.upload_note` — để `""` thì ẩn |
 | Ảnh sơ đồ mạch (bấm để phóng to) | `guide.circuit_image` |
 | Nút "Tải sơ đồ mạch", "Bản vẽ 3D (SolidWorks)" | `guide.circuit_download`, `guide.cad_download` — link Google Drive hoặc file trong `assets/` |
-| Code .zip, GitHub | `guide.code[].zip`, `guide.github` |
+| Code mẫu .zip (chỉ người mua tải được) | `guide.code[].zip`: tên file .zip trong thư mục Google Drive riêng tư — xem mục 5. `guide.github`: để trống thì ẩn nút GitHub |
 | Nội dung chính sách bảo hành, vận chuyển & đổi trả | Sửa trực tiếp trong `chinh-sach.html` (không nằm trong `products.json`) |
 | App: tên, kết nối, link cửa hàng, mã QR | `guide.app` |
 | Ảnh chụp màn hình app (khung điện thoại nằm ngang) | `guide.app.screens` — mỗi ảnh có `label` (tên nút chuyển), `src`, `alt`. Mặc định hiện ảnh cuối cùng |
@@ -90,7 +90,7 @@ Tên miền **smartcartech.vn** đã được ghi sẵn trong: `og:image` (4 fil
 
 **Lưu ý khi sửa:**
 
-- **Link còn trống `""`:** nút vẫn hiện. Khi khách bấm, web báo "đang cập nhật". Riêng nút App Store (`guide.app.app_store`) sẽ ẩn hẳn khi để trống, vì app hiện chỉ có trên Google Play.
+- **Link còn trống `""`:** nút vẫn hiện. Khi khách bấm, web báo "đang cập nhật". Riêng nút App Store (`guide.app.app_store`) sẽ ẩn hẳn khi để trống, vì app hiện chỉ có trên Google Play. Nút GitHub (`guide.github`) cũng ẩn khi để trống, vì code mẫu chỉ dành cho người mua.
 - **Chữ trong `[NGOẶC VUÔNG]`** là chỗ trống còn chờ nội dung thật.
 - **Kiểm tra lỗi cú pháp:** sau khi sửa, dán nội dung file vào jsonlint.com. Một dấu phẩy thừa hoặc thiếu cũng làm web không tải được dữ liệu.
 - **Thêm ảnh mới:** lưu ảnh dạng **WebP**, rộng khoảng 1600px, đặt vào `assets/img/`, rồi sửa đường dẫn trong JSON.
@@ -116,18 +116,59 @@ Zalo **không cho** website tự gửi tin nhắn tới số Zalo cá nhân, và
 2. Web kiểm tra thông tin, tạo mã đơn (VD: `#SC260926-4821`) và **tự sao chép** nội dung đơn gồm: sản phẩm, bộ, số lượng, giá, tổng, thông tin người nhận.
 3. Khách bấm **Mở Zalo gửi cho shop**, dán nội dung vào ô chat rồi gửi.
 
-Nếu khách quên bấm gửi thì shop mất đơn. Để tránh việc này, hãy **bật lưu đơn vào Google Sheet**: làm theo hướng dẫn ở đầu file `google-apps-script.gs`, rồi dán URL vào `site.order_endpoint`. Script này có thể gửi thêm email báo đơn mới cho bạn. Form "Gửi yêu cầu tư vấn" ở Trang chủ cũng hoạt động theo cách này.
+Nếu khách quên bấm gửi thì shop mất đơn. Để tránh việc này, hãy **bật lưu đơn vào Google Sheet**: cài `google-apps-script.gs` theo mục 5 bên dưới, rồi dán URL vào `site.order_endpoint`. Script này có thể gửi thêm email báo đơn mới cho bạn. Form "Gửi yêu cầu tư vấn" ở Trang chủ cũng hoạt động theo cách này.
 
 Nếu muốn tin nhắn tự động vào Zalo, cần đăng ký **Zalo Official Account** (tài khoản doanh nghiệp) và có một server riêng để giữ token. Phần này làm sau được, không cần sửa giao diện.
 
-## 5. Việc cần làm trước khi đưa web lên
+## 5. Code mẫu: chỉ người mua tải được
+
+Mỗi hộp có một thẻ in **mã tải code** riêng, VD `K7M3-Q9XP`. Ở trang Hướng dẫn, khách nhập mã rồi bấm *Tải .zip*. Script `google-apps-script.gs` tìm mã trong Google Sheet của shop, mã đúng thì mới gửi file từ một thư mục Google Drive riêng tư. File code không nằm trên website nên người không có mã không tải được.
+
+- Mỗi mã tải được mọi file code mẫu, tối đa 20 lượt (`MAX_DOWNLOADS` trong script).
+- Mã nào bị lộ thì tích ô **Khoá** của mã đó, các mã khác vẫn dùng bình thường.
+- Không cách nào ngăn người đã tải gửi file cho người khác. Cách này chỉ để website không phát code công khai.
+
+### Cài đặt (làm một lần)
+
+1. **Chuẩn bị file code.** Nén mỗi chương trình thành 1 file .zip, đặt tên đúng như `guide.code[].zip` trong `products.json`:
+   - SC Tech Pro: `sc-tech-pro-chay-thu-dong-co.zip`, `sc-tech-pro-tranh-vat-can.zip`, `sc-tech-pro-dieu-khien-app.zip`
+   - SC Tech: `sc-tech-chay-thu-dong-co.zip`, `sc-tech-den-led-coi.zip`, `sc-tech-dieu-khien-app.zip`
+
+   Tên file không dấu, không khoảng trắng. Muốn đổi tên thì sửa cả tên file lẫn `products.json`.
+2. **Tạo thư mục trên Google Drive**, VD `SmartCarTech - Code mau`, rồi tải 6 file .zip vào. Giữ quyền truy cập chung là **Bị hạn chế** (mặc định), đừng chọn "Bất kỳ ai có đường liên kết". Mở thư mục và copy phần ID ở cuối địa chỉ: `drive.google.com/drive/folders/<ID>`.
+3. **Tạo Google Sheet mới**, VD `SmartCarTech - Don hang va ma code`, rồi vào menu **Tiện ích mở rộng → Apps Script**.
+4. Xoá code mẫu trong trình soạn, dán toàn bộ nội dung `google-apps-script.gs`, rồi điền:
+   - `CODE_FOLDER_ID`: ID thư mục ở bước 2, giữ trong dấu nháy: `'1AbC…'`.
+   - `NOTIFY_EMAIL` (tùy chọn): email nhận thông báo khi có đơn mới.
+
+   Bấm biểu tượng **Lưu**. Chỉ điền ở đây, đừng sửa file trong kho GitHub vì kho đang để công khai.
+5. **Triển khai:** bấm **Triển khai → Tùy chọn triển khai mới**, bấm biểu tượng bánh răng, chọn **Ứng dụng web**:
+   - Thực thi dưới dạng: **Tôi**
+   - Người có quyền truy cập: **Bất kỳ ai**
+
+   Bấm **Triển khai → Ủy quyền truy cập** và chọn tài khoản Google của shop. Google sẽ báo *"Google chưa xác minh ứng dụng này"*. Điều này bình thường với script tự viết: bấm **Nâng cao → Chuyển đến … (không an toàn) → Cho phép**.
+6. Copy **URL ứng dụng web** (dạng `https://script.google.com/macros/s/…/exec`) và dán vào `products.json` → `site.order_endpoint`. Mở URL này trên trình duyệt, thấy dòng *"SmartCarTech: Apps Script đang chạy."* là được. Từ lúc này đơn hàng và yêu cầu tư vấn cũng được lưu vào Sheet.
+7. **Tạo mã:** tải lại trang Google Sheet, chọn menu **SmartCarTech → Tạo mã tải code…**, nhập số mã cần tạo và ghi chú (VD lô hàng). Mã mới nằm ở trang tính **Mã tải code**.
+8. **In thẻ:** các mã vừa tạo đã được chọn sẵn. Vào **Tệp → In** và chọn in **các ô đã chọn**, hoặc sao chép mã sang mẫu in decal. Trên thẻ nên ghi: *"Tải code mẫu tại smartcartech.vn/huong-dan.html – Mã của bạn: K7M3-Q9XP"*. Mỗi hộp một mã, không dùng lại mã đã in.
+9. **Thử:** vào trang Hướng dẫn, nhập một mã vừa tạo rồi bấm *Tải .zip*. Cột **Số lần tải** của mã đó tăng lên 1 là xong.
+
+### Dùng hằng ngày
+
+- **Đơn Shopee:** bỏ thẻ vào hộp. **Đơn Zalo / web:** bỏ thẻ vào hộp, hoặc gửi mã qua Zalo khi xác nhận đơn.
+- **Khách làm mất thẻ:** gửi khách một mã chưa dùng (Số lần tải = 0), ghi mã đơn vào cột Ghi chú.
+- **Mã bị lộ:** tích ô **Khoá**. **Khách hết lượt tải:** sửa Số lần tải của mã đó về 0.
+- **Thay file code:** xoá file cũ trong thư mục Drive rồi tải file mới cùng tên lên.
+- **Sửa script sau này:** sửa trong trình soạn Apps Script, rồi vào **Triển khai → Quản lý các lần triển khai**, bấm biểu tượng bút chì, chọn Phiên bản **Phiên bản mới** → **Triển khai**. Làm vậy thì URL giữ nguyên. Nếu chọn "Tùy chọn triển khai mới", URL sẽ đổi và phải dán lại vào `products.json`.
+
+## 6. Việc cần làm trước khi đưa web lên
 
 - [x] Bổ sung **ảnh và video SC Tech Pro** từ tư liệu gốc: 9 ảnh hậu kỳ nền bằng AI (gồm ảnh linh kiện bộ đầy đủ từ `All.jpg`), 2 clip quay thực tế không có phông xanh; ảnh riêng theo từng bộ, ghi rõ bộ đầy đủ giao linh kiện để khách tự lắp.
 - [ ] Thay **ảnh SC Tech** khi có tư liệu: dòng này vẫn dùng ảnh minh họa AI cũ từ file thiết kế, rộng 1024px.
+- [ ] Cài **Google Apps Script** theo mục 5: lưu đơn vào Google Sheet, tải 6 file code mẫu lên Drive, tạo mã và in thẻ bỏ vào hộp.
 - [ ] Điền các chỗ trống `[…]`: mô tả, thông số, câu trả lời FAQ, tên app, v.v.
 - [ ] Đọc lại **bản nháp `chinh-sach.html`** và sửa cho đúng với cách shop làm. Các điểm giả định được ghi trong comment ở đầu thẻ `<main>`.
 
-## 6. Ghi chú kỹ thuật
+## 7. Ghi chú kỹ thuật
 
 - **Giao diện co giãn:** thiết kế cho 390px (mobile) và 1440px (desktop). Khoảng cách và cỡ chữ co giãn mượt giữa hai mốc này bằng `clamp()`. Bố cục đổi ở 768px và 1024px, riêng phần đầu trang chủ đổi ở 1200px.
 - **Mọi màu, font, bo góc, khoảng cách** được khai báo ở phần `:root` đầu file `style.css`.

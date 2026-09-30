@@ -2,7 +2,8 @@
   "_huong_dan": [
     "ĐÂY LÀ FILE DỮ LIỆU DUY NHẤT CỦA WEBSITE. Sửa ở đây, không cần sửa code.",
     "Giá ghi số nguyên, đơn vị đồng, không dấu chấm. VD: 1590000 (hiển thị 1.590.000 ₫).",
-    "Các link (Shopee, PDF, .zip, app, YouTube...) để \"\" nếu chưa có — nút tương ứng sẽ báo 'đang cập nhật'.",
+    "Các link (Shopee, PDF, app, YouTube...) để \"\" nếu chưa có — nút tương ứng sẽ báo 'đang cập nhật'.",
+    "code[].zip: tên file .zip trong thư mục Google Drive riêng tư (không dấu, không khoảng trắng). Khách nhập mã in trên thẻ trong hộp mới tải được — xem README mục 5. Nếu điền link https://... thì ai cũng tải được.",
     "youtube: dán mã video (phần sau v= trong link), VD: \"dQw4w9WgXcQ\".",
     "Chữ trong [NGOẶC VUÔNG] là chỗ trống cần điền nội dung thật.",
     "shopee: 2 bộ khung của cùng một dòng dùng chung 1 link (khách chọn phân loại trên Shopee)."
@@ -130,9 +131,9 @@
         "upload_note": "Khi nạp code cho Arduino Nano, nếu chọn Processor là “ATmega328P (Old Bootloader)” mà không nạp được thì chọn lại Processor là “ATmega328P” và thử lại.",
         "github": "",
         "code": [
-          { "title": "Chạy thử động cơ", "desc": "Kiểm tra 4 bánh quay đúng chiều", "zip": "" },
-          { "title": "Tránh vật cản", "desc": "Xe tự chạy và né vật cản bằng cảm biến siêu âm", "zip": "" },
-          { "title": "Điều khiển qua app", "desc": "Kết nối xe với app trên điện thoại", "zip": "" }
+          { "title": "Chạy thử động cơ", "desc": "Kiểm tra 4 bánh quay đúng chiều", "zip": "sc-tech-pro-chay-thu-dong-co.zip" },
+          { "title": "Tránh vật cản", "desc": "Xe tự chạy và né vật cản bằng cảm biến siêu âm", "zip": "sc-tech-pro-tranh-vat-can.zip" },
+          { "title": "Điều khiển qua app", "desc": "Kết nối xe với app trên điện thoại", "zip": "sc-tech-pro-dieu-khien-app.zip" }
         ],
         "app": {
           "name": "SC Tech Pro",
@@ -234,9 +235,9 @@
         "upload_note": "Khi nạp code cho Arduino Nano, nếu chọn Processor là “ATmega328P (Old Bootloader)” mà không nạp được thì chọn lại Processor là “ATmega328P” và thử lại.",
         "github": "",
         "code": [
-          { "title": "Chạy thử động cơ", "desc": "Kiểm tra 4 bánh quay đúng chiều", "zip": "" },
-          { "title": "Đèn LED và còi", "desc": "Chạy thử 4 đèn LED và còi buzzer", "zip": "" },
-          { "title": "Điều khiển qua app", "desc": "Kết nối xe với app trên điện thoại qua Bluetooth", "zip": "" }
+          { "title": "Chạy thử động cơ", "desc": "Kiểm tra 4 bánh quay đúng chiều", "zip": "sc-tech-chay-thu-dong-co.zip" },
+          { "title": "Đèn LED và còi", "desc": "Chạy thử 4 đèn LED và còi buzzer", "zip": "sc-tech-den-led-coi.zip" },
+          { "title": "Điều khiển qua app", "desc": "Kết nối xe với app trên điện thoại qua Bluetooth", "zip": "sc-tech-dieu-khien-app.zip" }
         ],
         "app": {
           "name": "SC Tech",

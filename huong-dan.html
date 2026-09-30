@@ -182,7 +182,7 @@
             </li>
             <li>
               <span class="num-dot" aria-hidden="true">2</span>
-              <span class="how-list__body"><span class="how-list__title">Tải code mẫu</span><span class="how-list__text">Chọn chương trình <span class="hide-mobile">ở bên cạnh</span><span class="show-mobile">bên dưới</span>, tải về và giải nén.</span></span>
+              <span class="how-list__body"><span class="how-list__title">Tải code mẫu</span><span class="how-list__text">Nhập mã in trên thẻ trong hộp, chọn chương trình <span class="hide-mobile">ở bên cạnh</span><span class="show-mobile">bên dưới</span>, tải về và giải nén.</span></span>
             </li>
             <li>
               <span class="num-dot" aria-hidden="true">3</span>
@@ -200,6 +200,17 @@
           <div class="code-card__head">
             <h3 class="code-card__title">Code mẫu <span data-line-name>SC Tech Pro</span></h3>
             <a class="code-card__github" data-github href="#"><span class="hide-mobile">Xem trên&nbsp;</span>GitHub</a>
+          </div>
+          <div class="code-card__key" data-code-key-box>
+            <div class="field">
+              <label class="field__label" for="code-key">Mã tải code (in trên thẻ trong hộp)</label>
+              <input class="field__input" id="code-key" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="VD: K7M3-Q9XP" aria-describedby="code-key-err" data-code-key>
+              <span class="field__error" id="code-key-err"></span>
+            </div>
+            <p class="code-card__help">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-info"></use></svg>
+              <span>Chưa có mã hoặc làm mất thẻ? <a data-href="zalo" href="https://zalo.me/">Nhắn Zalo</a> kèm mã đơn hàng để shop gửi mã.</span>
+            </p>
           </div>
           <ul class="code-list" role="list" data-code-list></ul>
           <p class="code-card__help">
