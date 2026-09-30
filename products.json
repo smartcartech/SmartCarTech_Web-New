@@ -36,11 +36,11 @@
       },
       "image": { "src": "assets/img/sc-tech-pro/toan-canh.webp", "src_small": "assets/img/sc-tech-pro/toan-canh-640.webp", "thumb": "assets/img/sc-tech-pro/toan-canh-thumb.webp", "width": 1536, "height": 1024, "alt": "Xe mẫu SC Tech Pro đã lắp ráp, nhìn từ phía trước bên trái" },
       "gallery": [
-        { "src": "assets/img/sc-tech-pro/toan-canh.webp", "thumb": "assets/img/sc-tech-pro/toan-canh-thumb.webp", "label": "Toàn cảnh xe", "caption": "Xe mẫu SC Tech Pro minh họa sau khi lắp ráp. Bộ đầy đủ được giao dưới dạng linh kiện rời để bạn tự lắp.", "alt": "Xe mẫu SC Tech Pro nhìn từ phía trước bên trái, khung mica trong và bánh xe vàng" },
-        { "src": "assets/img/sc-tech-pro/linh-kien-day-du.webp", "thumb": "assets/img/sc-tech-pro/linh-kien-day-du-thumb.webp", "label": "Linh kiện bộ đầy đủ — tự lắp ráp", "caption": "Bộ đầy đủ linh kiện gồm các linh kiện rời để bạn tự lắp ráp theo hướng dẫn. Shop không giao xe lắp sẵn.", "hide_badge": true, "alt": "Linh kiện rời của bộ đầy đủ SC Tech Pro: khung mica, bốn bánh và động cơ, mạch điều khiển, bốn cảm biến siêu âm, pin, bộ sạc, dây và phụ kiện" },
-        { "src": "assets/img/sc-tech-pro/mat-truoc.webp", "thumb": "assets/img/sc-tech-pro/mat-truoc-thumb.webp", "label": "Cảm biến và đèn phía trước", "alt": "SC Tech Pro nhìn chính diện với ba module siêu âm phía trước và đèn LED đang bật" },
-        { "src": "assets/img/sc-tech-pro/mach-va-pin.webp", "thumb": "assets/img/sc-tech-pro/mach-va-pin-thumb.webp", "label": "Mạch và pin nhìn từ trên", "alt": "SC Tech Pro nhìn từ trên: Arduino Nano, Bluetooth, mạch hạ áp, driver L298N và bốn pin 18650" },
-        { "src": "assets/img/sc-tech-pro/mat-sau.webp", "thumb": "assets/img/sc-tech-pro/mat-sau-thumb.webp", "label": "Pin và cảm biến phía sau", "alt": "SC Tech Pro nhìn từ phía sau với cụm bốn pin 18650 và module siêu âm phía sau" }
+        { "src": "assets/img/sc-tech-pro/toan-canh.webp", "src_small": "assets/img/sc-tech-pro/toan-canh-640.webp", "thumb": "assets/img/sc-tech-pro/toan-canh-thumb.webp", "label": "Toàn cảnh xe", "caption": "Xe mẫu SC Tech Pro minh họa sau khi lắp ráp. Bộ đầy đủ được giao dưới dạng linh kiện rời để bạn tự lắp.", "alt": "Xe mẫu SC Tech Pro nhìn từ phía trước bên trái, khung mica trong và bánh xe vàng" },
+        { "src": "assets/img/sc-tech-pro/linh-kien-day-du.webp", "src_small": "assets/img/sc-tech-pro/linh-kien-day-du-640.webp", "thumb": "assets/img/sc-tech-pro/linh-kien-day-du-thumb.webp", "label": "Linh kiện bộ đầy đủ — tự lắp ráp", "caption": "Bộ đầy đủ linh kiện gồm các linh kiện rời để bạn tự lắp ráp theo hướng dẫn. Shop không giao xe lắp sẵn.", "hide_badge": true, "alt": "Linh kiện rời của bộ đầy đủ SC Tech Pro: khung mica, bốn bánh và động cơ, mạch điều khiển, bốn cảm biến siêu âm, pin, bộ sạc, dây và phụ kiện" },
+        { "src": "assets/img/sc-tech-pro/mat-truoc.webp", "src_small": "assets/img/sc-tech-pro/mat-truoc-640.webp", "thumb": "assets/img/sc-tech-pro/mat-truoc-thumb.webp", "label": "Cảm biến và đèn phía trước", "alt": "SC Tech Pro nhìn chính diện với ba module siêu âm phía trước và đèn LED đang bật" },
+        { "src": "assets/img/sc-tech-pro/mach-va-pin.webp", "src_small": "assets/img/sc-tech-pro/mach-va-pin-640.webp", "thumb": "assets/img/sc-tech-pro/mach-va-pin-thumb.webp", "label": "Mạch và pin nhìn từ trên", "alt": "SC Tech Pro nhìn từ trên: Arduino Nano, Bluetooth, mạch hạ áp, driver L298N và bốn pin 18650" },
+        { "src": "assets/img/sc-tech-pro/mat-sau.webp", "src_small": "assets/img/sc-tech-pro/mat-sau-640.webp", "thumb": "assets/img/sc-tech-pro/mat-sau-thumb.webp", "label": "Pin và cảm biến phía sau", "alt": "SC Tech Pro nhìn từ phía sau với cụm bốn pin 18650 và module siêu âm phía sau" }
       ],
       "video": { "src": "assets/video/sc-tech-pro/cau-tao.mp4", "youtube": "", "title": "Cấu tạo SC Tech Pro", "duration": "0:10", "poster": "assets/video/sc-tech-pro/cau-tao-poster.webp", "caption": "Cận cảnh mạch, dây và pin trên xe mẫu; video dọc quay thực tế trên nền gỗ." },
       "videos": [],
@@ -81,8 +81,8 @@
           "price": 390000,
           "image": { "src": "assets/img/sc-tech-pro/khung-dong-co-banh.webp", "src_small": "assets/img/sc-tech-pro/khung-dong-co-banh-640.webp", "thumb": "assets/img/sc-tech-pro/khung-dong-co-banh-thumb.webp", "width": 1536, "height": 1024, "alt": "Khung SC Tech Pro đã lắp bốn động cơ và bánh xe, chưa có mạch và pin" },
           "gallery": [
-            { "src": "assets/img/sc-tech-pro/khung-dong-co-banh.webp", "thumb": "assets/img/sc-tech-pro/khung-dong-co-banh-thumb.webp", "label": "Khung + động cơ + bánh đã lắp", "caption": "Mẫu đã lắp từ bộ khung + động cơ + bánh; chưa có mạch, cảm biến và pin.", "alt": "Khung SC Tech Pro với bốn bánh vàng và động cơ, mặt mica phía trên còn trống" },
-            { "src": "assets/img/sc-tech-pro/linh-kien-khung-dong-co-banh.webp", "thumb": "assets/img/sc-tech-pro/linh-kien-khung-dong-co-banh-thumb.webp", "label": "Linh kiện khung + động cơ + bánh", "alt": "Các tấm khung mica SC Tech Pro, bốn bánh xe, bốn động cơ và túi phụ kiện trước khi lắp" }
+            { "src": "assets/img/sc-tech-pro/khung-dong-co-banh.webp", "src_small": "assets/img/sc-tech-pro/khung-dong-co-banh-640.webp", "thumb": "assets/img/sc-tech-pro/khung-dong-co-banh-thumb.webp", "label": "Khung + động cơ + bánh đã lắp", "caption": "Mẫu đã lắp từ bộ khung + động cơ + bánh; chưa có mạch, cảm biến và pin.", "alt": "Khung SC Tech Pro với bốn bánh vàng và động cơ, mặt mica phía trên còn trống" },
+            { "src": "assets/img/sc-tech-pro/linh-kien-khung-dong-co-banh.webp", "src_small": "assets/img/sc-tech-pro/linh-kien-khung-dong-co-banh-640.webp", "thumb": "assets/img/sc-tech-pro/linh-kien-khung-dong-co-banh-thumb.webp", "label": "Linh kiện khung + động cơ + bánh", "alt": "Các tấm khung mica SC Tech Pro, bốn bánh xe, bốn động cơ và túi phụ kiện trước khi lắp" }
           ],
           "shopee": "https://shopee.vn/Khung-Xe-Mica-%C4%90%E1%BB%99ng-C%C6%A1-B%C3%A1nh-Xe-Arduino-Bluetooth-SC-Tech-i.1077117645.19584307416",
           "includes": ["khung", "dong-co"],
@@ -99,8 +99,8 @@
           "price": 290000,
           "image": { "src": "assets/img/sc-tech-pro/khung.webp", "src_small": "assets/img/sc-tech-pro/khung-640.webp", "thumb": "assets/img/sc-tech-pro/khung-thumb.webp", "width": 1536, "height": 1024, "alt": "Khung mica SC Tech Pro đã lắp, chưa có động cơ, bánh xe hay mạch" },
           "gallery": [
-            { "src": "assets/img/sc-tech-pro/khung.webp", "thumb": "assets/img/sc-tech-pro/khung-thumb.webp", "label": "Khung xe đã lắp", "caption": "Khung SC Tech Pro đã lắp minh họa; chưa có động cơ, bánh xe hay mạch.", "alt": "Khung mica đen hai tầng SC Tech Pro, nắp trong suốt và trụ đồng" },
-            { "src": "assets/img/sc-tech-pro/linh-kien-khung.webp", "thumb": "assets/img/sc-tech-pro/linh-kien-khung-thumb.webp", "label": "Linh kiện bộ chỉ khung", "alt": "Hai tấm mica đen, một nắp mica trong và túi ốc vít, trụ đồng, phụ kiện của bộ khung SC Tech Pro" }
+            { "src": "assets/img/sc-tech-pro/khung.webp", "src_small": "assets/img/sc-tech-pro/khung-640.webp", "thumb": "assets/img/sc-tech-pro/khung-thumb.webp", "label": "Khung xe đã lắp", "caption": "Khung SC Tech Pro đã lắp minh họa; chưa có động cơ, bánh xe hay mạch.", "alt": "Khung mica đen hai tầng SC Tech Pro, nắp trong suốt và trụ đồng" },
+            { "src": "assets/img/sc-tech-pro/linh-kien-khung.webp", "src_small": "assets/img/sc-tech-pro/linh-kien-khung-640.webp", "thumb": "assets/img/sc-tech-pro/linh-kien-khung-thumb.webp", "label": "Linh kiện bộ chỉ khung", "alt": "Hai tấm mica đen, một nắp mica trong và túi ốc vít, trụ đồng, phụ kiện của bộ khung SC Tech Pro" }
           ],
           "video": { "src": "assets/video/sc-tech-pro/khung.mp4", "title": "Cấu tạo khung SC Tech Pro", "duration": "0:15", "poster": "assets/video/sc-tech-pro/khung-poster.webp", "caption": "Video quay thực tế khung mica và phụ kiện của bộ chỉ khung." },
           "shopee": "https://shopee.vn/Khung-Xe-Mica-%C4%90%E1%BB%99ng-C%C6%A1-B%C3%A1nh-Xe-Arduino-Bluetooth-SC-Tech-i.1077117645.19584307416",
@@ -161,7 +161,7 @@
       },
       "image": { "src": "assets/img/xe-toan-canh.webp", "src_small": "assets/img/xe-toan-canh-640.webp", "thumb": "assets/img/xe-toan-canh-thumb.webp", "alt": "Xe robot SC Tech" },
       "gallery": [
-        { "src": "assets/img/xe-toan-canh.webp", "thumb": "assets/img/xe-toan-canh-thumb.webp", "label": "Ảnh toàn cảnh", "alt": "Xe robot SC Tech nhìn toàn cảnh, khung mica 2 tầng và 4 bánh cao su" },
+        { "src": "assets/img/xe-toan-canh.webp", "src_small": "assets/img/xe-toan-canh-640.webp", "thumb": "assets/img/xe-toan-canh-thumb.webp", "label": "Ảnh toàn cảnh", "alt": "Xe robot SC Tech nhìn toàn cảnh, khung mica 2 tầng và 4 bánh cao su" },
         { "src": "assets/img/xe-mach.webp", "thumb": "assets/img/xe-mach-thumb.webp", "label": "Ảnh cận cảnh mạch điều khiển", "alt": "Cận cảnh mạch điều khiển trên xe SC Tech" }
       ],
       "video": { "youtube": "", "duration": "[THỜI LƯỢNG]", "poster": "assets/img/xe-toan-canh.webp" },
