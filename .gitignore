@@ -8,6 +8,9 @@ desktop.ini
 .vscode/
 .idea/
 
+# File tạm Python tạo ra khi chạy script
+__pycache__/
+
 # Tư liệu gốc và file kiểm tra, không đưa vào bản website
 source image and video/
 tmp/

@@ -14,7 +14,7 @@ Các đường dẫn nguồn dưới đây tính từ `source image and video/SC
 
 | Nguồn | WebP | Mục đích |
 |---|---|---|
-| `SC Tech Pro day du/20260418_143846.jpg` | `toan-canh.webp` | Góc trước bên trái; hero, bộ đầy đủ, ảnh hướng dẫn |
+| `SC Tech Pro day du/20260418_143846.jpg` | `toan-canh.webp` | Góc trước bên trái; thẻ trang chủ, bộ đầy đủ, ảnh hướng dẫn |
 | `SC Tech Pro day du/All.jpg` | `linh-kien-day-du.webp` | Linh kiện rời của bộ đầy đủ; ảnh thứ hai trong gallery bộ đầy đủ |
 | `SC Tech Pro day du/20260418_144002.jpg` | `mat-truoc.webp` | Ba module siêu âm phía trước và đèn LED |
 | `SC Tech Pro day du/20260418_144016.jpg` | `mach-va-pin.webp` | Góc từ trên: Arduino, Bluetooth, driver, nguồn và pin |
