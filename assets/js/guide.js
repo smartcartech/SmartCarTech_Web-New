@@ -148,7 +148,7 @@ boot((data) => {
       const tag = isPrivateZip(c.zip) ? 'button' : 'a';
       return `
       <li class="code-item">
-        <span class="code-item__icon">${icon(['wheels', 'sensor', 'phone'][i % 3], 'icon--md')}</span>
+        <span class="code-item__icon">${icon(esc(c.icon || 'code'), 'icon--md')}</span>
         <span class="code-item__body">
           <span class="code-item__title">${esc(c.title)}</span>
           <span class="code-item__desc">${esc(c.desc)}</span>

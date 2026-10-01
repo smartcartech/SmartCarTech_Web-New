@@ -79,7 +79,7 @@ Tên miền **smartcartech.vn** đã được ghi sẵn trong: `og:image` (4 fil
 | Lưu ý khi nạp code (bước 2) | `guide.upload_note` — để `""` thì ẩn |
 | Ảnh sơ đồ mạch (bấm để phóng to) | `guide.circuit_image` |
 | Nút "Tải sơ đồ mạch", "Bản vẽ 3D (SolidWorks)" | `guide.circuit_download`, `guide.cad_download` — link Google Drive hoặc file trong `assets/` |
-| Code mẫu .zip (chỉ người mua tải được) | `guide.code[].zip`: tên file .zip trong thư mục Google Drive riêng tư — xem mục 5. `guide.github`: để trống thì ẩn nút GitHub |
+| Code mẫu .zip (chỉ người mua tải được) | `guide.code[].zip`: tên file .zip trong thư mục Google Drive riêng tư — xem mục 5. `guide.code[].icon`: hình minh họa, VD `sensor`, `phone`, `wheels` (bỏ trống thì dùng `code`). `guide.github`: để trống thì ẩn nút GitHub |
 | Nội dung chính sách bảo hành, vận chuyển & đổi trả | Sửa trực tiếp trong `chinh-sach.html` (không nằm trong `products.json`) |
 | App: tên, kết nối, link cửa hàng, mã QR | `guide.app` |
 | Ảnh chụp màn hình app (khung điện thoại nằm ngang) | `guide.app.screens` — mỗi ảnh có `label` (tên nút chuyển), `src`, `alt`. Mặc định hiện ảnh cuối cùng |
@@ -95,6 +95,7 @@ Tên miền **smartcartech.vn** đã được ghi sẵn trong: `og:image` (4 fil
 - **Kiểm tra lỗi cú pháp:** sau khi sửa, dán nội dung file vào jsonlint.com. Một dấu phẩy thừa hoặc thiếu cũng làm web không tải được dữ liệu.
 - **Thêm ảnh mới:** lưu ảnh dạng **WebP**, rộng khoảng 1600px, đặt vào `assets/img/`, rồi sửa đường dẫn trong JSON.
 - **SC Tech Pro:** ảnh đã hậu kỳ trong `assets/img/sc-tech-pro/`, clip giới thiệu/cấu tạo trong `assets/video/sc-tech-pro/`. Xem [SC_TECH_PRO_MEDIA.md](SC_TECH_PRO_MEDIA.md) để biết nguồn, đoạn cắt, prompt hậu kỳ và cách xuất lại.
+- **SC Tech (bộ khung + động cơ + bánh, bộ chỉ khung):** ảnh chụp thật trong `assets/img/sc-tech/`, video quay thực tế trong `assets/video/sc-tech/`, xuất từ `source image and video/SC Tech/` bằng `python scripts/prepare-sc-tech-media.py` (thêm `--force` để xuất lại). Ảnh giữ nền bàn gỗ thật, không thay nền bằng AI: chỉ cắt khung 3:2, cân độ sáng và màu nền cho đều cả bộ, tăng nhẹ độ trong. Ảnh nào dùng, vùng cắt và đoạn video nào được ghép đều ghi ở đầu script. Video giữ nguyên bối cảnh quay (có chậu hoa, tượng đồ chơi, hộp dụng cụ phía sau) theo lựa chọn của shop; quay lại trên bàn trống thì chỉ cần sửa đoạn cắt trong script rồi xuất lại. Bộ đầy đủ SC Tech vẫn dùng ảnh minh họa AI cũ, chờ tư liệu.
 - **Ảnh hero trang chủ:** `assets/img/xe-toan-canh-hero.webp` (và bản `-640`), hậu kỳ từ ảnh AI gốc `source image and video/Hero/xe-toan-canh-goc.jpg`: xoá watermark, phóng 2×, làm nét, nền tối dần về màu nền trang để vòng sáng xanh không bị che. Giữ đúng tỷ lệ 1024:697 vì vị trí hotspot trong CSS đo theo ảnh này. Xuất lại: `python scripts/prepare-hero-image.py`. Ảnh `xe-toan-canh.webp` dùng ở các trang khác giữ nguyên.
 - **Ảnh/video gốc:** giữ trong `source image and video/`; thư mục này được bỏ qua bởi Git và GitHub Pages. Chỉ upload bản tối ưu trong `assets/`. Thư mục `scripts/`, `tmp/` và báo cáo media cũng không đưa lên hosting.
 - **Video MP4:** tải và phát sau khi khách bấm, có điều khiển và phát nội tuyến trên điện thoại. Video dọc giữ đúng tỷ lệ. Khi đổi ảnh, bộ hoặc dòng xe, trình phát cũ được dừng và gỡ.
@@ -131,11 +132,11 @@ Mỗi hộp có một thẻ in **mã tải code** riêng, VD `K7M3-Q9XP`. Ở tr
 ### Cài đặt (làm một lần)
 
 1. **Chuẩn bị file code.** Nén mỗi chương trình thành 1 file .zip, đặt tên đúng như `guide.code[].zip` trong `products.json`:
-   - SC Tech Pro: `sc-tech-pro-chay-thu-dong-co.zip`, `sc-tech-pro-tranh-vat-can.zip`, `sc-tech-pro-dieu-khien-app.zip`
-   - SC Tech: `sc-tech-chay-thu-dong-co.zip`, `sc-tech-den-led-coi.zip`, `sc-tech-dieu-khien-app.zip`
+   - SC Tech Pro: `sc-tech-pro-tranh-vat-can.zip`, `sc-tech-pro-dieu-khien-app.zip`
+   - SC Tech: `sc-tech-dieu-khien-app.zip`
 
    Tên file không dấu, không khoảng trắng. Muốn đổi tên thì sửa cả tên file lẫn `products.json`.
-2. **Tạo thư mục trên Google Drive**, VD `SmartCarTech - Code mau`, rồi tải 6 file .zip vào. Giữ quyền truy cập chung là **Bị hạn chế** (mặc định), đừng chọn "Bất kỳ ai có đường liên kết". Mở thư mục và copy phần ID ở cuối địa chỉ: `drive.google.com/drive/folders/<ID>`.
+2. **Tạo thư mục trên Google Drive**, VD `SmartCarTech - Code mau`, rồi tải 3 file .zip vào. Giữ quyền truy cập chung là **Bị hạn chế** (mặc định), đừng chọn "Bất kỳ ai có đường liên kết". Mở thư mục và copy phần ID ở cuối địa chỉ: `drive.google.com/drive/folders/<ID>`.
 3. **Tạo Google Sheet mới**, VD `SmartCarTech - Don hang va ma code`, rồi vào menu **Tiện ích mở rộng → Apps Script**.
 4. Xoá code mẫu trong trình soạn, dán toàn bộ nội dung `google-apps-script.gs`, rồi điền:
    - `CODE_FOLDER_ID`: ID thư mục ở bước 2, giữ trong dấu nháy: `'1AbC…'`.
@@ -163,8 +164,9 @@ Mỗi hộp có một thẻ in **mã tải code** riêng, VD `K7M3-Q9XP`. Ở tr
 ## 6. Việc cần làm trước khi đưa web lên
 
 - [x] Bổ sung **ảnh và video SC Tech Pro** từ tư liệu gốc: 9 ảnh hậu kỳ nền bằng AI (gồm ảnh linh kiện bộ đầy đủ từ `All.jpg`), 2 clip quay thực tế không có phông xanh; ảnh riêng theo từng bộ, ghi rõ bộ đầy đủ giao linh kiện để khách tự lắp.
-- [ ] Thay **ảnh SC Tech** khi có tư liệu: dòng này vẫn dùng ảnh minh họa AI cũ từ file thiết kế, rộng 1024px.
-- [ ] Cài **Google Apps Script** theo mục 5: lưu đơn vào Google Sheet, tải 6 file code mẫu lên Drive, tạo mã và in thẻ bỏ vào hộp.
+- [x] Ảnh/video thật cho 2 bộ khung **SC Tech** (khung + động cơ + bánh, chỉ khung).
+- [ ] Thay ảnh/video **bộ đầy đủ SC Tech** khi có tư liệu: bộ này vẫn dùng ảnh minh họa AI cũ (rộng 1024px), ảnh vẽ cả cảm biến siêu âm và 4 pin dù SC Tech không có.
+- [ ] Cài **Google Apps Script** theo mục 5: lưu đơn vào Google Sheet, tải 3 file code mẫu lên Drive, tạo mã và in thẻ bỏ vào hộp.
 - [ ] Điền các chỗ trống `[…]`: mô tả, thông số, câu trả lời FAQ, tên app, v.v.
 - [ ] Đọc lại **bản nháp `chinh-sach.html`** và sửa cho đúng với cách shop làm. Các điểm giả định được ghi trong comment ở đầu thẻ `<main>`.
 

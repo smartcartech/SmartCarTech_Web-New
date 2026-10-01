@@ -131,9 +131,8 @@
         "upload_note": "Khi nạp code cho Arduino Nano, nếu chọn Processor là “ATmega328P (Old Bootloader)” mà không nạp được thì chọn lại Processor là “ATmega328P” và thử lại.",
         "github": "",
         "code": [
-          { "title": "Chạy thử động cơ", "desc": "Kiểm tra 4 bánh quay đúng chiều", "zip": "sc-tech-pro-chay-thu-dong-co.zip" },
-          { "title": "Tránh vật cản", "desc": "Xe tự chạy và né vật cản bằng cảm biến siêu âm", "zip": "sc-tech-pro-tranh-vat-can.zip" },
-          { "title": "Điều khiển qua app", "desc": "Kết nối xe với app trên điện thoại", "zip": "sc-tech-pro-dieu-khien-app.zip" }
+          { "title": "Tránh vật cản", "desc": "Xe tự chạy và né vật cản bằng cảm biến siêu âm", "icon": "sensor", "zip": "sc-tech-pro-tranh-vat-can.zip" },
+          { "title": "Điều khiển qua app", "desc": "Kết nối xe với app trên điện thoại", "icon": "phone", "zip": "sc-tech-pro-dieu-khien-app.zip" }
         ],
         "app": {
           "name": "SC Tech Pro",
@@ -197,6 +196,17 @@
           "note": "Tự chọn mạch và cảm biến theo ý bạn",
           "contents": "Chưa gồm mạch, pin và bộ sạc",
           "price": 360000,
+          "image": { "src": "assets/img/sc-tech/khung-dong-co-banh.webp", "src_small": "assets/img/sc-tech/khung-dong-co-banh-640.webp", "thumb": "assets/img/sc-tech/khung-dong-co-banh-thumb.webp", "width": 1536, "height": 1024, "alt": "Khung SC Tech đã lắp bốn động cơ và bánh xe, chưa có mạch và pin" },
+          "gallery": [
+            { "src": "assets/img/sc-tech/khung-dong-co-banh.webp", "src_small": "assets/img/sc-tech/khung-dong-co-banh-640.webp", "thumb": "assets/img/sc-tech/khung-dong-co-banh-thumb.webp", "label": "Khung + động cơ + bánh đã lắp", "caption": "Mẫu đã lắp từ bộ khung + động cơ + bánh; chưa có mạch điều khiển, pin và bộ sạc.", "alt": "Khung mica đen hai tầng SC Tech với bốn bánh vàng và động cơ, nắp mica trong phía trên, nhìn từ phía trước bên trái" },
+            { "src": "assets/img/sc-tech/khung-dong-co-banh-goc-phai.webp", "src_small": "assets/img/sc-tech/khung-dong-co-banh-goc-phai-640.webp", "thumb": "assets/img/sc-tech/khung-dong-co-banh-goc-phai-thumb.webp", "label": "Nhìn từ phía trước bên phải", "alt": "Khung SC Tech đã lắp bánh nhìn từ phía trước bên phải, mặt trước có các lỗ tròn" },
+            { "src": "assets/img/sc-tech/khung-dong-co-banh-mat-ben.webp", "src_small": "assets/img/sc-tech/khung-dong-co-banh-mat-ben-640.webp", "thumb": "assets/img/sc-tech/khung-dong-co-banh-mat-ben-thumb.webp", "label": "Mặt bên: bánh và động cơ", "alt": "Mặt bên khung SC Tech với hai bánh vàng và động cơ giảm tốc gắn giữa hai tầng mica" },
+            { "src": "assets/img/sc-tech/linh-kien-khung-dong-co-banh.webp", "src_small": "assets/img/sc-tech/linh-kien-khung-dong-co-banh-640.webp", "thumb": "assets/img/sc-tech/linh-kien-khung-dong-co-banh-thumb.webp", "label": "Linh kiện khung + động cơ + bánh", "caption": "Linh kiện của bộ khung + động cơ + bánh trước khi lắp.", "hide_badge": true, "alt": "Hai tấm mica đen, nắp mica trong, bốn bánh, bốn động cơ vàng, giá đỡ động cơ, ốc vít, trụ đồng, dây nối và bốn giá gắn cảm biến của bộ khung SC Tech" }
+          ],
+          "video": { "src": "assets/video/sc-tech/khung-dong-co-banh.mp4", "title": "Khung + động cơ + bánh SC Tech đã lắp", "duration": "0:13", "poster": "assets/video/sc-tech/khung-dong-co-banh-poster.webp", "caption": "Xoay mẫu đã lắp từ bộ khung + động cơ + bánh để xem các mặt; chưa có mạch điều khiển, pin và bộ sạc." },
+          "videos": [
+            { "src": "assets/video/sc-tech/linh-kien-khung-dong-co-banh.mp4", "title": "Linh kiện khung + động cơ + bánh SC Tech", "duration": "0:12", "poster": "assets/video/sc-tech/linh-kien-khung-dong-co-banh-poster.webp", "caption": "Video quay thực tế các linh kiện của bộ khung + động cơ + bánh." }
+          ],
           "shopee": "https://shopee.vn/Khung-Xe-Mica-Arduino-Bluetooth-SC-Tech-i.1077117645.22655193627",
           "includes": ["khung", "dong-co"],
           "partial": { "phu-kien": "Chỉ dây nối động cơ" },
@@ -210,6 +220,12 @@
           "note": "Cho người đã có sẵn linh kiện",
           "contents": "Khung mica 2 tầng, ốc vít, trụ đồng",
           "price": 260000,
+          "image": { "src": "assets/img/sc-tech/khung.webp", "src_small": "assets/img/sc-tech/khung-640.webp", "thumb": "assets/img/sc-tech/khung-thumb.webp", "width": 1536, "height": 1024, "alt": "Khung mica SC Tech đã lắp, chưa có động cơ, bánh xe hay mạch" },
+          "gallery": [
+            { "src": "assets/img/sc-tech/khung.webp", "src_small": "assets/img/sc-tech/khung-640.webp", "thumb": "assets/img/sc-tech/khung-thumb.webp", "label": "Khung xe đã lắp", "caption": "Khung SC Tech đã lắp minh họa; chưa có động cơ, bánh xe hay mạch.", "alt": "Khung mica đen hai tầng SC Tech, nắp mica trong và trụ đồng, bên cạnh là ốc dài, giá đỡ động cơ mica trong và dây đỏ đen" },
+            { "src": "assets/img/sc-tech/khung-phu-kien.webp", "src_small": "assets/img/sc-tech/khung-phu-kien-640.webp", "thumb": "assets/img/sc-tech/khung-phu-kien-thumb.webp", "label": "Khung nhìn từ trên và phụ kiện", "alt": "Khung SC Tech nhìn từ trên cao, phía trước là 8 ốc dài, 8 giá đỡ động cơ mica trong và cặp dây đỏ đen" }
+          ],
+          "video": { "src": "assets/video/sc-tech/khung.mp4", "title": "Cấu tạo khung SC Tech", "duration": "0:09", "poster": "assets/video/sc-tech/khung-poster.webp", "caption": "Video quay thực tế khung mica và phụ kiện của bộ chỉ khung." },
           "shopee": "https://shopee.vn/Khung-Xe-Mica-Arduino-Bluetooth-SC-Tech-i.1077117645.22655193627",
           "includes": ["khung"],
           "partial": { "phu-kien": "Chỉ dây nối động cơ" },
@@ -221,7 +237,7 @@
         { "tag": "ĐIỀU KHIỂN QUA APP", "title": "Lái xe bằng điện thoại", "text": "Kết nối Bluetooth (HC-06) với app trên điện thoại để điều khiển xe tiến, lùi, rẽ trái, rẽ phải.", "image": "assets/img/tinh-nang-mach.webp", "alt": "Cận cảnh mạch điều khiển trên xe" },
         { "tag": "ĐÈN & CÒI", "title": "Đèn LED và còi báo", "text": "4 đèn LED (7 màu + trắng siêu sáng) và còi 5V — bật đèn, bấm còi khi điều khiển xe.", "image": "assets/img/xe-toan-canh.webp", "alt": "Xe robot SC Tech nhìn toàn cảnh" },
         { "tag": "LẬP TRÌNH ĐƯỢC", "title": "Mạch Arduino Nano", "text": "Nạp code mẫu hoặc tự viết chương trình qua cáp Mini USB, đế IO Shield giúp cắm dây dễ dàng.", "image": "assets/img/xe-mach.webp", "alt": "Cận cảnh mạch Arduino Nano trên xe" },
-        { "tag": "DẪN ĐỘNG 4 BÁNH", "title": "Bánh cao su gai lớn", "text": "Bốn bánh cao su gai lớn, dẫn động cả 4 bánh giúp xe chạy chắc chắn.", "image": "assets/img/tinh-nang-banh.webp", "alt": "Cận cảnh bánh xe cao su" }
+        { "tag": "DẪN ĐỘNG 4 BÁNH", "title": "Bánh cao su gai lớn", "text": "Bốn bánh cao su gai lớn, dẫn động cả 4 bánh giúp xe chạy chắc chắn.", "image": "assets/img/sc-tech/khung-dong-co-banh-mat-ben.webp", "alt": "Mặt bên khung SC Tech: bánh cao su gai lớn và động cơ giảm tốc" }
       ],
       "guide": {
         "poster": "assets/img/xe-toan-canh.webp",
@@ -235,9 +251,7 @@
         "upload_note": "Khi nạp code cho Arduino Nano, nếu chọn Processor là “ATmega328P (Old Bootloader)” mà không nạp được thì chọn lại Processor là “ATmega328P” và thử lại.",
         "github": "",
         "code": [
-          { "title": "Chạy thử động cơ", "desc": "Kiểm tra 4 bánh quay đúng chiều", "zip": "sc-tech-chay-thu-dong-co.zip" },
-          { "title": "Đèn LED và còi", "desc": "Chạy thử 4 đèn LED và còi buzzer", "zip": "sc-tech-den-led-coi.zip" },
-          { "title": "Điều khiển qua app", "desc": "Kết nối xe với app trên điện thoại qua Bluetooth", "zip": "sc-tech-dieu-khien-app.zip" }
+          { "title": "Điều khiển qua app", "desc": "Kết nối xe với app trên điện thoại qua Bluetooth", "icon": "phone", "zip": "sc-tech-dieu-khien-app.zip" }
         ],
         "app": {
           "name": "SC Tech",
