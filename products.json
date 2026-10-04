@@ -17,7 +17,7 @@
     "facebook_url": "https://www.facebook.com/smartcartechvietnam",
     "tiktok_url": "https://www.tiktok.com/@smartcartech",
     "youtube_url": "https://www.youtube.com/@smartcartechvietnam",
-    "order_endpoint": "",
+    "order_endpoint": "https://script.google.com/macros/s/AKfycbww0ZCwerdFPzFn5Ps8AGzW6ZS7KTatR9_D6W2_Oh7QpNx8Q3wSaaeZcMePsaKW2C4x/exec",
     "payment_note": "Miễn phí vận chuyển toàn quốc. Thanh toán khi nhận hàng (COD). Shop sẽ gọi hoặc nhắn Zalo để xác nhận đơn trước khi gửi hàng.",
     "warranty_url": "chinh-sach.html#bao-hanh",
     "shipping_url": "chinh-sach.html#van-chuyen"

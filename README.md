@@ -123,7 +123,7 @@ Nếu muốn tin nhắn tự động vào Zalo, cần đăng ký **Zalo Official
 
 ## 5. Code mẫu: chỉ người mua tải được
 
-Mỗi hộp có một thẻ in **mã tải code** riêng, VD `K7M3-Q9XP`. Ở trang Hướng dẫn, khách nhập mã rồi bấm *Tải .zip*. Script `google-apps-script.gs` tìm mã trong Google Sheet của shop, mã đúng thì mới gửi file từ một thư mục Google Drive riêng tư. File code không nằm trên website nên người không có mã không tải được.
+Mỗi hộp có một thẻ in **mã tải code** riêng, VD `K7M3-Q9XP`. Ở trang Hướng dẫn, khách nhập mã rồi bấm *Tải .zip*. Quét mã QR trên thẻ thì mở `huong-dan.html?ma=K7M3-Q9XP`, trang tự điền sẵn mã. Script `google-apps-script.gs` tìm mã trong Google Sheet của shop, mã đúng thì mới gửi file từ một thư mục Google Drive riêng tư. File code không nằm trên website nên người không có mã không tải được.
 
 - Mỗi mã tải được mọi file code mẫu, tối đa 20 lượt (`MAX_DOWNLOADS` trong script).
 - Mã nào bị lộ thì tích ô **Khoá** của mã đó, các mã khác vẫn dùng bình thường.
@@ -150,16 +150,21 @@ Mỗi hộp có một thẻ in **mã tải code** riêng, VD `K7M3-Q9XP`. Ở tr
    Bấm **Triển khai → Ủy quyền truy cập** và chọn tài khoản Google của shop. Google sẽ báo *"Google chưa xác minh ứng dụng này"*. Điều này bình thường với script tự viết: bấm **Nâng cao → Chuyển đến … (không an toàn) → Cho phép**.
 6. Copy **URL ứng dụng web** (dạng `https://script.google.com/macros/s/…/exec`) và dán vào `products.json` → `site.order_endpoint`. Mở URL này trên trình duyệt, thấy dòng *"SmartCarTech: Apps Script đang chạy."* là được. Từ lúc này đơn hàng và yêu cầu tư vấn cũng được lưu vào Sheet.
 7. **Tạo mã:** tải lại trang Google Sheet, chọn menu **SmartCarTech → Tạo mã tải code…**, nhập số mã cần tạo và ghi chú (VD lô hàng). Mã mới nằm ở trang tính **Mã tải code**.
-8. **In thẻ:** các mã vừa tạo đã được chọn sẵn. Vào **Tệp → In** và chọn in **các ô đã chọn**, hoặc sao chép mã sang mẫu in decal. Trên thẻ nên ghi: *"Tải code mẫu tại smartcartech.vn/huong-dan.html – Mã của bạn: K7M3-Q9XP"*. Mỗi hộp một mã, không dùng lại mã đã in.
+8. **In thẻ:** các mã vừa tạo đã được chọn sẵn. Chọn menu **SmartCarTech → In thẻ cho các mã đang chọn…**. Lần đầu Google hỏi cấp quyền thì làm như bước 5. Cửa sổ xem trước xếp 10 thẻ cỡ danh thiếp (85 × 54 mm) trên 1 tờ A4. Mỗi thẻ có logo, địa chỉ `smartcartech.vn/huong-dan.html`, mã và mã QR. Bấm **In thẻ**, chọn khổ A4, tỷ lệ Mặc định. Nên in giấy cứng rồi cắt theo đường viền xám. Muốn gửi tiệm in thì chọn máy in *Lưu dưới dạng PDF*.
+   - Mã đã khoá hoặc đã có lượt tải tự được bỏ qua. Bấm In xong, ngày in được ghi vào cột **Đã in**. Lần sau chọn trùng mã đã in, cửa sổ sẽ hỏi có in lại không. Mỗi hộp một mã, không dùng lại mã đã in.
+   - Không hiện hộp thoại in: bấm *Mở trong tab mới* trong cửa sổ, rồi nhấn Ctrl+P ở tab đó.
+   - Địa chỉ trên thẻ, logo và số Zalo nằm ở `SITE_URL`, `LOGO_URL`, `SHOP_ZALO` trong script.
 9. **Thử:** vào trang Hướng dẫn, nhập một mã vừa tạo rồi bấm *Tải .zip*. Cột **Số lần tải** của mã đó tăng lên 1 là xong.
 
 ### Dùng hằng ngày
 
 - **Đơn Shopee:** bỏ thẻ vào hộp. **Đơn Zalo / web:** bỏ thẻ vào hộp, hoặc gửi mã qua Zalo khi xác nhận đơn.
-- **Khách làm mất thẻ:** gửi khách một mã chưa dùng (Số lần tải = 0), ghi mã đơn vào cột Ghi chú.
+- **Khách làm mất thẻ:** gửi khách một mã chưa in và chưa dùng (cột Đã in trống, Số lần tải = 0), ghi mã đơn vào cột Ghi chú.
 - **Mã bị lộ:** tích ô **Khoá**. **Khách hết lượt tải:** sửa Số lần tải của mã đó về 0.
 - **Thay file code:** xoá file cũ trong thư mục Drive rồi tải file mới cùng tên lên.
 - **Sửa script sau này:** sửa trong trình soạn Apps Script, rồi vào **Triển khai → Quản lý các lần triển khai**, bấm biểu tượng bút chì, chọn Phiên bản **Phiên bản mới** → **Triển khai**. Làm vậy thì URL giữ nguyên. Nếu chọn "Tùy chọn triển khai mới", URL sẽ đổi và phải dán lại vào `products.json`.
+  - Menu trên Sheet (tạo mã, in thẻ) luôn chạy bản vừa **Lưu**, không cần triển khai lại. Chỉ phần web dùng (lưu đơn, tải code) mới cần triển khai phiên bản mới.
+  - Dán đè toàn bộ bằng bản script mới thì nhớ điền lại `NOTIFY_EMAIL` và `CODE_FOLDER_ID`.
 
 ## 6. Việc cần làm trước khi đưa web lên
 

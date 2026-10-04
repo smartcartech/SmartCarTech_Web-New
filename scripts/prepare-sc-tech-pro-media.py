@@ -28,7 +28,7 @@ VIDEO_EDITS = {
     'cau-tao': [
         ('SC Tech Pro day du/video 3.mp4', 1.0, 4.5),
         ('SC Tech Pro day du/video 3.mp4', 7.0, 9.5),
-        ('SC Tech Pro day du/video 3.mp4', 17.7, 21.5),
+        ('SC Tech Pro day du/video 3.mp4', 17.7, 21.7),
     ],
     'khung': [
         ('Khung Xe/video 1.mp4', 2.2, 10.2),

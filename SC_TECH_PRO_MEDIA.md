@@ -38,7 +38,7 @@ Các file nằm trong `assets/video/sc-tech-pro/`, kèm poster WebP cùng tên.
 
 | Clip | Nguồn và đoạn chọn (giây) | Đầu ra |
 |---|---|---|
-| `cau-tao.mp4` | `video 3.mp4`: 1.0–4.5, 7.0–9.5, 17.7–21.5 | Khoảng 10 giây, dọc 720 × 1280; nền gỗ |
+| `cau-tao.mp4` | `video 3.mp4`: 1.0–4.5, 7.0–9.5, 17.7–21.7 | 10 giây, dọc 720 × 1280; nền gỗ |
 | `khung.mp4` | `Khung Xe/video 1.mp4`: 2.2–10.2, 15.2–19.2, 24.0–27.0 | 15 giây, dọc 720 × 1280 |
 
 `video 3` nằm trong thư mục `SC Tech Pro day du`. Các video `2`, `4`, `5` quay trên phông xanh đã bị loại khỏi lựa chọn phục vụ website theo yêu cầu của người dùng. `cau-tao.mp4` được dựng lại trực tiếp từ `video 3`, không lấy cảnh từ bản ghép nền.

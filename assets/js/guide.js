@@ -255,6 +255,14 @@ boot((data) => {
   try { keyInput.value = localStorage.getItem(CODE_KEY) || ''; } catch { /* private mode */ }
   keyInput.addEventListener('input', () => fieldError(keyInput, ''));
 
+  // The QR on the card opens huong-dan.html?ma=K7M3-Q9XP: fill the code in (syncUrl drops it from the address)
+  const cardKey = (q.get('ma') || '').toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 20);
+  if (cardKey) {
+    keyInput.value = cardKey;
+    try { localStorage.setItem(CODE_KEY, cardKey); } catch { /* private mode */ }
+    toast(`Đã điền sẵn mã ${cardKey}. Chọn dòng xe bạn đang dùng rồi tải code mẫu ở bước 2.`, { timeout: 8000 });
+  }
+
   async function downloadCode(c, button) {
     const endpoint = data.site.order_endpoint;
     if (!endpoint) {
@@ -297,6 +305,7 @@ boot((data) => {
     const url = new URL(location.href);
     url.searchParams.set('dong', state.line);
     url.searchParams.set('bo', state.kit);
+    url.searchParams.delete('ma'); // keep the code out of links the customer shares
     history.replaceState(null, '', url);
   }
 
