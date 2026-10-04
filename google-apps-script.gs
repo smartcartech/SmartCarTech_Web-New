@@ -9,6 +9,8 @@
  *    trang tính "Mã tải code", đúng thì mới gửi file .zip từ thư mục Google Drive riêng tư.
  *    Tạo mã mới: menu "SmartCarTech" → "Tạo mã tải code…" ngay trên Google Sheet.
  *    In thẻ bỏ vào hộp: bôi chọn các mã → menu "SmartCarTech" → "In thẻ cho các mã đang chọn…".
+ *    Biết khách nào nhận mã nào: gõ mã của thẻ vào cột "Mã tải code" của đơn ở trang "Đơn hàng",
+ *    script tự điền "Mã đơn" và "Khách hàng" ở trang "Mã tải code".
  *
  * Cách cài tóm tắt:
  * 1. Tạo 1 Google Sheet mới → Tiện ích mở rộng (Extensions) → Apps Script.
@@ -28,9 +30,14 @@ const MAX_DOWNLOADS = 20;  // Mỗi mã tải được tối đa bao nhiêu lư�
 
 const CODE_SHEET = 'Mã tải code';
 const PRINTED_COL = 'Đã in';
-const CODE_HEADER = ['Mã', 'Ghi chú', 'Khoá', 'Số lần tải', 'Tải lần đầu', 'Tải gần nhất', 'File tải gần nhất', PRINTED_COL];
+// "Mã đơn", "Khách hàng": script tự điền khi shop gõ mã của thẻ vào đơn ở trang "Đơn hàng"
+const CODE_HEADER = ['Mã', 'Ghi chú', 'Khoá', 'Số lần tải', 'Tải lần đầu', 'Tải gần nhất', 'File tải gần nhất', PRINTED_COL, 'Mã đơn', 'Khách hàng'];
 // Không có 0/O, 1/I/L để khách đọc và gõ không nhầm
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+const ORDER_SHEET = 'Đơn hàng';
+const ORDER_KEY_COL = 'Mã tải code'; // Cột ở trang "Đơn hàng": shop gõ mã của thẻ bỏ vào hộp của đơn đó
+const ORDER_HEADER = ['Thời gian', 'Mã đơn', 'Họ tên', 'SĐT', 'Địa chỉ', 'Sản phẩm', 'Tổng (₫)', 'Ghi chú', ORDER_KEY_COL];
 
 /** Mở URL ứng dụng web trên trình duyệt để kiểm tra script đã chạy. */
 function doGet() {
@@ -51,7 +58,7 @@ function doPost(e) {
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   if (data.type === 'don-hang') {
-    const sh = getSheet_(ss, 'Đơn hàng', ['Thời gian', 'Mã đơn', 'Họ tên', 'SĐT', 'Địa chỉ', 'Sản phẩm', 'Tổng (₫)', 'Ghi chú']);
+    const sh = getSheet_(ss, ORDER_SHEET, ORDER_HEADER);
     const items = (data.items || []).map((i) => `${i.line} – ${i.kit} × ${i.qty}`).join('\n');
     sh.appendRow([new Date(), safe_(data.code), safe_(data.name), safe_(data.phone), safe_(data.address), safe_(items), Number(data.total) || 0, safe_(data.note)]);
     notify_(`Đơn mới #${data.code} – ${data.name}`, `${data.name} – ${data.phone}\n${data.address}\n\n${items}\n\nTổng: ${data.total} ₫\nGhi chú: ${data.note || ''}`);
@@ -124,13 +131,22 @@ function newCode_() {
   return `${s.slice(0, 4)}-${s.slice(4)}`;
 }
 
-/** Thêm menu "SmartCarTech" khi mở Google Sheet. */
+/** Thêm menu "SmartCarTech" khi mở Google Sheet; trang tính tạo từ bản script cũ được thêm các cột mới. */
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('SmartCarTech')
     .addItem('Tạo mã tải code…', 'createCodes')
     .addItem('In thẻ cho các mã đang chọn…', 'printCards')
     .addToUi();
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const codes = ss.getSheetByName(CODE_SHEET);
+    if (codes && codes.getLastRow()) CODE_HEADER.slice(7).forEach((name) => colOf_(codes, name, true));
+    const orders = ss.getSheetByName(ORDER_SHEET);
+    if (orders && orders.getLastRow()) colOf_(orders, ORDER_KEY_COL, true);
+  } catch (err) {
+    console.warn(err); // VD người chỉ có quyền xem: không thêm được cột, menu vẫn dùng được
+  }
 }
 
 /** Tạo mã mới để in lên thẻ bỏ vào hộp. Mỗi mã tải được mọi file code mẫu. */
@@ -154,7 +170,7 @@ function createCodes() {
     const code = newCode_();
     if (used.has(normalizeCode_(code))) continue;
     used.add(normalizeCode_(code));
-    rows.push([code, note, false, 0, '', '', '', '']);
+    rows.push([code, note, false, 0].concat(CODE_HEADER.slice(4).map(() => '')));
   }
   const start = sh.getLastRow() + 1;
   sh.getRange(start, 1, count, 1).setNumberFormat('@'); // giữ mã ở dạng chữ, VD "2345-6789" không bị đổi thành số
@@ -172,7 +188,7 @@ const SITE_URL = 'https://smartcartech.vn'; // Địa chỉ in trên thẻ và t
 const LOGO_URL = 'https://smartcartech.github.io/SmartCarTech_Web-New/assets/img/logo-smartcartech.png';
 const SHOP_ZALO = '0374 489 282';
 
-/** Mở cửa sổ xem trước & in thẻ cho các mã đang bôi chọn. Bỏ qua mã đã khoá hoặc đã có lượt tải. */
+/** Mở cửa sổ xem trước & in thẻ cho các mã đang bôi chọn. Bỏ qua mã đã khoá, đã có lượt tải hoặc đã gán cho đơn. */
 function printCards() {
   const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -188,21 +204,27 @@ function printCards() {
     for (let n = Math.max(r.getRow(), 2); n <= Math.min(r.getLastRow(), last); n++) rowNums.add(n);
   });
 
-  const col = printedCol_(sh, false);
+  const printedCol = colOf_(sh, PRINTED_COL, false);
+  const orderCol = colOf_(sh, 'Mã đơn', false);
   const values = last > 1 ? sh.getRange(1, 1, last, sh.getLastColumn()).getValues() : [];
   const tz = ss.getSpreadsheetTimeZone();
-  const data = { site: SITE_URL, logo: LOGO_URL, zalo: SHOP_ZALO, cards: [], locked: 0, used: 0 };
+  const data = { site: SITE_URL, logo: LOGO_URL, zalo: SHOP_ZALO, cards: [], locked: 0, used: 0, linked: 0 };
   [...rowNums].sort((a, b) => a - b).forEach((n) => {
     const row = values[n - 1];
     const code = String(row[0]).trim();
     if (!normalizeCode_(code)) return;
     if (isLocked_(row[2])) data.locked++;
     else if (Number(row[3]) > 0) data.used++;
-    else data.cards.push({ code, printed: col ? printedText_(row[col - 1], tz) : '' });
+    else if (orderCol && String(row[orderCol - 1]).trim()) data.linked++;
+    else data.cards.push({ code, printed: printedCol ? printedText_(row[printedCol - 1], tz) : '' });
   });
 
   if (!data.cards.length) {
-    const skipped = [data.locked && `${data.locked} mã đã khoá`, data.used && `${data.used} mã đã có lượt tải`].filter(Boolean);
+    const skipped = [
+      data.locked && `${data.locked} mã đã khoá`,
+      data.used && `${data.used} mã đã có lượt tải`,
+      data.linked && `${data.linked} mã đã gán cho đơn`,
+    ].filter(Boolean);
     ui.alert(skipped.length
       ? `Không có mã nào để in: ${skipped.join(', ')}. Hãy chọn các mã chưa dùng.`
       : 'Bôi chọn các mã cần in ở cột "Mã" (chọn được nhiều dòng) rồi chọn lại menu này.');
@@ -223,7 +245,7 @@ function markCardsPrinted(codes) {
     const sh = getSheet_(SpreadsheetApp.getActiveSpreadsheet(), CODE_SHEET, CODE_HEADER);
     const last = sh.getLastRow();
     if (last < 2 || !want.size) return 0;
-    const col = printedCol_(sh, true);
+    const col = colOf_(sh, PRINTED_COL, true);
     const keys = sh.getRange(2, 1, last - 1, 1).getValues();
     const range = sh.getRange(2, col, last - 1, 1);
     const printed = range.getValues();
@@ -241,21 +263,174 @@ function markCardsPrinted(codes) {
   }
 }
 
-/** Vị trí cột "Đã in" (0 = chưa có). Trang tính tạo bằng bản script cũ chưa có cột này: create = true sẽ thêm vào cuối. */
-function printedCol_(sh, create) {
-  const width = sh.getLastColumn();
-  const col = width ? sh.getRange(1, 1, 1, width).getValues()[0].indexOf(PRINTED_COL) + 1 : 0;
-  if (col || !create) return col;
-  sh.getRange(1, width + 1).setValue(PRINTED_COL);
-  return width + 1;
-}
-
 function printedText_(value, tz) {
   if (value instanceof Date) return Utilities.formatDate(value, tz, 'dd/MM/yyyy');
   return String(value == null ? '' : value).trim();
 }
 
+/* ---------- Mã tải code ↔ đơn hàng: biết khách nào nhận mã nào ---------- */
+
+/**
+ * Tự chạy khi sửa Sheet. Lúc đóng hàng, shop gõ mã của thẻ bỏ vào hộp vào cột "Mã tải code" của đơn ở
+ * trang "Đơn hàng" (nhiều hộp: các mã cách nhau bằng dấu phẩy; có máy quét thì quét QR trên thẻ cũng được).
+ * Script ghi "Mã đơn" và "Khách hàng" sang trang "Mã tải code". Sửa mã đơn, tên hoặc SĐT thì cũng cập nhật theo.
+ */
+function onEdit(e) {
+  if (!e || !e.range) return;
+  const sh = e.range.getSheet();
+  if (sh.getName() !== ORDER_SHEET || e.range.getLastRow() < 2) return;
+  const head = header_(sh);
+  if (!head.includes(ORDER_KEY_COL)) return;
+  const watched = ['Mã đơn', 'Họ tên', 'SĐT', ORDER_KEY_COL].map((name) => head.indexOf(name) + 1);
+  if (!watched.some((c) => c >= e.range.getColumn() && c <= e.range.getLastColumn())) return;
+  withDocLock_(() => linkCodes_(sh, e.range.getRow(), e.range.getLastRow()));
+}
+
+/**
+ * Đối chiếu mọi đơn với trang "Mã tải code": điền "Mã đơn", "Khách hàng" cho mã đã gán, xoá ở mã mà đơn
+ * không còn ghi. Ô có mã sai được tô đỏ, rê chuột vào ô để xem lý do. Dòng from–to (vừa sửa) được viết lại
+ * mã cho đúng dạng (VD "k7m3 q9xp" → "K7M3-Q9XP").
+ */
+function linkCodes_(os, from, to) {
+  const ss = os.getParent();
+  const cs = ss.getSheetByName(CODE_SHEET);
+  const last = os.getLastRow();
+  if (!cs || !cs.getLastRow() || last < 2) return;
+  const head = header_(os);
+  const [iId, iName, iPhone, iKey] = ['Mã đơn', 'Họ tên', 'SĐT', ORDER_KEY_COL].map((name) => head.indexOf(name));
+  const orders = os.getRange(2, 1, last - 1, head.length).getValues();
+  const text = (row, i) => (i < 0 ? '' : String(row[i] == null ? '' : row[i]).trim());
+
+  const cOrder = colOf_(cs, 'Mã đơn', true);
+  const cCustomer = colOf_(cs, 'Khách hàng', true);
+  const codes = cs.getLastRow() > 1 ? cs.getRange(2, 1, cs.getLastRow() - 1, cs.getLastColumn()).getValues() : [];
+  const index = new Map(); // mã đã chuẩn hoá → dòng ở trang "Mã tải code"
+  codes.forEach((r, ci) => {
+    const k = normalizeCode_(r[0]);
+    if (k && !index.has(k)) index.set(k, ci);
+  });
+  const ids = new Set(orders.map((r) => text(r, iId)).filter(Boolean));
+
+  // Đơn nào giữ mã nào. Một mã ghi ở 2 đơn: giữ đơn mà trang "Mã tải code" đang ghi (không có thì đơn ở trên)
+  const owner = new Map();
+  const parsed = orders.map((r) => parseCodes_(text(r, iKey)));
+  const problems = parsed.map((p) => p.bad.map((t) => `"${t}" không phải mã tải code (8 ký tự, VD K7M3-Q9XP).`));
+  parsed.forEach((p, i) => {
+    const id = text(orders[i], iId);
+    if (p.keys.length && !id) problems[i].push('Điền Mã đơn cho dòng này thì mới gán được mã.');
+    p.keys.forEach((k) => {
+      const ci = index.get(k);
+      if (ci === undefined) {
+        problems[i].push(`Không có mã ${showCode_(k)} ở trang "${CODE_SHEET}".`);
+      } else if (isLocked_(codes[ci][2])) {
+        problems[i].push(`Mã ${codes[ci][0]} đã bị khoá.`);
+      } else if (id && !owner.has(k)) {
+        owner.set(k, i);
+      } else if (id) {
+        const prev = owner.get(k);
+        const takeOver = text(codes[ci], cOrder - 1) === id && text(orders[prev], iId) !== id;
+        if (takeOver) owner.set(k, i);
+        const [keep, lose] = takeOver ? [i, prev] : [prev, i];
+        problems[lose].push(`Mã ${codes[ci][0]} đã gán cho đơn ${text(orders[keep], iId)} (dòng ${keep + 2}).`);
+      }
+    });
+  });
+
+  // Chỉ ghi ô thay đổi: ghi lại cả cột có thể làm hỏng giá trị khác (VD mã đơn toàn số bị đổi thành số)
+  codes.forEach((r, ci) => {
+    const oi = owner.get(normalizeCode_(r[0]));
+    let want;
+    if (oi !== undefined) {
+      const o = orders[oi];
+      want = [text(o, iId), [text(o, iName), text(o, iPhone)].filter(Boolean).join(' – ')];
+    } else if (ids.has(text(r, cOrder - 1))) {
+      want = ['', '']; // đơn đó không còn ghi mã này
+    } else {
+      return; // mã chưa gán, hoặc đơn đã bị xoá khỏi trang "Đơn hàng": giữ nguyên
+    }
+    if (want[0] !== text(r, cOrder - 1)) cs.getRange(ci + 2, cOrder).setValue(safe_(want[0]));
+    if (want[1] !== text(r, cCustomer - 1)) cs.getRange(ci + 2, cCustomer).setValue(safe_(want[1]));
+  });
+
+  const keyRange = os.getRange(2, iKey + 1, orders.length, 1);
+  keyRange.setBackgrounds(problems.map((p) => [p.length ? '#F4CCCC' : null]));
+  keyRange.setNotes(problems.map((p) => [p.join('\n')]));
+
+  const edited = [];
+  for (let row = Math.max(from, 2); row <= Math.min(to, last); row++) {
+    const i = row - 2;
+    edited.push(i);
+    const shown = parsed[i].keys
+      .map((k) => (index.has(k) ? String(codes[index.get(k)][0]).trim() : showCode_(k)))
+      .concat(parsed[i].bad)
+      .join(', ');
+    if (shown !== text(orders[i], iKey)) os.getRange(row, iKey + 1).setValue(safe_(shown));
+  }
+  const issue = edited.map((i) => problems[i][0]).find(Boolean);
+  if (issue) ss.toast(issue, 'Chưa gán được mã', 8);
+  else if (edited.some((i) => parsed[i].keys.length)) ss.toast(`Đã ghi Mã đơn, Khách hàng ở trang "${CODE_SHEET}".`, 'Đã gán mã', 4);
+}
+
+/**
+ * Đọc ô "Mã tải code" của một đơn: các mã cách nhau bằng dấu phẩy, chấm phẩy hoặc xuống dòng.
+ * Nhận cả link đọc từ mã QR trên thẻ (…/huong-dan.html?ma=K7M3-Q9XP).
+ */
+function parseCodes_(value) {
+  const keys = [];
+  const bad = [];
+  String(value == null ? '' : value)
+    .replace(/\S*[?&]ma=([A-Za-z0-9-]+)\S*/gi, ',$1,')
+    .split(/[,;\n]+/)
+    .forEach((part) => {
+      const k = normalizeCode_(part);
+      if (!k) return;
+      if (k.length % 8) {
+        bad.push(part.trim());
+        return;
+      }
+      // "K7M3-Q9XP A2B3-C4D5" trên cùng một dòng: tách mỗi 8 ký tự
+      for (let i = 0; i < k.length; i += 8) {
+        if (!keys.includes(k.slice(i, i + 8))) keys.push(k.slice(i, i + 8));
+      }
+    });
+  return { keys, bad };
+}
+
+function showCode_(key) {
+  return `${key.slice(0, 4)}-${key.slice(4)}`;
+}
+
+/** Hai lần sửa liền nhau không ghi đè lên nhau. Không lấy được khoá (VD hết 10 giây chờ) thì vẫn chạy. */
+function withDocLock_(fn) {
+  let lock = null;
+  try {
+    lock = LockService.getDocumentLock();
+    lock.waitLock(10000);
+  } catch (err) {
+    lock = null;
+  }
+  try {
+    return fn();
+  } finally {
+    if (lock) lock.releaseLock();
+  }
+}
+
 /* ---------- Dùng chung ---------- */
+
+/** Số thứ tự cột theo tên tiêu đề ở dòng 1 (0 = chưa có). create = true: chưa có thì thêm cột vào cuối. */
+function colOf_(sh, name, create) {
+  const head = header_(sh);
+  const col = head.indexOf(name) + 1;
+  if (col || !create) return col;
+  sh.getRange(1, head.length + 1).setValue(name);
+  return head.length + 1;
+}
+
+function header_(sh) {
+  const width = sh.getLastColumn();
+  return width ? sh.getRange(1, 1, 1, width).getValues()[0].map((v) => String(v).trim()) : [];
+}
 
 function getSheet_(ss, name, header) {
   const sh = ss.getSheetByName(name) || ss.insertSheet(name);
@@ -456,9 +631,10 @@ body { font-family: 'Be Vietnam Pro', Arial, sans-serif; color: #04080C; backgro
   var notes = [];
   if (data.locked) notes.push(data.locked + ' mã đã khoá');
   if (data.used) notes.push(data.used + ' mã đã có lượt tải');
+  if (data.linked) notes.push(data.linked + ' mã đã gán cho đơn');
   if (notes.length) {
     el('notes').hidden = false;
-    el('notes').textContent = 'Bỏ qua ' + notes.join(' và ') + ' (không in các mã này).';
+    el('notes').textContent = 'Bỏ qua ' + notes.join(', ') + ' (không in các mã này).';
   }
   if (printedBefore.length) {
     el('reprint-box').hidden = false;

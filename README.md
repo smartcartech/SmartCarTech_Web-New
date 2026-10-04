@@ -127,6 +127,7 @@ Mỗi hộp có một thẻ in **mã tải code** riêng, VD `K7M3-Q9XP`. Ở tr
 
 - Mỗi mã tải được mọi file code mẫu, tối đa 20 lượt (`MAX_DOWNLOADS` trong script).
 - Mã nào bị lộ thì tích ô **Khoá** của mã đó, các mã khác vẫn dùng bình thường.
+- Mỗi mã gắn với một đơn hàng: biết khách nào nhận mã nào (xem *Dùng hằng ngày*).
 - Không cách nào ngăn người đã tải gửi file cho người khác. Cách này chỉ để website không phát code công khai.
 
 ### Cài đặt (làm một lần)
@@ -151,19 +152,26 @@ Mỗi hộp có một thẻ in **mã tải code** riêng, VD `K7M3-Q9XP`. Ở tr
 6. Copy **URL ứng dụng web** (dạng `https://script.google.com/macros/s/…/exec`) và dán vào `products.json` → `site.order_endpoint`. Mở URL này trên trình duyệt, thấy dòng *"SmartCarTech: Apps Script đang chạy."* là được. Từ lúc này đơn hàng và yêu cầu tư vấn cũng được lưu vào Sheet.
 7. **Tạo mã:** tải lại trang Google Sheet, chọn menu **SmartCarTech → Tạo mã tải code…**, nhập số mã cần tạo và ghi chú (VD lô hàng). Mã mới nằm ở trang tính **Mã tải code**.
 8. **In thẻ:** các mã vừa tạo đã được chọn sẵn. Chọn menu **SmartCarTech → In thẻ cho các mã đang chọn…**. Lần đầu Google hỏi cấp quyền thì làm như bước 5. Cửa sổ xem trước xếp 10 thẻ cỡ danh thiếp (85 × 54 mm) trên 1 tờ A4. Mỗi thẻ có logo, địa chỉ `smartcartech.vn/huong-dan.html`, mã và mã QR. Bấm **In thẻ**, chọn khổ A4, tỷ lệ Mặc định. Nên in giấy cứng rồi cắt theo đường viền xám. Muốn gửi tiệm in thì chọn máy in *Lưu dưới dạng PDF*.
-   - Mã đã khoá hoặc đã có lượt tải tự được bỏ qua. Bấm In xong, ngày in được ghi vào cột **Đã in**. Lần sau chọn trùng mã đã in, cửa sổ sẽ hỏi có in lại không. Mỗi hộp một mã, không dùng lại mã đã in.
+   - Mã đã khoá, đã có lượt tải hoặc đã gán cho đơn tự được bỏ qua. Bấm In xong, ngày in được ghi vào cột **Đã in**. Lần sau chọn trùng mã đã in, cửa sổ sẽ hỏi có in lại không. Mỗi hộp một mã, không dùng lại mã đã in.
    - Không hiện hộp thoại in: bấm *Mở trong tab mới* trong cửa sổ, rồi nhấn Ctrl+P ở tab đó.
    - Địa chỉ trên thẻ, logo và số Zalo nằm ở `SITE_URL`, `LOGO_URL`, `SHOP_ZALO` trong script.
 9. **Thử:** vào trang Hướng dẫn, nhập một mã vừa tạo rồi bấm *Tải .zip*. Cột **Số lần tải** của mã đó tăng lên 1 là xong.
 
 ### Dùng hằng ngày
 
-- **Đơn Shopee:** bỏ thẻ vào hộp. **Đơn Zalo / web:** bỏ thẻ vào hộp, hoặc gửi mã qua Zalo khi xác nhận đơn.
-- **Khách làm mất thẻ:** gửi khách một mã chưa in và chưa dùng (cột Đã in trống, Số lần tải = 0), ghi mã đơn vào cột Ghi chú.
+- **Đóng hàng:** bỏ 1 thẻ vào mỗi hộp, rồi gõ mã trên thẻ vào cột **Mã tải code** của đơn đó ở trang **Đơn hàng**.
+  - Đơn nhiều hộp: các mã cách nhau bằng dấu phẩy.
+  - Có máy quét mã vạch đọc được QR: quét thẻ thay vì gõ.
+  - Script tự điền **Mã đơn** và **Khách hàng** (tên – SĐT) của mã đó ở trang **Mã tải code**. Đừng gõ tay vào 2 cột này.
+  - Ô tô đỏ: mã gõ sai, mã đã khoá hoặc đã gán cho đơn khác. Rê chuột vào ô để xem lý do.
+- **Đơn Shopee, đơn Zalo không đặt qua web:** thêm 1 dòng ở trang **Đơn hàng**, ít nhất có **Mã đơn** (VD mã đơn Shopee) và **Họ tên**, rồi gõ mã như trên.
+- **Gửi mã qua Zalo thay vì bỏ thẻ:** chọn một mã chưa in, chưa gán (cột Đã in và Mã đơn trống), gửi cho khách rồi gõ mã vào đơn như trên.
+- **Khách làm mất thẻ:** tìm đơn của khách ở trang **Đơn hàng**, gửi lại mã ở cột Mã tải code.
+- **Tra ngược:** mã bị tải nhiều bất thường thì xem cột Mã đơn, Khách hàng của mã đó để biết của khách nào.
 - **Mã bị lộ:** tích ô **Khoá**. **Khách hết lượt tải:** sửa Số lần tải của mã đó về 0.
 - **Thay file code:** xoá file cũ trong thư mục Drive rồi tải file mới cùng tên lên.
 - **Sửa script sau này:** sửa trong trình soạn Apps Script, rồi vào **Triển khai → Quản lý các lần triển khai**, bấm biểu tượng bút chì, chọn Phiên bản **Phiên bản mới** → **Triển khai**. Làm vậy thì URL giữ nguyên. Nếu chọn "Tùy chọn triển khai mới", URL sẽ đổi và phải dán lại vào `products.json`.
-  - Menu trên Sheet (tạo mã, in thẻ) luôn chạy bản vừa **Lưu**, không cần triển khai lại. Chỉ phần web dùng (lưu đơn, tải code) mới cần triển khai phiên bản mới.
+  - Menu trên Sheet (tạo mã, in thẻ) và phần gán mã cho đơn luôn chạy bản vừa **Lưu**, không cần triển khai lại. Tải lại trang Sheet để script thêm các cột mới. Chỉ phần web dùng (lưu đơn, tải code) mới cần triển khai phiên bản mới.
   - Dán đè toàn bộ bằng bản script mới thì nhớ điền lại `NOTIFY_EMAIL` và `CODE_FOLDER_ID`.
 
 ## 6. Việc cần làm trước khi đưa web lên
