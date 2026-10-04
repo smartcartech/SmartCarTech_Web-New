@@ -5,7 +5,7 @@
 */
 import {
   boot, $, esc, icon, fmtPrice, params, cart, resolveItems,
-  copyText, postToEndpoint, renderSendResult, fieldError, normalizePhone, PHONE_RE,
+  sendToShop, renderSendResult, fieldError, normalizePhone, PHONE_RE,
 } from './core.js';
 
 const MAX_QTY = 99;
@@ -30,7 +30,7 @@ boot((data) => {
   const q = params();
   const fromCart = q.get('tu') === 'gio-hang' || !q.get('mua');
   let buyItems = fromCart ? [] : parseBuyParam(q.get('mua'));
-  let locked = false; // once the order is created the summary becomes read-only
+  let locked = false; // while the order is being sent and once it's sent: read-only summary, no resubmit
 
   const currentRows = () => resolveItems(data, fromCart ? cart.items() : buyItems);
 
@@ -143,8 +143,11 @@ boot((data) => {
     ].filter(Boolean).join('\n');
   }
 
+  let code = ''; // kept if the customer has to send again, so the shop can spot a duplicate row
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (locked) return;
     const valid = [checks.name(), checks.phone(), checks.address()];
     if (valid.includes(false)) {
       form.querySelector('[aria-invalid="true"]')?.focus();
@@ -153,31 +156,49 @@ boot((data) => {
     const list = currentRows();
     if (!list.length) return;
 
-    const code = orderCode();
-    const message = buildMessage(code, list);
-
-    // Copy first (still inside the user's click), then notify the optional endpoint.
-    const copied = await copyText(message);
-    postToEndpoint(data.site, {
-      type: 'don-hang',
-      code,
+    if (!code) code = orderCode();
+    const order = {
       name: name.value.trim(),
       phone: normalizePhone(phone.value),
       address: address.value.trim(),
       note: note.value.trim(),
-      items: list.map((r) => ({ line: r.line.name, kit: r.kit.name, qty: r.qty, price: r.price, total: r.total })),
-      total: list.reduce((s, r) => s + r.total, 0),
-      created_at: new Date().toISOString(),
-    });
+    };
 
-    locked = true;
-    if (fromCart) cart.clear();
+    locked = true; // no quantity changes while the order is on its way
     renderSummary(list);
+    const saved = await sendToShop({
+      site: data.site,
+      payload: {
+        type: 'don-hang',
+        code,
+        ...order,
+        items: list.map((r) => ({ line: r.line.name, kit: r.kit.name, qty: r.qty, price: r.price, total: r.total })),
+        total: list.reduce((s, r) => s + r.total, 0),
+        created_at: new Date().toISOString(),
+      },
+      message: buildMessage(code, list),
+      button: $('[data-submit]'),
+      busyLabel: 'Đang gửi đơn…',
+      errorEl: $('[data-send-error]', form),
+    });
+    if (!saved) {
+      locked = false;
+      renderSummary();
+      return;
+    }
 
+    if (fromCart) cart.clear();
     form.hidden = true;
     const result = $('[data-order-result]');
     result.hidden = false;
-    renderSendResult(result, { site: data.site, title: `Đã tạo đơn #${code}`, message, copied });
+    renderSendResult(result, {
+      site: data.site,
+      title: 'Đã gửi đơn',
+      code,
+      text: `Shop sẽ gọi hoặc nhắn Zalo tới số ${order.phone} để xác nhận đơn trước khi gửi hàng.`,
+      details: [['Người nhận', order.name], ['Địa chỉ', order.address], ['Ghi chú', order.note]],
+      zaloHint: 'Cần sửa đơn?',
+    });
     result.focus();
   });
 

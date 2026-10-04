@@ -3,8 +3,8 @@
  *
  * Script này làm 2 việc:
  * 1. Lưu đơn hàng & yêu cầu tư vấn từ web vào Google Sheet: mỗi đơn là 1 dòng ở trang tính
- *    "Đơn hàng", mỗi yêu cầu tư vấn ở trang tính "Tư vấn". Khách vẫn gửi đơn qua Zalo như bình
- *    thường — Sheet là bản lưu dự phòng để shop không bỏ sót đơn.
+ *    "Đơn hàng", mỗi yêu cầu tư vấn ở trang tính "Tư vấn". Web chờ script trả về "ok" (đã lưu) mới
+ *    báo khách "Đã gửi" — khách không nhắn Zalo nữa, nên điền NOTIFY_EMAIL để biết khi có đơn mới.
  * 2. Chỉ người mua mới tải được code mẫu: khách nhập mã in trên thẻ trong hộp, script tìm mã ở
  *    trang tính "Mã tải code", đúng thì mới gửi file .zip từ thư mục Google Drive riêng tư.
  *    Tạo mã mới: menu "SmartCarTech" → "Tạo mã tải code…" ngay trên Google Sheet.
@@ -24,7 +24,7 @@
  * kho đang để công khai, ai cũng đọc được.
  */
 
-const NOTIFY_EMAIL = '';   // VD: 'shop@gmail.com' — nhận email khi có đơn mới; để trống nếu không cần
+const NOTIFY_EMAIL = '';   // VD: 'shop@gmail.com' — nên điền: nhận email mỗi khi có đơn hàng / yêu cầu tư vấn mới
 const CODE_FOLDER_ID = ''; // ID thư mục Google Drive chứa các file .zip code mẫu (giữ chế độ "Bị hạn chế")
 const MAX_DOWNLOADS = 20;  // Mỗi mã tải được tối đa bao nhiêu lượt (tính chung mọi file)
 
@@ -451,8 +451,14 @@ function safe_(value) {
   return /^[=+\-@0-9]/.test(s) ? "'" + s : s;
 }
 
+/** Email báo shop. Gửi lỗi (VD hết hạn mức email trong ngày) thì bỏ qua: đơn đã lưu, web vẫn báo khách đã gửi. */
 function notify_(subject, body) {
-  if (NOTIFY_EMAIL) MailApp.sendEmail(NOTIFY_EMAIL, subject, body);
+  if (!NOTIFY_EMAIL) return;
+  try {
+    MailApp.sendEmail(NOTIFY_EMAIL, subject, body);
+  } catch (err) {
+    console.error(err);
+  }
 }
 
 /* ---------- Giao diện cửa sổ in thẻ (printCards) ----------

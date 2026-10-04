@@ -1,7 +1,7 @@
 /* ==========================================================================
    SmartCarTech — core.js
    Shared by every page: data loading, formatting, icons, cart (localStorage),
-   header menu, cart drawer, toast, Zalo/Shopee helpers.
+   header menu, cart drawer, toast, sending forms to the shop, Zalo/Shopee helpers.
    ========================================================================== */
 
 export const DATA_URL = 'products.json';
@@ -237,7 +237,7 @@ export function toast(message, { html = false, action = null, timeout = 4000 } =
 }
 
 /* ---------- Clipboard ---------- */
-export async function copyText(text) {
+async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);
     return true;
@@ -255,24 +255,56 @@ export async function copyText(text) {
   }
 }
 
-/** Send a lead/order to the optional endpoint (Google Apps Script…). Never throws. */
-export async function postToEndpoint(site, payload) {
+/**
+ * Send an order/lead to the shop's Google Sheet (Apps Script at site.order_endpoint).
+ * Resolves true only when the script answered "ok", i.e. the row is saved. Never throws.
+ */
+async function postToEndpoint(site, payload) {
   if (!site.order_endpoint) return false;
   try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 8000);
-    await fetch(site.order_endpoint, {
+    // text/plain keeps this a simple request (no CORS preflight), so the script's answer can be read
+    const res = await fetch(site.order_endpoint, {
       method: 'POST',
-      mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload),
-      signal: ctrl.signal,
+      signal: AbortSignal.timeout(30000),
     });
-    clearTimeout(timer);
-    return true;
+    return res.ok && (await res.text()).trim() === 'ok';
   } catch {
     return false;
   }
+}
+
+/**
+ * Submit a form to the shop: the button shows `busyLabel` while sending. If the Sheet can't be reached,
+ * `errorEl` says so and offers Zalo instead (tapping it copies `message`, ready to paste in the chat).
+ * Resolves true once the order/lead is saved.
+ */
+export async function sendToShop({ site, payload, message, button, busyLabel, errorEl }) {
+  const label = button.innerHTML;
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  button.textContent = busyLabel;
+  errorEl.hidden = true;
+
+  const saved = await postToEndpoint(site, payload);
+
+  button.innerHTML = label;
+  button.disabled = false;
+  button.removeAttribute('aria-busy');
+  if (!saved) {
+    errorEl.innerHTML = `
+      <p class="send-error__text">${icon('info', 'icon--md')}<span><strong>Chưa gửi được tới shop.</strong>
+        Kiểm tra kết nối mạng rồi bấm gửi lại, hoặc bấm <strong>Gửi qua Zalo</strong>: nội dung sẽ được sao chép sẵn, bạn chỉ cần dán vào ô chat rồi gửi.</span></p>
+      <a class="btn btn--ghost btn--sm" href="${esc(zaloUrl(site))}" target="_blank" rel="noopener">${icon('chat')} Gửi qua Zalo</a>`;
+    $('a', errorEl).addEventListener('click', async () => {
+      const copied = await copyText(message);
+      toast(copied ? 'Đã sao chép nội dung — dán vào ô chat Zalo rồi gửi cho shop.' : 'Trình duyệt chặn sao chép — hãy nhắn cho shop thông tin bạn vừa điền.');
+    });
+    errorEl.hidden = false;
+    errorEl.focus();
+  }
+  return saved;
 }
 
 export const PHONE_RE = /^(0|\+?84)(3|5|7|8|9)\d{8}$/;
@@ -290,40 +322,26 @@ export function fieldError(input, msg) {
 }
 
 /**
- * Result panel after a form is submitted: the message is already on the clipboard,
- * the customer opens Zalo and pastes it to the shop.
+ * Result panel once the shop's Google Sheet has the order/lead: nothing left for the customer to do.
+ * `code`: order code shown after the title, never split across lines.
+ * `details`: [label, value] rows to double-check (empty values skipped); `zaloHint` leads into a Zalo link.
  */
-export function renderSendResult(el, { site, title, message, copied, resetLabel, onReset }) {
-  const zalo = zaloUrl(site);
+export function renderSendResult(el, { site, title, code = '', text, details = [], zaloHint = '', resetLabel, onReset }) {
+  const rows = details.filter(([, value]) => value);
   el.innerHTML = `
     <div class="send-result__head">
       <span class="icon-ring">${icon('check')}</span>
       <div>
-        <h3 class="send-result__title">${esc(title)}</h3>
-        <p class="send-result__sub">Còn 1 bước: gửi nội dung này cho shop qua Zalo.</p>
+        <h3 class="send-result__title">${esc(title)}${code ? ` <span class="nowrap">#${esc(code)}</span>` : ''}</h3>
+        <p class="send-result__sub">${esc(text)}</p>
       </div>
     </div>
-    <ol class="send-steps" role="list">
-      <li><span class="num-dot" aria-hidden="true">1</span><span>${copied
-        ? 'Nội dung đã được <strong>sao chép sẵn</strong>.'
-        : 'Bấm <strong>Sao chép nội dung</strong> bên dưới.'}</span></li>
-      <li><span class="num-dot" aria-hidden="true">2</span><span>Bấm <strong>Mở Zalo</strong>, dán vào ô chat (nhấn giữ → Dán) rồi bấm Gửi.</span></li>
-    </ol>
-    <div class="send-result__actions">
-      <a class="btn btn--primary" href="${esc(zalo)}" target="_blank" rel="noopener" data-open-zalo>${icon('chat')} Mở Zalo gửi cho shop</a>
-      <button type="button" class="btn btn--ghost" data-copy>${icon('copy')} ${copied ? 'Sao chép lại nội dung' : 'Sao chép nội dung'}</button>
-    </div>
-    <div class="field">
-      <label class="field__label" for="${el.id || 'send'}-msg">Nội dung sẽ gửi</label>
-      <textarea class="field__input send-result__msg" id="${el.id || 'send'}-msg" rows="7" readonly>${esc(message)}</textarea>
-    </div>
+    ${rows.length ? `<dl class="send-result__details">${rows.map(([label, value]) => `
+      <div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}
+    </dl>` : ''}
+    ${zaloHint ? `<p class="send-result__help">${esc(zaloHint)} <a href="${esc(zaloUrl(site))}" target="_blank" rel="noopener">Nhắn Zalo cho shop</a></p>` : ''}
     ${onReset ? `<button type="button" class="link-arrow" data-reset>${esc(resetLabel)}</button>` : ''}`;
 
-  $('[data-open-zalo]', el).addEventListener('click', () => { copyText(message); });
-  $('[data-copy]', el).addEventListener('click', async () => {
-    const ok = await copyText(message);
-    toast(ok ? 'Đã sao chép nội dung.' : 'Trình duyệt chặn sao chép — hãy chọn và sao chép nội dung trong ô bên dưới.');
-  });
   if (onReset) $('[data-reset]', el).addEventListener('click', onReset);
 }
 

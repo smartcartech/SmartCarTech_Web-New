@@ -1,7 +1,7 @@
 /* SmartCarTech — Trang chủ */
 import {
   boot, $, $$, esc, icon, fmtPrice, getLine, getKit, buyNow, addToCart, setLink, setJsonLd, SITE_URL,
-  copyText, postToEndpoint, renderSendResult, fieldError, normalizePhone, PHONE_RE, zaloUrl,
+  sendToShop, renderSendResult, fieldError, normalizePhone, PHONE_RE, zaloUrl,
 } from './core.js';
 
 /* ---------- Chọn bộ phù hợp: 2 thẻ (desktop) / tab + 1 thẻ (mobile) ---------- */
@@ -166,29 +166,27 @@ function initLeadForm(data) {
       form.querySelector('[aria-invalid="true"]')?.focus();
       return;
     }
-    const message = [
-      'YÊU CẦU TƯ VẤN – SMARTCARTECH',
-      `Họ tên: ${name.value.trim()}`,
-      `SĐT/Zalo: ${normalizePhone(phone.value)}`,
-      `Nội dung: ${msg.value.trim() || '(không ghi)'}`,
-    ].join('\n');
-
-    const copied = await copyText(message);
-    postToEndpoint(data.site, {
-      type: 'tu-van',
-      name: name.value.trim(),
-      phone: normalizePhone(phone.value),
-      message: msg.value.trim(),
-      created_at: new Date().toISOString(),
+    const lead = { name: name.value.trim(), phone: normalizePhone(phone.value), message: msg.value.trim() };
+    const saved = await sendToShop({
+      site: data.site,
+      payload: { type: 'tu-van', ...lead, created_at: new Date().toISOString() },
+      message: [
+        'YÊU CẦU TƯ VẤN – SMARTCARTECH',
+        `Họ tên: ${lead.name}`,
+        `SĐT/Zalo: ${lead.phone}`,
+        `Nội dung: ${lead.message || '(không ghi)'}`,
+      ].join('\n'),
+      button: $('[data-submit]', form),
+      busyLabel: 'Đang gửi…',
+      errorEl: $('[data-send-error]', form),
     });
+    if (!saved) return;
 
     form.hidden = true;
     result.hidden = false;
     renderSendResult(result, {
-      site: data.site,
-      title: 'Đã ghi nhận yêu cầu tư vấn',
-      message,
-      copied,
+      title: 'Đã gửi yêu cầu tư vấn',
+      text: `Shop sẽ gọi hoặc nhắn Zalo tới số ${lead.phone} để tư vấn cho bạn.`,
       resetLabel: 'Gửi yêu cầu khác',
       onReset: () => {
         form.reset();

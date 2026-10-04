@@ -15,7 +15,7 @@ google-apps-script.gs Lưu đơn vào Google Sheet + kiểm tra mã tải code m
 robots.txt, sitemap.xml  Cho Google biết các trang cần hiển thị
 _config.yml           Danh sách file GitHub Pages không đưa lên web
 assets/css/style.css  Toàn bộ giao diện (màu, font, khoảng cách ở đầu file)
-assets/js/core.js     Phần dùng chung: tải dữ liệu, giỏ hàng, menu, gửi Zalo
+assets/js/core.js     Phần dùng chung: tải dữ liệu, giỏ hàng, menu, gửi đơn lên Google Sheet
 assets/js/*.js        Mã riêng của từng trang
 assets/img/           Ảnh WebP, icon (icons.svg), favicon, ảnh chia sẻ (og-image.jpg)
                       Logo: logo-smartcartech-nen-toi.webp (header/footer, viền trắng cho nền tối)
@@ -109,17 +109,21 @@ Tên miền **smartcartech.vn** đã được ghi sẵn trong: `og:image` (4 fil
 - **Mua trên Shopee:** mở link Shopee của bộ đang chọn. Với 2 bộ khung, khách chọn phân loại "Chỉ khung" hay "Khung + động cơ + bánh" ngay trên Shopee.
 - **Tư vấn Zalo:** mở `https://zalo.me/<số Zalo>`.
 
-### Đơn hàng đến Zalo của shop bằng cách nào?
+### Đơn hàng đến shop bằng cách nào?
 
-Zalo **không cho** website tự gửi tin nhắn tới số Zalo cá nhân, và link `zalo.me` cũng không điền sẵn được nội dung. Vì vậy web làm như sau:
+Đơn đặt trên web được lưu thẳng vào **Google Sheet** của shop (cài theo mục 5). Khách không phải sao chép nội dung hay nhắn Zalo:
 
-1. Khách điền tên, số điện thoại, địa chỉ rồi bấm **Gửi đơn qua Zalo**.
-2. Web kiểm tra thông tin, tạo mã đơn (VD: `#SC260926-4821`) và **tự sao chép** nội dung đơn gồm: sản phẩm, bộ, số lượng, giá, tổng, thông tin người nhận.
-3. Khách bấm **Mở Zalo gửi cho shop**, dán nội dung vào ô chat rồi gửi.
+1. Khách điền tên, số điện thoại, địa chỉ rồi bấm **Đặt hàng**.
+2. Web tạo mã đơn (VD: `#SC260926-4821`) và gửi đơn lên Sheet. Mỗi đơn là 1 dòng ở trang **Đơn hàng**, gồm sản phẩm, bộ, số lượng, tổng tiền và thông tin người nhận.
+3. Sheet báo đã lưu xong thì web mới hiện *"Đã gửi đơn #…"*. Sau đó shop gọi hoặc nhắn Zalo cho khách để xác nhận đơn.
 
-Nếu khách quên bấm gửi thì shop mất đơn. Để tránh việc này, hãy **bật lưu đơn vào Google Sheet**: cài `google-apps-script.gs` theo mục 5 bên dưới, rồi dán URL vào `site.order_endpoint`. Script này có thể gửi thêm email báo đơn mới cho bạn. Form "Gửi yêu cầu tư vấn" ở Trang chủ cũng hoạt động theo cách này.
+Form **Gửi yêu cầu tư vấn** ở Trang chủ cũng làm như vậy, lưu vào trang **Tư vấn**.
 
-Nếu muốn tin nhắn tự động vào Zalo, cần đăng ký **Zalo Official Account** (tài khoản doanh nghiệp) và có một server riêng để giữ token. Phần này làm sau được, không cần sửa giao diện.
+- **Gửi không được** (mất mạng, script lỗi…): web báo ngay dưới nút để khách bấm gửi lại. Khách cũng có thể bấm **Gửi qua Zalo**: web tự sao chép nội dung, khách dán vào Zalo rồi gửi cho shop. Lần gửi lại vẫn dùng mã đơn cũ, nên nếu Sheet có 2 dòng cùng mã đơn thì đó là đơn bị gửi trùng.
+- **Bắt buộc có `site.order_endpoint`** trong `products.json`. Nếu để trống, web không lưu được đơn nào và khách chỉ gửi được qua Zalo.
+- **Biết khi có đơn mới:** điền `NOTIFY_EMAIL` trong script (mục 5, bước 4) để nhận email mỗi khi có đơn hàng hoặc yêu cầu tư vấn. Nếu không điền, shop phải tự mở Sheet kiểm tra thường xuyên.
+
+Muốn nhận thông báo đơn mới qua Zalo thay vì email thì cần đăng ký **Zalo Official Account** (tài khoản doanh nghiệp) và có một server riêng để giữ token. Phần này làm sau được, không cần sửa giao diện.
 
 ## 5. Code mẫu: chỉ người mua tải được
 
@@ -141,7 +145,7 @@ Mỗi hộp có một thẻ in **mã tải code** riêng, VD `K7M3-Q9XP`. Ở tr
 3. **Tạo Google Sheet mới**, VD `SmartCarTech - Don hang va ma code`, rồi vào menu **Tiện ích mở rộng → Apps Script**.
 4. Xoá code mẫu trong trình soạn, dán toàn bộ nội dung `google-apps-script.gs`, rồi điền:
    - `CODE_FOLDER_ID`: ID thư mục ở bước 2, giữ trong dấu nháy: `'1AbC…'`.
-   - `NOTIFY_EMAIL` (tùy chọn): email nhận thông báo khi có đơn mới.
+   - `NOTIFY_EMAIL` (nên điền): email nhận thông báo mỗi khi có đơn hàng hoặc yêu cầu tư vấn mới. Đơn đặt trên web chỉ nằm trong Sheet, email này báo cho shop biết có đơn.
 
    Bấm biểu tượng **Lưu**. Chỉ điền ở đây, đừng sửa file trong kho GitHub vì kho đang để công khai.
 5. **Triển khai:** bấm **Triển khai → Tùy chọn triển khai mới**, bấm biểu tượng bánh răng, chọn **Ứng dụng web**:

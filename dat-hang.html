@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Đặt hàng | SmartCarTech</title>
-  <meta name="description" content="Điền thông tin nhận hàng để đặt xe robot của SmartCarTech. Đơn hàng được gửi tới Zalo của shop để xác nhận.">
+  <meta name="description" content="Điền thông tin nhận hàng để đặt xe robot của SmartCarTech. Shop sẽ gọi hoặc nhắn Zalo để xác nhận đơn.">
   <meta name="robots" content="noindex, follow">
   <meta name="theme-color" content="#04080C">
   <meta property="og:type" content="website">
@@ -77,7 +77,7 @@
       <div class="checkout__head">
         <p class="eyebrow">Đặt hàng</p>
         <h1 class="checkout__title" id="checkout-title">Thông tin nhận hàng</h1>
-        <p class="lead">Điền tên, số điện thoại và địa chỉ. Đơn hàng được gửi tới Zalo của shop để xác nhận — không cần tạo tài khoản.</p>
+        <p class="lead">Chỉ cần tên, số điện thoại và địa chỉ nhận hàng — không cần tạo tài khoản.</p>
       </div>
 
       <div class="checkout__grid">
@@ -107,11 +107,8 @@
               <svg class="icon icon--md" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-info"></use></svg>
               <span data-site="payment_note">Miễn phí vận chuyển toàn quốc. Thanh toán khi nhận hàng (COD).</span>
             </p>
-            <button type="submit" class="btn btn--primary btn--lg btn--block" data-submit>
-              <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-chat"></use></svg>
-              Gửi đơn qua Zalo
-            </button>
-            <p class="checkout__hint">Bấm gửi, nội dung đơn sẽ được sao chép sẵn — bạn chỉ cần mở Zalo, dán và gửi cho shop.</p>
+            <button type="submit" class="btn btn--primary btn--lg btn--block" data-submit>Đặt hàng</button>
+            <div class="send-error" data-send-error hidden tabindex="-1"></div>
           </form>
           <div class="send-result" id="order-result" data-order-result hidden tabindex="-1"></div>
         </div>

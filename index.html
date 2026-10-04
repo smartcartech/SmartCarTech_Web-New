@@ -279,7 +279,8 @@
               <label class="field__label" for="lead-msg">Bạn cần tư vấn gì?</label>
               <textarea class="field__input" id="lead-msg" name="message" rows="4" placeholder="VD: Con tôi 12 tuổi, mới học lập trình thì nên chọn bộ nào?"></textarea>
             </div>
-            <button type="submit" class="btn btn--outline-accent">Gửi yêu cầu tư vấn</button>
+            <button type="submit" class="btn btn--outline-accent" data-submit>Gửi yêu cầu tư vấn</button>
+            <div class="send-error" data-send-error hidden tabindex="-1"></div>
           </form>
           <div class="send-result" data-lead-result hidden tabindex="-1"></div>
         </div>
