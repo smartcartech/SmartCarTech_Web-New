@@ -2,7 +2,7 @@
 
 Removes the Gemini watermark, upscales 2x, sharpens the car and fades the
 studio backdrop into the page background so the cyan ring stays visible.
-Only the hero uses the output; xe-toan-canh.webp and other images are untouched.
+Only the hero uses the output; no other image is touched.
 
 Requires Pillow, numpy and opencv-python. The source file is never overwritten.
 Run from any directory: python scripts/prepare-hero-image.py

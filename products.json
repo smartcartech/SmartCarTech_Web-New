@@ -159,12 +159,15 @@
         "title": "SC Tech – Xe robot 4 bánh tự lắp cho người mới | SmartCarTech",
         "description": "SC Tech: xe robot 4 bánh tự lắp ráp, tự lập trình cho người mới bắt đầu. 3 lựa chọn bộ linh kiện, kèm sơ đồ mạch, video hướng dẫn, code mẫu và app điều khiển."
       },
-      "image": { "src": "assets/img/xe-toan-canh.webp", "src_small": "assets/img/xe-toan-canh-640.webp", "thumb": "assets/img/xe-toan-canh-thumb.webp", "alt": "Xe robot SC Tech" },
+      "image": { "src": "assets/img/sc-tech/xe-day-du.webp", "src_small": "assets/img/sc-tech/xe-day-du-640.webp", "thumb": "assets/img/sc-tech/xe-day-du-thumb.webp", "width": 1536, "height": 1024, "alt": "Xe mẫu SC Tech đã lắp ráp, nhìn từ phía trước bên trái" },
       "gallery": [
-        { "src": "assets/img/xe-toan-canh.webp", "src_small": "assets/img/xe-toan-canh-640.webp", "thumb": "assets/img/xe-toan-canh-thumb.webp", "label": "Ảnh toàn cảnh", "alt": "Xe robot SC Tech nhìn toàn cảnh, khung mica 2 tầng và 4 bánh cao su" },
-        { "src": "assets/img/xe-mach.webp", "thumb": "assets/img/xe-mach-thumb.webp", "label": "Ảnh cận cảnh mạch điều khiển", "alt": "Cận cảnh mạch điều khiển trên xe SC Tech" }
+        { "src": "assets/img/sc-tech/xe-day-du.webp", "src_small": "assets/img/sc-tech/xe-day-du-640.webp", "thumb": "assets/img/sc-tech/xe-day-du-thumb.webp", "label": "Xe SC Tech đã lắp hoàn chỉnh", "caption": "Xe mẫu SC Tech sau khi lắp ráp. Bộ đầy đủ gồm các linh kiện để bạn tự lắp theo video hướng dẫn.", "alt": "Xe SC Tech nhìn từ phía trước bên trái: khung mica đen hai tầng, nắp mica trong, Arduino Nano trên đế IO Shield, Bluetooth HC-06, driver L298N, hộp 3 pin 18650 và bốn bánh vàng" },
+        { "src": "assets/img/sc-tech/xe-day-du-mat-truoc.webp", "src_small": "assets/img/sc-tech/xe-day-du-mat-truoc-640.webp", "thumb": "assets/img/sc-tech/xe-day-du-mat-truoc-thumb.webp", "label": "Mặt trước: đèn LED và mạch", "alt": "Mặt trước xe SC Tech: ba đèn LED ở tầng dưới, Arduino Nano trên đế IO Shield xanh lá và Bluetooth HC-06 dưới nắp mica trong, hộp pin phía sau" },
+        { "src": "assets/img/sc-tech/xe-day-du-mat-ben.webp", "src_small": "assets/img/sc-tech/xe-day-du-mat-ben-640.webp", "thumb": "assets/img/sc-tech/xe-day-du-mat-ben-thumb.webp", "label": "Mặt bên: mạch, công tắc và pin", "alt": "Mặt bên trái xe SC Tech: Arduino Nano và Bluetooth HC-06 phía trước, driver L298N đỏ và công tắc ở giữa, hộp 3 pin 18650 phía sau, bốn bánh vàng" },
+        { "src": "assets/img/sc-tech/xe-day-du-goc-sau.webp", "src_small": "assets/img/sc-tech/xe-day-du-goc-sau-640.webp", "thumb": "assets/img/sc-tech/xe-day-du-goc-sau-thumb.webp", "label": "Phía sau: hộp 3 pin 18650", "alt": "Xe SC Tech nhìn từ phía sau bên trái: hộp ba pin 18650 ở đuôi xe, nắp mica trong, công tắc đỏ và bốn bánh vàng" },
+        { "src": "assets/img/sc-tech/xe-day-du-mach-va-pin.webp", "src_small": "assets/img/sc-tech/xe-day-du-mach-va-pin-640.webp", "thumb": "assets/img/sc-tech/xe-day-du-mach-va-pin-thumb.webp", "label": "Mạch và pin nhìn từ trên", "alt": "Xe SC Tech nhìn từ trên phía trước bên phải qua nắp mica trong: Arduino Nano trên đế IO Shield, Bluetooth HC-06, driver L298N, còi buzzer, công tắc và ba pin 18650" }
       ],
-      "video": { "youtube": "", "duration": "[THỜI LƯỢNG]", "poster": "assets/img/xe-toan-canh.webp" },
+      "video": { "src": "assets/video/sc-tech/xe-day-du.mp4", "youtube": "", "title": "Xe SC Tech đã lắp hoàn chỉnh", "duration": "0:19", "poster": "assets/video/sc-tech/xe-day-du-poster.webp", "caption": "Xoay xe mẫu đã lắp từ bộ đầy đủ linh kiện để xem mặt trước, hai bên, phía sau và hộp pin; video quay thực tế." },
       "components": [
         { "id": "khung", "name": "Khung mica 2 tầng", "detail": "Kèm ốc vít, đai ốc, 10 trụ đồng 30mm" },
         { "id": "dong-co", "name": "Động cơ giảm tốc V1 + bánh xe × 4", "detail": "Dẫn động cả 4 bánh" },
@@ -234,13 +237,13 @@
         }
       ],
       "features": [
-        { "tag": "ĐIỀU KHIỂN QUA APP", "title": "Lái xe bằng điện thoại", "text": "Kết nối Bluetooth (HC-06) với app trên điện thoại để điều khiển xe tiến, lùi, rẽ trái, rẽ phải.", "image": "assets/img/tinh-nang-mach.webp", "alt": "Cận cảnh mạch điều khiển trên xe" },
-        { "tag": "ĐÈN & CÒI", "title": "Đèn LED và còi báo", "text": "4 đèn LED (7 màu + trắng siêu sáng) và còi 5V — bật đèn, bấm còi khi điều khiển xe.", "image": "assets/img/xe-toan-canh.webp", "alt": "Xe robot SC Tech nhìn toàn cảnh" },
-        { "tag": "LẬP TRÌNH ĐƯỢC", "title": "Mạch Arduino Nano", "text": "Nạp code mẫu hoặc tự viết chương trình qua cáp Mini USB, đế IO Shield giúp cắm dây dễ dàng.", "image": "assets/img/xe-mach.webp", "alt": "Cận cảnh mạch Arduino Nano trên xe" },
+        { "tag": "ĐIỀU KHIỂN QUA APP", "title": "Lái xe bằng điện thoại", "text": "Kết nối Bluetooth (HC-06) với app trên điện thoại để điều khiển xe tiến, lùi, rẽ trái, rẽ phải.", "image": "assets/img/sc-tech/xe-day-du-mat-ben.webp", "alt": "Mặt bên xe SC Tech với module Bluetooth HC-06 bên dưới mạch Arduino Nano" },
+        { "tag": "ĐÈN & CÒI", "title": "Đèn LED và còi báo", "text": "4 đèn LED (7 màu + trắng siêu sáng) và còi 5V — bật đèn, bấm còi khi điều khiển xe.", "image": "assets/img/sc-tech/xe-day-du-mat-truoc.webp", "alt": "Mặt trước xe SC Tech với các đèn LED ở tầng dưới" },
+        { "tag": "LẬP TRÌNH ĐƯỢC", "title": "Mạch Arduino Nano", "text": "Nạp code mẫu hoặc tự viết chương trình qua cáp Mini USB, đế IO Shield giúp cắm dây dễ dàng.", "image": "assets/img/sc-tech/xe-day-du-mach-va-pin.webp", "alt": "Arduino Nano trên đế IO Shield của xe SC Tech, nhìn từ trên qua nắp mica trong" },
         { "tag": "DẪN ĐỘNG 4 BÁNH", "title": "Bánh cao su gai lớn", "text": "Bốn bánh cao su gai lớn, dẫn động cả 4 bánh giúp xe chạy chắc chắn.", "image": "assets/img/sc-tech/khung-dong-co-banh-mat-ben.webp", "alt": "Mặt bên khung SC Tech: bánh cao su gai lớn và động cơ giảm tốc" }
       ],
       "guide": {
-        "poster": "assets/img/xe-toan-canh.webp",
+        "poster": "assets/img/sc-tech/xe-day-du.webp",
         "videos": [
           { "title": "Lắp ráp, đấu dây, nạp code và điều khiển", "youtube": "jqxYmdSYLkE", "duration": "13:37" }
         ],
