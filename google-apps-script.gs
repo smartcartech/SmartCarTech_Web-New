@@ -5,6 +5,9 @@
  * 1. Lưu đơn hàng & yêu cầu tư vấn từ web vào Google Sheet: mỗi đơn là 1 dòng ở trang tính
  *    "Đơn hàng", mỗi yêu cầu tư vấn ở trang tính "Tư vấn". Web chờ script trả về "ok" (đã lưu) mới
  *    báo khách "Đã gửi" — khách không nhắn Zalo nữa, nên điền NOTIFY_EMAIL để biết khi có đơn mới.
+ *    Ai cũng gửi thẳng được tới script, nên script không tin số liệu gửi lên: tên sản phẩm và tổng tiền
+ *    tính lại theo products.json trên website (tổng web gửi khác giá đúng thì ghi ở cột "Kiểm tra"),
+ *    dữ liệu sai dạng bị bỏ, gửi dồn dập (VD bị spam) bị chặn tạm thời — khách vẫn có nút gửi qua Zalo.
  * 2. Chỉ người mua mới tải được code mẫu: khách nhập mã in trên thẻ trong hộp, script tìm mã ở
  *    trang tính "Mã tải code", đúng thì mới gửi file .zip từ thư mục Google Drive riêng tư.
  *    Tạo mã mới: menu "SmartCarTech" → "Tạo mã tải code…" ngay trên Google Sheet.
@@ -19,6 +22,8 @@
  *    Thực thi dưới dạng: Tôi (Me) · Người có quyền truy cập: Bất kỳ ai (Anyone).
  * 4. Cấp quyền, copy "URL ứng dụng web" (https://script.google.com/macros/s/.../exec)
  *    rồi dán vào products.json → "site" → "order_endpoint".
+ * 5. Tải lại Google Sheet → menu "SmartCarTech" → "Kiểm tra cài đặt…": cấp quyền đọc products.json và xem
+ *    email, thư mục code đã đúng chưa. Mỗi lần dán bản script mới cũng chạy lại mục này rồi mới triển khai.
  *
  * Chỉ điền email và ID thư mục trong trình soạn Apps Script. Đừng sửa file này trong kho GitHub:
  * kho đang để công khai, ai cũng đọc được.
@@ -27,6 +32,9 @@
 const NOTIFY_EMAIL = '';   // VD: 'shop@gmail.com' — nên điền: nhận email mỗi khi có đơn hàng / yêu cầu tư vấn mới
 const CODE_FOLDER_ID = ''; // ID thư mục Google Drive chứa các file .zip code mẫu (giữ chế độ "Bị hạn chế")
 const MAX_DOWNLOADS = 20;  // Mỗi mã tải được tối đa bao nhiêu lượt (tính chung mọi file)
+const MAX_SENDS_PER_10_MIN = 30; // Đơn + yêu cầu tư vấn mỗi 10 phút. Quá mức (VD bị spam), web báo khách "chưa gửi được" và mời nhắn Zalo
+const MAX_SENDS_PER_PHONE = 5;   // Mỗi SĐT gửi tối đa bao nhiêu lần trong 10 phút
+const MAX_EMAILS_PER_HOUR = 10;  // Email báo shop mỗi giờ. Quá mức thì gửi 1 email nhắc mở Sheet, rồi dừng đến đầu giờ sau
 
 const CODE_SHEET = 'Mã tải code';
 const PRINTED_COL = 'Đã in';
@@ -37,7 +45,9 @@ const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
 const ORDER_SHEET = 'Đơn hàng';
 const ORDER_KEY_COL = 'Mã tải code'; // Cột ở trang "Đơn hàng": shop gõ mã của thẻ bỏ vào hộp của đơn đó
-const ORDER_HEADER = ['Thời gian', 'Mã đơn', 'Họ tên', 'SĐT', 'Địa chỉ', 'Sản phẩm', 'Tổng (₫)', 'Ghi chú', ORDER_KEY_COL];
+const ORDER_CHECK_COL = 'Kiểm tra';  // Script ghi khi tổng web gửi khác giá đúng, hoặc chưa đối chiếu được giá
+const ORDER_HEADER = ['Thời gian', 'Mã đơn', 'Họ tên', 'SĐT', 'Địa chỉ', 'Sản phẩm', 'Tổng (₫)', ORDER_CHECK_COL, 'Ghi chú', ORDER_KEY_COL];
+const PHONE_RE = /^(0|\+?84)(3|5|7|8|9)\d{8}$/; // Giống assets/js/core.js
 
 /** Mở URL ứng dụng web trên trình duyệt để kiểm tra script đã chạy. */
 function doGet() {
@@ -45,9 +55,14 @@ function doGet() {
 }
 
 function doPost(e) {
-  const data = JSON.parse(e.postData.contents);
+  let data = null;
+  try {
+    data = JSON.parse(e.postData.contents);
+  } catch (err) {
+    // Không phải JSON (VD bot gửi linh tinh): trả lỗi, không ghi gì
+  }
 
-  if (data.type === 'tai-code') {
+  if (data && data.type === 'tai-code') {
     try {
       return json_(downloadCode_(data));
     } catch (err) {
@@ -56,18 +71,147 @@ function doPost(e) {
     }
   }
 
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (data.type === 'don-hang') {
-    const sh = getSheet_(ss, ORDER_SHEET, ORDER_HEADER);
-    const items = (data.items || []).map((i) => `${i.line} – ${i.kit} × ${i.qty}`).join('\n');
-    sh.appendRow([new Date(), safe_(data.code), safe_(data.name), safe_(data.phone), safe_(data.address), safe_(items), Number(data.total) || 0, safe_(data.note)]);
-    notify_(`Đơn mới #${data.code} – ${data.name}`, `${data.name} – ${data.phone}\n${data.address}\n\n${items}\n\nTổng: ${data.total} ₫\nGhi chú: ${data.note || ''}`);
-  } else {
-    const sh = getSheet_(ss, 'Tư vấn', ['Thời gian', 'Họ tên', 'SĐT', 'Nội dung']);
-    sh.appendRow([new Date(), safe_(data.name), safe_(data.phone), safe_(data.message)]);
-    notify_(`Yêu cầu tư vấn – ${data.name}`, `${data.name} – ${data.phone}\n\n${data.message || ''}`);
+  // Web chỉ báo khách "Đã gửi" khi nhận "ok"; câu trả lời khác thì web mời khách gửi lại hoặc gửi qua Zalo
+  let result = 'invalid';
+  try {
+    if (data && data.type === 'don-hang') result = saveOrder_(data);
+    if (data && data.type === 'tu-van') result = saveLead_(data);
+  } catch (err) {
+    console.error(err);
+    result = 'error';
   }
-  return ContentService.createTextOutput('ok');
+  return ContentService.createTextOutput(result);
+}
+
+/* ---------- Đơn hàng & yêu cầu tư vấn từ web ---------- */
+
+/** Đơn từ trang Đặt hàng: chỉ ghi khi đủ thông tin; tên sản phẩm và tổng tiền lấy theo products.json. */
+function saveOrder_(data) {
+  const name = clean_(data.name, 100);
+  const phone = normalizePhone_(data.phone);
+  const address = clean_(data.address, 300, true);
+  const note = clean_(data.note, 300, true);
+  const code = String(data.code || '');
+  const items = Array.isArray(data.items) ? data.items : [];
+  if (!name || !PHONE_RE.test(phone) || address.length < 10 || !/^SC\d{6}-\d{4}$/.test(code)) return 'invalid';
+  if (!items.length || items.length > 20) return 'invalid';
+
+  const checks = [];
+  let kits = null;
+  try {
+    kits = catalog_();
+  } catch (err) {
+    console.error(err);
+    checks.push('Chưa đối chiếu được giá với products.json: kiểm tra lại sản phẩm và tổng tiền.');
+  }
+  const products = [];
+  let total = 0;
+  for (const item of items) {
+    const qty = Number(item && item.qty);
+    if (!Number.isInteger(qty) || qty < 1 || qty > 99) return 'invalid';
+    // Không đọc được bảng giá thì vẫn nhận đơn theo tên và giá web gửi (đã ghi lời nhắc ở cột "Kiểm tra")
+    const kit = kits
+      ? kits.get(`${item.line_id}:${item.kit_id}`) || kits.get(`${item.line}|${item.kit}`)
+      : { line: clean_(item.line, 100), kit: clean_(item.kit, 100), price: Number(item.price) || 0 };
+    if (!kit || !kit.line || !kit.kit) return 'invalid';
+    products.push(`${kit.line} – ${kit.kit} × ${qty}`);
+    total += kit.price * qty;
+  }
+  const sentTotal = Number(data.total) || 0;
+  if (kits && sentTotal !== total) {
+    checks.push(`Web gửi tổng ${money_(sentTotal)} ₫, giá đúng ${money_(total)} ₫: báo lại giá cho khách khi gọi xác nhận.`);
+  }
+  if (overLimit_(phone)) return 'busy';
+
+  appendRow_(getSheet_(SpreadsheetApp.getActiveSpreadsheet(), ORDER_SHEET, ORDER_HEADER), {
+    'Thời gian': new Date(),
+    'Mã đơn': code,
+    'Họ tên': name,
+    'SĐT': phone,
+    'Địa chỉ': address,
+    'Sản phẩm': products.join('\n'),
+    'Tổng (₫)': total,
+    [ORDER_CHECK_COL]: checks.join('\n'),
+    'Ghi chú': note,
+  });
+  notify_(`Đơn mới #${code} – ${name}`, [
+    `${name} – ${phone}`, address, '', ...products, '',
+    `Tổng: ${money_(total)} ₫`, `Ghi chú: ${note}`, ...(checks.length ? ['', `Cần kiểm tra: ${checks.join(' ')}`] : []),
+  ].join('\n'));
+  return 'ok';
+}
+
+/** Yêu cầu tư vấn từ Trang chủ. */
+function saveLead_(data) {
+  const name = clean_(data.name, 100);
+  const phone = normalizePhone_(data.phone);
+  const message = clean_(data.message, 1000, true);
+  if (!name || !PHONE_RE.test(phone)) return 'invalid';
+  if (overLimit_(phone)) return 'busy';
+
+  const sh = getSheet_(SpreadsheetApp.getActiveSpreadsheet(), 'Tư vấn', ['Thời gian', 'Họ tên', 'SĐT', 'Nội dung']);
+  sh.appendRow([new Date(), safe_(name), safe_(phone), safe_(message)]);
+  notify_(`Yêu cầu tư vấn – ${name}`, `${name} – ${phone}\n\n${message}`);
+  return 'ok';
+}
+
+/**
+ * Bảng giá theo products.json trên website, lưu tạm 10 phút: "pro:day-du" và "SC Tech Pro|Bộ đầy đủ linh kiện"
+ * cùng trỏ tới { line, kit, price } của bộ đó.
+ */
+function catalog_() {
+  const cache = CacheService.getScriptCache();
+  let text = cache.get('products');
+  const fresh = !text;
+  if (fresh) {
+    const res = UrlFetchApp.fetch(`${SITE_URL}/products.json`, { muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) throw new Error(`HTTP ${res.getResponseCode()}`);
+    text = res.getContentText('UTF-8');
+  }
+  const kits = new Map();
+  JSON.parse(text).lines.forEach((l) => l.kits.forEach((k) => {
+    const kit = { line: l.name, kit: k.name, price: Number(k.price) || 0 };
+    kits.set(`${l.id}:${k.id}`, kit);
+    kits.set(`${l.name}|${k.name}`, kit); // trang web bản cũ chưa gửi line_id, kit_id: chỉ có tên dòng, tên bộ
+  }));
+  if (fresh) {
+    try {
+      cache.put('products', text, 600);
+    } catch (err) {
+      console.warn(err); // file lớn hơn 100 KB thì không lưu tạm được: lần sau đọc lại
+    }
+  }
+  return kits;
+}
+
+/** Chống spam: 1 SĐT gửi quá nhiều lần, hoặc tổng số lần gửi quá nhiều, trong 10 phút. Chỉ đếm lần gửi hợp lệ. */
+function overLimit_(phone) {
+  return bump_(`sdt:${phone}`, 600) > MAX_SENDS_PER_PHONE || bump_('gui', 600) > MAX_SENDS_PER_10_MIN;
+}
+
+/** Đếm số lần trong khung thời gian hiện tại (dài `seconds` giây), tính cả lần này. Đếm gần đúng, đủ để chống spam. */
+function bump_(name, seconds) {
+  const cache = CacheService.getScriptCache();
+  const key = `${name}:${Math.floor(Date.now() / 1000 / seconds)}`;
+  const count = (Number(cache.get(key)) || 0) + 1;
+  cache.put(key, String(count), seconds);
+  return count;
+}
+
+/** Chữ khách nhập: bỏ khoảng trắng ở hai đầu, cắt ở `max` ký tự. Ô một dòng (tên) gộp xuống dòng thành dấu cách. */
+function clean_(value, max, multiline) {
+  const s = String(value == null ? '' : value).trim();
+  return (multiline ? s : s.replace(/\s+/g, ' ')).slice(0, max);
+}
+
+/** Giống normalizePhone trong core.js: "0912 345.678" → "0912345678". */
+function normalizePhone_(value) {
+  return String(value == null ? '' : value).replace(/[\s.\-()]/g, '').slice(0, 20);
+}
+
+/** 2980000 → "2.980.000" */
+function money_(n) {
+  return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
 /* ---------- Code mẫu: chỉ người có mã trên thẻ trong hộp ---------- */
@@ -137,13 +281,15 @@ function onOpen() {
     .createMenu('SmartCarTech')
     .addItem('Tạo mã tải code…', 'createCodes')
     .addItem('In thẻ cho các mã đang chọn…', 'printCards')
+    .addSeparator()
+    .addItem('Kiểm tra cài đặt…', 'checkSetup')
     .addToUi();
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const codes = ss.getSheetByName(CODE_SHEET);
     if (codes && codes.getLastRow()) CODE_HEADER.slice(7).forEach((name) => colOf_(codes, name, true));
     const orders = ss.getSheetByName(ORDER_SHEET);
-    if (orders && orders.getLastRow()) colOf_(orders, ORDER_KEY_COL, true);
+    if (orders && orders.getLastRow()) [ORDER_KEY_COL, ORDER_CHECK_COL].forEach((name) => colOf_(orders, name, true));
   } catch (err) {
     console.warn(err); // VD người chỉ có quyền xem: không thêm được cột, menu vẫn dùng được
   }
@@ -181,9 +327,57 @@ function createCodes() {
   ui.alert(`Đã tạo ${count} mã mới (dòng ${start}–${start + count - 1}). Các mã này đang được chọn sẵn: vào menu SmartCarTech → In thẻ cho các mã đang chọn… để in.`);
 }
 
+/**
+ * Menu "Kiểm tra cài đặt…". Chạy lại mỗi khi dán bản script mới: Google hỏi cấp các quyền script cần (gồm
+ * "kết nối với dịch vụ bên ngoài" để đọc products.json đối chiếu giá), rồi báo phần nào đã cài đúng.
+ */
+function checkSetup() {
+  // Google cho tick từng quyền, và script có quyền mới thì chạy menu không tự hỏi lại. Lệnh này dừng script
+  // và hiện hộp cấp quyền khi còn thiếu quyền nào: tích "Chọn tất cả" rồi chạy lại menu này.
+  if (ScriptApp.requireAllScopes) ScriptApp.requireAllScopes(ScriptApp.AuthMode.FULL);
+  const lines = [];
+  try {
+    CacheService.getScriptCache().remove('products'); // đọc bản mới nhất trên website
+    lines.push(`✓ Đọc được bảng giá ${SITE_URL}/products.json: ${new Set(catalog_().values()).size} bộ.`);
+  } catch (err) {
+    const why = /external_request/.test(err.message)
+      ? 'chưa cấp quyền "Kết nối với dịch vụ bên ngoài" (cách cấp: README mục 5, bước 7)'
+      : err.message;
+    lines.push(`✗ Chưa đọc được bảng giá ${SITE_URL}/products.json: ${why}. Đơn vẫn được lưu, nhưng cột "${ORDER_CHECK_COL}" sẽ báo chưa đối chiếu được giá.`);
+  }
+  lines.push(NOTIFY_EMAIL
+    ? `✓ Email báo đơn gửi tới ${NOTIFY_EMAIL}. Hôm nay còn gửi được ${MailApp.getRemainingDailyQuota()} email.`
+    : '✗ Chưa điền NOTIFY_EMAIL: shop sẽ không nhận email khi có đơn mới.');
+  lines.push(codeFolderStatus_());
+  const ui = SpreadsheetApp.getUi();
+  ui.alert('Kiểm tra cài đặt', lines.join('\n\n'), ui.ButtonSet.OK);
+}
+
+/** Thư mục code mẫu và các file trong đó phải ở chế độ "Bị hạn chế": chia sẻ công khai thì ai có link cũng tải được code. */
+function codeFolderStatus_() {
+  if (!CODE_FOLDER_ID) return '✗ Chưa điền CODE_FOLDER_ID: khách chưa tải được code mẫu.';
+  try {
+    const folder = DriveApp.getFolderById(CODE_FOLDER_ID);
+    const open = folder.getSharingAccess() === DriveApp.Access.PRIVATE ? [] : [`thư mục "${folder.getName()}"`];
+    let zips = 0;
+    const files = folder.getFiles();
+    while (files.hasNext()) {
+      const file = files.next();
+      if (file.isTrashed()) continue;
+      if (/\.zip$/i.test(file.getName())) zips++;
+      if (file.getSharingAccess() !== DriveApp.Access.PRIVATE) open.push(`file "${file.getName()}"`);
+    }
+    return open.length
+      ? `✗ Đang chia sẻ công khai: ${open.join(', ')}. Ai có link cũng tải được code: đổi "Quyền truy cập chung" về "Bị hạn chế".`
+      : `✓ Thư mục code "${folder.getName()}" có ${zips} file .zip, tất cả đều ở chế độ Bị hạn chế.`;
+  } catch (err) {
+    return `✗ Không mở được thư mục CODE_FOLDER_ID (${err.message}).`;
+  }
+}
+
 /* ---------- In thẻ mã: 10 thẻ cỡ danh thiếp (85 × 54 mm) trên 1 tờ A4 ---------- */
 
-const SITE_URL = 'https://smartcartech.vn'; // Địa chỉ in trên thẻ và trong mã QR
+const SITE_URL = 'https://smartcartech.vn'; // Địa chỉ in trên thẻ, trong mã QR, và nơi script đọc products.json để đối chiếu giá
 // Logo lấy từ bản web trên GitHub Pages; khi chuyển tên miền, link này tự chuyển về smartcartech.vn
 const LOGO_URL = 'https://smartcartech.github.io/SmartCarTech_Web-New/assets/img/logo-smartcartech.png';
 const SHOP_ZALO = '0374 489 282';
@@ -441,6 +635,25 @@ function getSheet_(ss, name, header) {
   return sh;
 }
 
+/**
+ * Thêm 1 dòng theo tên cột ở dòng 1 (shop đổi thứ tự cột vẫn ghi đúng chỗ); cột chưa có thì thêm vào cuối.
+ * Chữ được ghi qua safe_(). Không ghi vào các cột trống ở cuối dòng (VD cột "Mã tải code" shop tự điền).
+ */
+function appendRow_(sh, values) {
+  const head = header_(sh);
+  Object.keys(values).forEach((name) => {
+    if (head.includes(name)) return;
+    head.push(name);
+    sh.getRange(1, head.length).setValue(name);
+  });
+  const row = head.map((name) => {
+    const v = values.hasOwnProperty(name) ? values[name] : '';
+    return typeof v === 'string' ? safe_(v) : v;
+  });
+  while (row.length && row[row.length - 1] === '') row.pop();
+  sh.appendRow(row);
+}
+
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -451,9 +664,19 @@ function safe_(value) {
   return /^[=+\-@0-9]/.test(s) ? "'" + s : s;
 }
 
-/** Email báo shop. Gửi lỗi (VD hết hạn mức email trong ngày) thì bỏ qua: đơn đã lưu, web vẫn báo khách đã gửi. */
+/**
+ * Email báo shop, tối đa MAX_EMAILS_PER_HOUR email mỗi giờ: bị spam cũng không hết hạn mức email trong ngày
+ * (Gmail thường khoảng 100 email/ngày). Gửi lỗi thì bỏ qua: đơn đã lưu, web vẫn báo khách đã gửi.
+ */
 function notify_(subject, body) {
   if (!NOTIFY_EMAIL) return;
+  const count = bump_('email', 3600);
+  if (count > MAX_EMAILS_PER_HOUR + 1) return;
+  if (count > MAX_EMAILS_PER_HOUR) {
+    subject = 'SmartCarTech: tạm dừng email báo đơn đến đầu giờ sau';
+    body = `Trong giờ này đã có hơn ${MAX_EMAILS_PER_HOUR} đơn hàng / yêu cầu tư vấn mới, có thể web đang bị spam. ` +
+      'Các đơn vẫn được lưu: mở Google Sheet để xem. Email báo đơn tự gửi lại từ đầu giờ sau.';
+  }
   try {
     MailApp.sendEmail(NOTIFY_EMAIL, subject, body);
   } catch (err) {
@@ -463,7 +686,9 @@ function notify_(subject, body) {
 
 /* ---------- Giao diện cửa sổ in thẻ (printCards) ----------
    __DATA__ được thay bằng danh sách mã. Mã QR mở huong-dan.html?ma=<mã>: trang Hướng dẫn tự điền mã.
-   Giữ phần dưới không có dấu backtick, "${" hay dấu gạch ngược vì cả khối là một chuỗi template. */
+   Giữ phần dưới không có dấu backtick, "${" hay dấu gạch ngược vì cả khối là một chuỗi template.
+   Thư viện QR có integrity (SRI): file trên CDN bị đổi thì trình duyệt không chạy, cửa sổ báo không tải được
+   thư viện. Đổi phiên bản thư viện thì lấy mã SRI mới ở cdnjs.com. */
 const CARD_PAGE_HTML = `<!doctype html>
 <html lang="vi">
 <head>
@@ -539,7 +764,7 @@ body { font-family: 'Be Vietnam Pro', Arial, sans-serif; color: #04080C; backgro
 <div class="pages" id="pages"></div>
 
 <script type="application/json" id="data">__DATA__</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" integrity="sha512-ZDSPMa/JM1D+7kdg2x3BsruQ6T/JpJo3jWDWkCZsP+5yVyp1KfESqLI+7RqB5k24F7p2cV7i2YHh/890y6P6Sw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 (function () {
   var PER_PAGE = 10;

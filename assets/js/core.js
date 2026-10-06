@@ -256,11 +256,12 @@ async function copyText(text) {
 }
 
 /**
- * Send an order/lead to the shop's Google Sheet (Apps Script at site.order_endpoint).
- * Resolves true only when the script answered "ok", i.e. the row is saved. Never throws.
+ * Send an order/lead to the shop's Google Sheet (Apps Script at site.order_endpoint). Never throws.
+ * Resolves to the script's answer: "ok" (row saved), "busy" (too many sends), "invalid" (rejected data),
+ * or "network" when the script couldn't be reached.
  */
 async function postToEndpoint(site, payload) {
-  if (!site.order_endpoint) return false;
+  if (!site.order_endpoint) return 'error';
   try {
     // text/plain keeps this a simple request (no CORS preflight), so the script's answer can be read
     const res = await fetch(site.order_endpoint, {
@@ -269,11 +270,19 @@ async function postToEndpoint(site, payload) {
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(30000),
     });
-    return res.ok && (await res.text()).trim() === 'ok';
+    return res.ok ? (await res.text()).trim() : 'error';
   } catch {
-    return false;
+    return 'network';
   }
 }
+
+/** What to tell the customer when the script didn't save the form, by its answer (see postToEndpoint). */
+const SEND_FAILED = {
+  network: 'Kiểm tra kết nối mạng rồi bấm gửi lại',
+  busy: 'Đang có quá nhiều lượt gửi, vui lòng đợi khoảng 10 phút rồi bấm gửi lại',
+  invalid: 'Shop chưa nhận được thông tin này (có thể sản phẩm vừa được cập nhật), vui lòng tải lại trang rồi gửi lại',
+  error: 'Vui lòng thử lại sau ít phút',
+};
 
 /**
  * Submit a form to the shop: the button shows `busyLabel` while sending. If the Sheet can't be reached,
@@ -287,7 +296,8 @@ export async function sendToShop({ site, payload, message, button, busyLabel, er
   button.textContent = busyLabel;
   errorEl.hidden = true;
 
-  const saved = await postToEndpoint(site, payload);
+  const reply = await postToEndpoint(site, payload);
+  const saved = reply === 'ok';
 
   button.innerHTML = label;
   button.disabled = false;
@@ -295,7 +305,7 @@ export async function sendToShop({ site, payload, message, button, busyLabel, er
   if (!saved) {
     errorEl.innerHTML = `
       <p class="send-error__text">${icon('info', 'icon--md')}<span><strong>Chưa gửi được tới shop.</strong>
-        Kiểm tra kết nối mạng rồi bấm gửi lại, hoặc bấm <strong>Gửi qua Zalo</strong>: nội dung sẽ được sao chép sẵn, bạn chỉ cần dán vào ô chat rồi gửi.</span></p>
+        ${Object.hasOwn(SEND_FAILED, reply) ? SEND_FAILED[reply] : SEND_FAILED.error}, hoặc bấm <strong>Gửi qua Zalo</strong>: nội dung sẽ được sao chép sẵn, bạn chỉ cần dán vào ô chat rồi gửi.</span></p>
       <a class="btn btn--ghost btn--sm" href="${esc(zaloUrl(site))}" target="_blank" rel="noopener">${icon('chat')} Gửi qua Zalo</a>`;
     $('a', errorEl).addEventListener('click', async () => {
       const copied = await copyText(message);

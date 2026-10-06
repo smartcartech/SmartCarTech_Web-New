@@ -733,6 +733,10 @@ textarea.field__input { padding: 14px 16px; line-height: 1.5; resize: vertical; 
 .field__input[aria-invalid="true"] { border-color: var(--c-danger); }
 .field__error { font-size: 13px; color: var(--c-danger); }
 .field__error:empty { display: none; }
+/* Dòng "Bấm … là bạn đồng ý …" ngay dưới nút gửi */
+.form-consent { margin-top: -8px; font-size: 13px; line-height: 1.55; color: var(--c-muted); }
+.form-consent a { color: var(--c-accent); }
+.form-consent a:hover { text-decoration: underline; }
 
 /* ---------- 15. Notes / alerts ---------- */
 .note {

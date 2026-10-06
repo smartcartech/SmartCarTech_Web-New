@@ -267,19 +267,20 @@
             <h3 class="sr-only" id="lead-form-title">Gửi yêu cầu tư vấn</h3>
             <div class="field">
               <label class="field__label" for="lead-name">Họ và tên</label>
-              <input class="field__input" id="lead-name" name="name" type="text" autocomplete="name" placeholder="Nguyễn Văn A" required aria-describedby="lead-name-err">
+              <input class="field__input" id="lead-name" name="name" type="text" autocomplete="name" maxlength="100" placeholder="Nguyễn Văn A" required aria-describedby="lead-name-err">
               <span class="field__error" id="lead-name-err"></span>
             </div>
             <div class="field">
               <label class="field__label" for="lead-phone">Số điện thoại / Zalo</label>
-              <input class="field__input" id="lead-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="09xx xxx xxx" required aria-describedby="lead-phone-err">
+              <input class="field__input" id="lead-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="09xx xxx xxx" required aria-describedby="lead-phone-err">
               <span class="field__error" id="lead-phone-err"></span>
             </div>
             <div class="field">
               <label class="field__label" for="lead-msg">Bạn cần tư vấn gì?</label>
-              <textarea class="field__input" id="lead-msg" name="message" rows="4" placeholder="VD: Con tôi 12 tuổi, mới học lập trình thì nên chọn bộ nào?"></textarea>
+              <textarea class="field__input" id="lead-msg" name="message" rows="4" maxlength="1000" placeholder="VD: Con tôi 12 tuổi, mới học lập trình thì nên chọn bộ nào?"></textarea>
             </div>
             <button type="submit" class="btn btn--outline-accent" data-submit>Gửi yêu cầu tư vấn</button>
+            <p class="form-consent">Bấm gửi là bạn đồng ý để SmartCarTech dùng tên và số điện thoại trên để liên hệ tư vấn, theo <a href="chinh-sach-bao-mat.html">Chính sách bảo mật</a>.</p>
             <div class="send-error" data-send-error hidden tabindex="-1"></div>
           </form>
           <div class="send-result" data-lead-result hidden tabindex="-1"></div>
@@ -328,6 +329,7 @@
         <div class="footer-bottom__links">
           <a data-href="warranty" href="chinh-sach.html#bao-hanh">Chính sách bảo hành</a>
           <a data-href="shipping" href="chinh-sach.html#van-chuyen">Vận chuyển &amp; đổi trả</a>
+          <a href="chinh-sach-bao-mat.html">Bảo mật thông tin</a>
         </div>
       </div>
     </div>

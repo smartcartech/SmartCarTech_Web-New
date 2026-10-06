@@ -172,7 +172,10 @@ boot((data) => {
         type: 'don-hang',
         code,
         ...order,
-        items: list.map((r) => ({ line: r.line.name, kit: r.kit.name, qty: r.qty, price: r.price, total: r.total })),
+        // The script re-prices each kit from products.json by line_id/kit_id; names stay for older script versions
+        items: list.map((r) => ({
+          line_id: r.line.id, kit_id: r.kit.id, line: r.line.name, kit: r.kit.name, qty: r.qty, price: r.price, total: r.total,
+        })),
         total: list.reduce((s, r) => s + r.total, 0),
         created_at: new Date().toISOString(),
       },
