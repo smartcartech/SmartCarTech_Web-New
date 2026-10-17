@@ -5,7 +5,7 @@
 */
 import {
   boot, $, esc, icon, fmtPrice, params, cart, resolveItems,
-  sendToShop, renderSendResult, fieldError, normalizePhone, PHONE_RE,
+  sendToShop, renderSendResult, fieldError, normalizePhone, PHONE_RE, orderCode,
 } from './core.js';
 
 const MAX_QTY = 99;
@@ -18,12 +18,6 @@ function parseBuyParam(value) {
       return { line, kit, qty: Math.min(MAX_QTY, Math.max(1, parseInt(qty, 10) || 1)) };
     })
     .filter((i) => i.line && i.kit);
-}
-
-function orderCode() {
-  const d = new Date();
-  const ymd = [d.getFullYear() % 100, d.getMonth() + 1, d.getDate()].map((n) => String(n).padStart(2, '0')).join('');
-  return `SC${ymd}-${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
 boot((data) => {
@@ -156,7 +150,7 @@ boot((data) => {
     const list = currentRows();
     if (!list.length) return;
 
-    if (!code) code = orderCode();
+    if (!code) code = orderCode('SC');
     const order = {
       name: name.value.trim(),
       phone: normalizePhone(phone.value),

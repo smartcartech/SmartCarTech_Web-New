@@ -9,6 +9,7 @@ index.html            Trang chủ
 san-pham.html         Sản phẩm (?dong=pro|std&bo=day-du|khung-dong-co-banh|chi-khung)
 huong-dan.html        Hướng dẫn (?dong=…&bo=…)
 dat-hang.html         Đặt hàng (?mua=pro:day-du:2  hoặc  ?tu=gio-hang)
+in-3d.html            In 3D theo yêu cầu: bảng tên để bàn, giá đỡ điện thoại in tên (đặt ngay), in theo file
 chinh-sach.html       Chính sách bảo hành (#bao-hanh), vận chuyển & đổi trả (#van-chuyen)
 chinh-sach-bao-mat.html  Chính sách bảo mật thông tin khách hàng
 products.json         ★ DỮ LIỆU — file duy nhất bạn cần sửa
@@ -37,7 +38,7 @@ Web chạy trên mọi hosting tĩnh, không cần cài đặt thêm gì trên s
 **Tải lên:**
 
 ```
-index.html  san-pham.html  huong-dan.html  dat-hang.html  chinh-sach.html  chinh-sach-bao-mat.html
+index.html  san-pham.html  huong-dan.html  dat-hang.html  in-3d.html  chinh-sach.html  chinh-sach-bao-mat.html
 products.json  robots.txt  sitemap.xml
 assets/        (cả thư mục)
 ```
@@ -55,7 +56,7 @@ Cách làm với từng loại hosting:
 - **Hosting cPanel:** chỉ upload các file trong danh sách "Tải lên" vào `public_html`.
 - **Netlify:** chép các file trong danh sách "Tải lên" sang một thư mục riêng, rồi kéo thả thư mục đó vào app.netlify.com/drop. Đừng kéo thả cả thư mục dự án.
 
-Tên miền **smartcartech.vn** đã được ghi sẵn trong: `og:image` (6 file HTML), `og:url` + `canonical` (index.html, chinh-sach.html, chinh-sach-bao-mat.html), `SITE_URL` (assets/js/core.js và google-apps-script.gs: script đọc giá ở `SITE_URL/products.json`), `robots.txt` và `sitemap.xml`. Nếu đổi tên miền, sửa hết các chỗ này.
+Tên miền **smartcartech.vn** đã được ghi sẵn trong: `og:image` (7 file HTML), `og:url` + `canonical` (index.html, in-3d.html, chinh-sach.html, chinh-sach-bao-mat.html), `SITE_URL` (assets/js/core.js và google-apps-script.gs: script đọc giá ở `SITE_URL/products.json`), `robots.txt` và `sitemap.xml`. Nếu đổi tên miền, sửa hết các chỗ này.
 
 - Web phải chạy ở **gốc tên miền** (`https://smartcartech.vn/index.html`), không đặt trong thư mục con.
 - Bật **HTTPS** trên hosting và chuyển hướng `www.smartcartech.vn` → `smartcartech.vn` cho thống nhất.
@@ -89,6 +90,15 @@ Tên miền **smartcartech.vn** đã được ghi sẵn trong: `og:image` (6 fil
 | Chức năng ("Xe làm được gì?") | `lines[].features` |
 | Bảng thông số & so sánh | `specs` — mỗi dòng có `label`, `pro`, `std`. Hàng nào `pro` khác `std` sẽ tự được đánh dấu vạch xanh |
 | Câu hỏi thường gặp | `faq` |
+| **Trang In 3D:** bảng màu nhựa | `print3d.colors` — `id`, `name`, `hex` (màu gần giống cuộn nhựa). Bảng tên và giá đỡ dùng chung bảng màu này. Bỏ màu hết nhựa: xoá dòng đó, nhớ đổi các chỗ đang dùng `id` của nó |
+| Kiểu bảng tên, số ký tự, giá | `print3d.nameplate.layouts` — `lines` (1 hoặc 2 dòng chữ), `max_chars` (số ký tự tối đa của **cả bảng**: mọi dòng, tính cả dấu cách và icon, mỗi icon là 1 ký tự; hiện là 19 và 24), `price` (VD `119000`; để `0` thì web hiện "Liên hệ", shop báo giá khi gọi xác nhận). Bảng dài hay ngắn theo số chữ, không có cỡ để chọn |
+| Kiểu chữ bảng tên | `print3d.nameplate.fonts` — `name` (tên hiện cho khách), `family` (tên font trên Google Fonts, phải có bộ chữ *Vietnamese*), `weight` (độ đậm). Tải đúng font đó từ fonts.google.com và cài vào máy tính để Bambu Studio dùng: bản in mới giống hình xem trước |
+| Icon bảng tên | `print3d.nameplate.icons` — `id`, `name`, `color` (màu chọn sẵn khi khách chọn icon). `fixed`: icon luôn in đúng các màu này (lá cờ: đỏ, vàng). Chỉ dùng được các icon đã có hình vẽ trong `assets/js/print3d.js` (`khong`, `tiktok`, `facebook`, `youtube`, `dien-thoai`, `trai-tim`, `no`, `co`); icon mới cần vẽ thêm trong file đó |
+| Tối đa mấy màu, lựa chọn có sẵn | `print3d.nameplate.max_colors` (4 = số khe AMS lite: tính màu thân, chữ, icon; chi tiết icon in cùng màu chữ). `print3d.nameplate.default` — kiểu bảng, kiểu chữ, icon trước/sau tên, màu thân, màu chữ khi khách mới vào trang |
+| Giá đỡ điện thoại | `print3d.stand` — `max_chars` (số ký tự tối đa của tên khắc, tính cả dấu cách; hiện là 11), `price`, `color` (màu chọn sẵn). Tên luôn khắc in hoa |
+| Ảnh, video thực tế | `print3d.nameplate.media`, `print3d.stand.media` — ảnh: `src`, `src_small`, `thumb`, `width`, `height`, `alt`, `focus` (điểm giữa khi cắt ô vuông nhỏ, VD `"50% 68%"`: 68% là đặt sản phẩm thấp xuống); video: `video`, `poster`, `duration`, `alt`. Ảnh đầu tiên của mỗi sản phẩm cũng là ảnh thẻ ở đầu trang |
+| Thẻ "In theo file", khung "Shop in được", vật liệu | `print3d.custom` — `name`, `summary`, `photo` (ảnh thẻ), `specs` (mỗi dòng `label`, `value`), `materials` |
+| Các bước đặt in, câu hỏi thường gặp trang In 3D | `print3d.steps` (`icon` là tên hình trong `icons.svg`, VD `chat`, `image`, `wrench`, `truck`), `print3d.faq` |
 
 **Lưu ý khi sửa:**
 
@@ -99,6 +109,7 @@ Tên miền **smartcartech.vn** đã được ghi sẵn trong: `og:image` (6 fil
 - **SC Tech Pro:** ảnh đã hậu kỳ trong `assets/img/sc-tech-pro/`, clip giới thiệu/cấu tạo trong `assets/video/sc-tech-pro/`. Xem [SC_TECH_PRO_MEDIA.md](SC_TECH_PRO_MEDIA.md) để biết nguồn, đoạn cắt, prompt hậu kỳ và cách xuất lại.
 - **SC Tech (bộ khung + động cơ + bánh, bộ chỉ khung):** ảnh trong `assets/img/sc-tech/`, video quay thực tế trong `assets/video/sc-tech/`, xuất từ `source image and video/SC Tech/` bằng `python scripts/prepare-sc-tech-media.py` (thêm `--force` để xuất lại). Ảnh do shop tự hậu kỳ nền studio tối giống bộ SC Tech Pro; script chỉ xuất WebP 1536/640/324px, không cắt, không chỉnh màu. Master PNG nằm trong `edited/`: thư mục nguồn không có file gốc nền tối nên master được chép nguyên từ ảnh 1536px đang dùng trên web. Có file gốc đẹp hơn thì chép đè vào `edited/` đúng tên rồi chạy `--images-only --force`. Bản nền bàn gỗ cũ lưu trong `edited/previous-wood-desk/`. Ảnh nào dùng và đoạn video nào được ghép đều ghi ở đầu script. Video giữ nguyên bối cảnh quay (có chậu hoa, tượng đồ chơi, hộp dụng cụ phía sau) theo lựa chọn của shop; quay lại trên bàn trống thì chỉ cần sửa đoạn cắt trong script rồi xuất lại.
 - **SC Tech bộ đầy đủ:** 5 ảnh shop đã tự hậu kỳ (nền studio tối) trong `source image and video/SC Tech/SC Tech day du/`. Script chỉ đặt tên mới `xe-day-du*.webp` và xuất WebP 1536/640/324px, không cắt, không chỉnh màu; file gốc giữ nguyên tên. Video `xe-day-du.mp4` (0:19) chỉ cắt ghép từ `sc tech day du.mp4`: nhấc xe xem nóc, mặt trước, mặt bên → phía sau, hộp pin → xe đặt trên bàn. Giữ màu quay gốc, bỏ tiếng. Bộ media này dùng cho gallery dòng SC Tech (bộ đầy đủ), thẻ trang chủ, giỏ hàng, phần tính năng và ảnh bìa video hướng dẫn. Xuất lại riêng clip: `python scripts/prepare-sc-tech-media.py --videos-only --force --video xe-day-du`.
+- **In 3D (bảng tên, giá đỡ điện thoại):** ảnh trong `assets/img/in-3d/`, video trong `assets/video/in-3d/`, xuất từ `source image and video/In 3D/` bằng `python scripts/prepare-in-3d-media.py` (thêm `--force` để xuất lại). Ảnh chụp điện thoại dùng nguyên khung, không chỉnh màu; script xoay đúng chiều và xuất WebP 1080/640/324px, không kèm thông tin máy ảnh, vị trí chụp. Trang web tự cắt ô nhỏ theo `focus`, bấm vào xem ảnh đầy đủ. Video bảng tên chỉ cắt đầu đuôi; video giá đỡ cắt lại từ bản CapCut của shop: bỏ hiệu ứng lấp lánh, chớp sáng, làm mờ và đoạn màn hình máy tính, ghép các cảnh thật theo thứ tự máy in → vừa in xong → tên khắc → mở giá → dựng điện thoại → 3 màu. Bỏ tiếng, giữ màu quay. Ảnh nào dùng, ảnh nào bỏ và đoạn cắt ghi ở đầu script.
 - **Ảnh hero trang chủ:** `assets/img/xe-toan-canh-hero.webp` (và bản `-640`), hậu kỳ từ ảnh AI gốc `source image and video/Hero/xe-toan-canh-goc.jpg`: xoá watermark, phóng 2×, làm nét, nền tối dần về màu nền trang để vòng sáng xanh không bị che. Giữ đúng tỷ lệ 1024:697 vì vị trí hotspot trong CSS đo theo ảnh này. Xuất lại: `python scripts/prepare-hero-image.py`.
 - **Ảnh/video gốc:** giữ trong `source image and video/`; thư mục này được bỏ qua bởi Git và GitHub Pages. Chỉ upload bản tối ưu trong `assets/`. Thư mục `scripts/`, `tmp/` và báo cáo media cũng không đưa lên hosting.
 - **Video MP4:** tải và phát sau khi khách bấm, có điều khiển và phát nội tuyến trên điện thoại. Video dọc giữ đúng tỷ lệ. Khi đổi ảnh, bộ hoặc dòng xe, trình phát cũ được dừng và gỡ.
@@ -121,6 +132,15 @@ Tên miền **smartcartech.vn** đã được ghi sẵn trong: `og:image` (6 fil
 3. Sheet báo đã lưu xong thì web mới hiện *"Đã gửi đơn #…"*. Sau đó shop gọi hoặc nhắn Zalo cho khách để xác nhận đơn.
 
 Form **Gửi yêu cầu tư vấn** ở Trang chủ cũng làm như vậy, lưu vào trang **Tư vấn**.
+
+Trang **In 3D** (`in-3d.html`) có 3 form, đều lưu vào trang tính **In 3D** (script tự tạo trang tính này). Mã đơn dạng `#IN261011-4821`:
+
+- **Đặt bảng tên:** khách chọn 1 tầng (tối đa 19 ký tự) hoặc 2 tầng (tối đa 24 ký tự cả hai dòng), gõ chữ, chọn kiểu chữ, icon trước và sau tên (mỗi icon tính 1 ký tự), màu thân, chữ, icon (tối đa 4 màu), rồi điền tên, số điện thoại, địa chỉ. Cột **Nội dung** ghi đủ chữ in, kiểu bảng, font, icon, màu để shop làm file in.
+- **Đặt giá đỡ điện thoại:** tên cần khắc (in hoa, tối đa 11 ký tự) và màu.
+- Script kiểm tra lại từng lựa chọn và tính lại giá theo `print3d` trong `products.json`; chọn quá 4 màu hoặc quá số ký tự thì đơn bị bỏ. Sản phẩm chưa có giá thì cột **Kiểm tra** nhắc báo giá khi gọi xác nhận.
+- **In theo file:** khách mô tả món cần in, dán link file (nếu có). File, ảnh trên máy khách gửi qua Zalo kèm mã yêu cầu.
+- Cột **Trạng thái** có ô chọn: Mới → Đã liên hệ → Đã chốt → Đang in → Đã giao (hoặc Huỷ). Shop gọi hoặc nhắn Zalo cho khách để chốt giá, cách thanh toán và giao hàng.
+- Phần In 3D cần bản `google-apps-script.gs` mới: dán vào Apps Script, chạy **Kiểm tra cài đặt…**, rồi **triển khai phiên bản mới** (mục 5, *Sửa script sau này*) **trước khi** đưa web lên. Web lên trước thì form In 3D báo "chưa gửi được".
 
 - **Gửi không được** (mất mạng, script lỗi, gửi quá nhiều lần trong thời gian ngắn…): web báo lý do ngay dưới nút để khách bấm gửi lại. Thông tin khách điền sai (VD số điện thoại thiếu số) thì web báo đỏ ngay dưới ô đó và không gửi đi. Khách cũng có thể bấm **Gửi qua Zalo**: web tự sao chép nội dung, khách dán vào Zalo rồi gửi cho shop. Lần gửi lại vẫn dùng mã đơn cũ, nên nếu Sheet có 2 dòng cùng mã đơn thì đó là đơn bị gửi trùng.
 - **Bắt buộc có `site.order_endpoint`** trong `products.json`. Nếu để trống, web không lưu được đơn nào và khách chỉ gửi được qua Zalo.

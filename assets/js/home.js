@@ -1,7 +1,7 @@
 /* SmartCarTech — Trang chủ */
 import {
   boot, $, $$, esc, icon, fmtPrice, getLine, getKit, buyNow, addToCart, setLink, setJsonLd, SITE_URL,
-  sendToShop, renderSendResult, fieldError, normalizePhone, PHONE_RE, zaloUrl,
+  sendToShop, renderSendResult, fieldError, normalizePhone, PHONE_RE, zaloUrl, renderAccordion,
 } from './core.js';
 
 /* ---------- Chọn bộ phù hợp: 2 thẻ (desktop) / tab + 1 thẻ (mobile) ---------- */
@@ -103,34 +103,9 @@ function initKitCards(data) {
   });
 }
 
-/* ---------- FAQ accordion (one open at a time) ---------- */
+/* ---------- FAQ ---------- */
 function initFaq(data) {
-  const list = $('[data-faq]');
-  list.innerHTML = data.faq.map((f, i) => `
-    <div class="acc-item">
-      <h3>
-        <button type="button" class="acc-item__btn" id="faq-q-${i}" aria-expanded="${i === 0}" aria-controls="faq-a-${i}">
-          <span>${esc(f.q)}</span>
-          <span class="acc-item__sign" aria-hidden="true">${icon('plus', 'i-plus')}${icon('minus', 'i-minus')}</span>
-        </button>
-      </h3>
-      <div class="acc-item__panel${i === 0 ? ' is-open' : ''}" id="faq-a-${i}" role="region" aria-labelledby="faq-q-${i}"${i === 0 ? '' : ' inert'}>
-        <div><p>${esc(f.a)}</p></div>
-      </div>
-    </div>`).join('');
-
-  list.addEventListener('click', (e) => {
-    const btn = e.target.closest('.acc-item__btn');
-    if (!btn) return;
-    const willOpen = btn.getAttribute('aria-expanded') !== 'true';
-    $$('.acc-item__btn', list).forEach((b) => {
-      const open = b === btn && willOpen;
-      b.setAttribute('aria-expanded', String(open));
-      const panel = document.getElementById(b.getAttribute('aria-controls'));
-      panel.classList.toggle('is-open', open);
-      panel.inert = !open;
-    });
-  });
+  renderAccordion($('[data-faq]'), data.faq);
 
   const answered = data.faq.filter((f) => f.a && !/\[.*\]/.test(f.a));
   if (answered.length) {

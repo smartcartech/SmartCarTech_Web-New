@@ -1,7 +1,7 @@
 /* SmartCarTech — Trang Hướng dẫn */
 import {
   boot, $, $$, esc, icon, fmtPrice, getLine, getKit, params,
-  buyNow, addToCart, setLink, setMeta, toast, fieldError,
+  buyNow, addToCart, setLink, setMeta, toast, fieldError, openLightbox,
 } from './core.js';
 
 const CODE_KEY = 'sct_code_key';
@@ -21,31 +21,6 @@ function saveFile(name, base64) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60000);
-}
-
-function openLightbox(src, alt) {
-  const box = document.createElement('div');
-  box.className = 'lightbox';
-  box.setAttribute('role', 'dialog');
-  box.setAttribute('aria-modal', 'true');
-  box.setAttribute('aria-label', alt);
-  box.innerHTML = `
-    <button type="button" class="icon-btn lightbox__close" aria-label="Đóng ảnh phóng to">${icon('close')}</button>
-    <img src="${esc(src)}" alt="${esc(alt)}">`;
-  const last = document.activeElement;
-  const close = () => {
-    box.remove();
-    document.documentElement.style.overflow = '';
-    last?.focus?.();
-  };
-  box.addEventListener('click', (e) => { if (e.target === box || e.target.closest('.lightbox__close')) close(); });
-  box.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') close();
-    if (e.key === 'Tab') { e.preventDefault(); $('.lightbox__close', box).focus(); }
-  });
-  document.body.appendChild(box);
-  document.documentElement.style.overflow = 'hidden';
-  $('.lightbox__close', box).focus();
 }
 
 boot((data) => {
@@ -355,9 +330,9 @@ boot((data) => {
     $(`[data-app-tabs] [data-screen="${state.screen}"]`)?.focus();
   });
 
-  $('[data-zoom]').addEventListener('click', () => {
+  $('[data-zoom]').addEventListener('click', (e) => {
     const src = line().guide?.circuit_image;
-    if (src) openLightbox(src, `Sơ đồ mạch ${line().name}`);
+    if (src) openLightbox({ src, alt: `Sơ đồ mạch ${line().name}` }, 0, e.currentTarget);
     else toast('Ảnh sơ đồ mạch đang được cập nhật.');
   });
 

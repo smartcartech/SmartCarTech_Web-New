@@ -6,7 +6,8 @@
     "code[].zip: tên file .zip trong thư mục Google Drive riêng tư (không dấu, không khoảng trắng). Khách nhập mã in trên thẻ trong hộp mới tải được — xem README mục 5. Nếu điền link https://... thì ai cũng tải được.",
     "youtube: dán mã video (phần sau v= trong link), VD: \"dQw4w9WgXcQ\".",
     "Chữ trong [NGOẶC VUÔNG] là chỗ trống cần điền nội dung thật.",
-    "shopee: 2 bộ khung của cùng một dòng dùng chung 1 link (khách chọn phân loại trên Shopee)."
+    "shopee: 2 bộ khung của cùng một dòng dùng chung 1 link (khách chọn phân loại trên Shopee).",
+    "print3d: nội dung trang In 3D (in-3d.html). Giá để 0 thì web hiện 'Liên hệ'. Font phải có trên Google Fonts, có dấu tiếng Việt. Màu, icon dùng id trong print3d.colors, print3d.nameplate.icons — xem README mục 3."
   ],
 
   "site": {
@@ -295,5 +296,108 @@
     { "q": "Mua bộ chỉ có khung thì cần mua thêm gì?", "a": "Chọn “Bộ đầy đủ linh kiện” ở trang Sản phẩm để biết những linh kiện còn thiếu." },
     { "q": "Pin có kèm theo bộ không, sạc bằng gì?", "a": "“Bộ đầy đủ linh kiện” đã có đủ pin và bộ sạc đi kèm.\n• SC Tech Pro: được tích hợp mạch sạc cân bằng trên xe, chỉ cần cắm sạc bằng cục sạc đi kèm.\n• SC Tech: tháo pin và gắn vào bộ sạc pin đi kèm." },
     { "q": "Phí vận chuyển, thời gian giao hàng và bảo hành thế nào?", "a": "Miễn phí vận chuyển toàn quốc cho tất cả sản phẩm, giao từ 2 đến 3 ngày tùy vào khu vực của bạn. Bảo hành 1 đổi 1 trong vòng 7 ngày." }
-  ]
+  ],
+
+  "print3d": {
+    "seo": {
+      "title": "In 3D theo yêu cầu – Bảng tên để bàn, giá đỡ điện thoại in tên | SmartCarTech",
+      "description": "Tự tạo bảng tên để bàn và giá đỡ điện thoại in tên riêng: chọn chữ, icon, màu và xem trước ngay trên web. Nhận in 3D theo file bạn gửi. Giao hàng toàn quốc."
+    },
+    "colors": [
+      { "id": "trang", "name": "Trắng", "hex": "#F4F4F1" },
+      { "id": "den", "name": "Đen", "hex": "#1F2023" },
+      { "id": "xam", "name": "Xám", "hex": "#8E9196" },
+      { "id": "do", "name": "Đỏ", "hex": "#D3232B" },
+      { "id": "hong", "name": "Hồng", "hex": "#EE5BA6" },
+      { "id": "hong-phan", "name": "Hồng phấn", "hex": "#F4B3CF" },
+      { "id": "tim", "name": "Tím", "hex": "#8A4FC9" },
+      { "id": "cam", "name": "Cam", "hex": "#FF6A13" },
+      { "id": "vang", "name": "Vàng", "hex": "#FFD21F" },
+      { "id": "vang-gold", "name": "Vàng gold", "hex": "#C9A23A" },
+      { "id": "xanh-la", "name": "Xanh lá", "hex": "#2BAA4A" },
+      { "id": "xanh-da-troi", "name": "Xanh da trời", "hex": "#4BA8E3" },
+      { "id": "xanh-duong", "name": "Xanh dương", "hex": "#2459C9" },
+      { "id": "nau", "name": "Nâu", "hex": "#7A5236" },
+      { "id": "be", "name": "Be", "hex": "#E7D7B4" }
+    ],
+    "nameplate": {
+      "name": "Bảng tên mini để bàn",
+      "summary": "Chữ nổi, icon hai bên, tối đa 4 màu",
+      "note": "Hình trên chỉ để bạn hình dung. Sau khi nhận đơn, shop gửi ảnh xem trước qua Zalo để bạn duyệt chính tả, icon và màu rồi mới in.",
+      "max_colors": 4,
+      "layouts": [
+        { "id": "1-tang", "name": "1 tầng", "lines": 1, "max_chars": 19, "price": 119000 },
+        { "id": "2-tang", "name": "2 tầng", "lines": 2, "max_chars": 24, "price": 159000 }
+      ],
+      "fonts": [
+        { "id": "bo-tron", "name": "Bo tròn", "family": "Baloo 2", "weight": 800 },
+        { "id": "hien-dai", "name": "Hiện đại", "family": "Be Vietnam Pro", "weight": 800 },
+        { "id": "viet-tay", "name": "Viết tay", "family": "Pacifico", "weight": 400 },
+        { "id": "co-chan", "name": "Có chân", "family": "Roboto Slab", "weight": 800 }
+      ],
+      "icons": [
+        { "id": "khong", "name": "Để trống" },
+        { "id": "tiktok", "name": "TikTok", "color": "den" },
+        { "id": "facebook", "name": "Facebook", "color": "xanh-duong" },
+        { "id": "youtube", "name": "YouTube", "color": "do" },
+        { "id": "dien-thoai", "name": "Điện thoại", "color": "xanh-la" },
+        { "id": "trai-tim", "name": "Trái tim", "color": "do" },
+        { "id": "no", "name": "Nơ", "color": "hong" },
+        { "id": "co", "name": "Lá cờ", "fixed": ["do", "vang"] }
+      ],
+      "default": { "layout": "1-tang", "font": "bo-tron", "icon_before": "tiktok", "icon_after": "no", "body": "hong", "text": "trang" },
+      "media": [
+        { "src": "assets/img/in-3d/bang-ten-hong-va-den.webp", "src_small": "assets/img/in-3d/bang-ten-hong-va-den-640.webp", "thumb": "assets/img/in-3d/bang-ten-hong-va-den-thumb.webp", "width": 1080, "height": 1918, "focus": "50% 68%", "alt": "Hai bảng tên Thủy Phương in 3D màu hồng và màu đen trên tay, icon TikTok ở đầu và nơ ở cuối" },
+        { "video": "assets/video/in-3d/bang-ten.mp4", "poster": "assets/video/in-3d/bang-ten-poster.webp", "duration": "0:07", "focus": "50% 58%", "alt": "Video quay thực tế hai bảng tên in 3D" },
+        { "src": "assets/img/in-3d/bang-ten-hong.webp", "src_small": "assets/img/in-3d/bang-ten-hong-640.webp", "thumb": "assets/img/in-3d/bang-ten-hong-thumb.webp", "width": 1080, "height": 1918, "focus": "50% 68%", "alt": "Bảng tên Thủy Phương màu hồng, chữ trắng nổi, icon TikTok và nơ, cầm trên tay" }
+      ]
+    },
+    "stand": {
+      "name": "Giá đỡ điện thoại in tên",
+      "summary": "Gập gọn, khắc tên riêng của bạn",
+      "note": "Hình trên chỉ để bạn hình dung. Sau khi nhận đơn, shop gửi ảnh xem trước qua Zalo để bạn duyệt rồi mới in.",
+      "max_chars": 11,
+      "price": 29000,
+      "color": "xanh-da-troi",
+      "media": [
+        { "src": "assets/img/in-3d/gia-do-ba-mau.webp", "src_small": "assets/img/in-3d/gia-do-ba-mau-640.webp", "thumb": "assets/img/in-3d/gia-do-ba-mau-thumb.webp", "width": 1080, "height": 1413, "focus": "50% 60%", "alt": "Ba giá đỡ điện thoại đang gập màu hồng, cam và xanh, khắc tên Gia Hân, Thu Thanh, Sơn Phan" },
+        { "video": "assets/video/in-3d/gia-do-dien-thoai.mp4", "poster": "assets/video/in-3d/gia-do-dien-thoai-poster.webp", "duration": "0:08", "focus": "50% 55%", "alt": "Video giá đỡ điện thoại: in trên máy in 3D, mở giá đỡ và dựng điện thoại" },
+        { "src": "assets/img/in-3d/gia-do-xanh-mo.webp", "src_small": "assets/img/in-3d/gia-do-xanh-mo-640.webp", "thumb": "assets/img/in-3d/gia-do-xanh-mo-thumb.webp", "width": 1080, "height": 1918, "focus": "50% 100%", "alt": "Giá đỡ màu xanh đang mở, tên Sơn Phan khắc ở mặt bên" },
+        { "src": "assets/img/in-3d/gia-do-ba-mau-mo.webp", "src_small": "assets/img/in-3d/gia-do-ba-mau-mo-640.webp", "thumb": "assets/img/in-3d/gia-do-ba-mau-mo-thumb.webp", "width": 1080, "height": 1918, "focus": "50% 100%", "alt": "Ba giá đỡ màu hồng, cam và xanh đang mở trên bàn" },
+        { "src": "assets/img/in-3d/gia-do-dung-dien-thoai.webp", "src_small": "assets/img/in-3d/gia-do-dung-dien-thoai-640.webp", "thumb": "assets/img/in-3d/gia-do-dung-dien-thoai-thumb.webp", "width": 1080, "height": 1918, "focus": "50% 85%", "alt": "Điện thoại dựng đứng trên giá đỡ màu xanh, nhìn từ phía trước" },
+        { "src": "assets/img/in-3d/gia-do-dien-thoai-nghieng.webp", "src_small": "assets/img/in-3d/gia-do-dien-thoai-nghieng-640.webp", "thumb": "assets/img/in-3d/gia-do-dien-thoai-nghieng-thumb.webp", "width": 1080, "height": 1918, "focus": "50% 85%", "alt": "Điện thoại tựa nghiêng trên giá đỡ màu xanh, nhìn từ bên cạnh" },
+        { "src": "assets/img/in-3d/gia-do-ba-mau-dien-thoai.webp", "src_small": "assets/img/in-3d/gia-do-ba-mau-dien-thoai-640.webp", "thumb": "assets/img/in-3d/gia-do-ba-mau-dien-thoai-thumb.webp", "width": 1080, "height": 1918, "focus": "50% 100%", "alt": "Ba giá đỡ ba màu trên bàn, điện thoại dựng trên giá màu xanh" },
+        { "src": "assets/img/in-3d/gia-do-gap-canh-dien-thoai.webp", "src_small": "assets/img/in-3d/gia-do-gap-canh-dien-thoai-640.webp", "thumb": "assets/img/in-3d/gia-do-gap-canh-dien-thoai-thumb.webp", "width": 1080, "height": 1918, "focus": "50% 100%", "alt": "Giá đỡ màu xanh đang gập đặt cạnh điện thoại để so kích thước" }
+      ]
+    },
+    "custom": {
+      "name": "In theo file của bạn",
+      "summary": "Gửi file 3D hoặc ảnh mẫu, shop báo giá",
+      "photo": { "src": "assets/img/in-3d/may-in-3d.webp", "src_small": "assets/img/in-3d/may-in-3d-640.webp", "thumb": "assets/img/in-3d/may-in-3d-thumb.webp", "width": 1080, "height": 1920, "focus": "50% 55%", "alt": "Máy in 3D của shop với bộ đổi màu và cuộn nhựa màu hồng" },
+      "specs": [
+        { "label": "Kích thước tối đa", "value": "25 × 25 × 25 cm mỗi chi tiết" },
+        { "label": "Vật liệu", "value": "Nhựa PLA, PETG" },
+        { "label": "Màu", "value": "Tối đa 4 màu trên một chi tiết" },
+        { "label": "Bạn gửi", "value": "File STL, 3MF, STEP, OBJ — hoặc ảnh và kích thước món cần in" }
+      ],
+      "materials": ["PLA", "PETG"]
+    },
+    "steps": [
+      { "icon": "chat", "title": "Gửi yêu cầu", "text": "Tạo bảng tên, giá đỡ, hoặc gửi mô tả và file 3D ngay trên trang này." },
+      { "icon": "image", "title": "Duyệt ảnh xem trước", "text": "Shop gọi hoặc nhắn Zalo, gửi ảnh xem trước, chốt giá và ngày giao." },
+      { "icon": "wrench", "title": "In và kiểm tra", "text": "In từng sản phẩm, kiểm tra kỹ trước khi đóng gói." },
+      { "icon": "truck", "title": "Giao toàn quốc", "text": "Đóng gói cẩn thận, giao tận nơi trên toàn quốc." }
+    ],
+    "faq": [
+      { "q": "Tôi có được xem thiết kế trước khi in không?", "a": "Có. Sau khi nhận đơn, shop gửi ảnh xem trước qua Zalo. Bạn kiểm tra chính tả, icon và màu, shop chỉ in khi bạn đã đồng ý." },
+      { "q": "Bảng tên dài bao nhiêu? 1 tầng và 2 tầng khác gì?", "a": "Bảng dài hay ngắn theo số chữ của bạn, dài nhất khoảng 25 cm.\n• 1 tầng: một dòng chữ, tối đa 19 ký tự.\n• 2 tầng: hai dòng chữ xếp chồng, tối đa 24 ký tự cho cả hai dòng.\nSố ký tự tính cả dấu cách và icon, mỗi icon là một ký tự." },
+      { "q": "Bảng tên in được mấy màu?", "a": "Tối đa 4 màu trên một bảng, gồm màu thân, màu chữ và màu icon. Chi tiết trên icon (VD chữ f của Facebook, nút play của YouTube) in cùng màu chữ. Lá cờ luôn in đỏ sao vàng." },
+      { "q": "Cần nhiều bảng tên khác nhau (cho công ty, lớp học) thì đặt thế nào?", "a": "Tạo một bảng mẫu rồi ghi danh sách tên vào ô Ghi chú, hoặc gửi danh sách qua Zalo. Shop sẽ gọi xác nhận số lượng và giá." },
+      { "q": "Giá đỡ điện thoại dùng thế nào?", "a": "Giá đỡ gập lại thành một thanh nhỏ, tên của bạn khắc ở mặt bên. Khi dùng, mở phần đỡ ra rồi dựng điện thoại lên." },
+      { "q": "Chưa có file 3D thì có in được không?", "a": "Gửi ảnh, kích thước và mô tả món cần in qua form “In theo file của bạn” hoặc qua Zalo. Shop xem rồi tư vấn cách làm." },
+      { "q": "Sản phẩm làm bằng gì, để ở đâu được?", "a": "Sản phẩm in bằng nhựa PLA, hợp dùng trong nhà. Tránh để nơi nắng gắt hoặc trong ô tô vì nhựa có thể mềm, cong khi quá nóng." },
+      { "q": "Bao lâu thì nhận được hàng?", "a": "Shop báo ngày giao khi gọi xác nhận đơn, tùy số lượng và độ phức tạp của sản phẩm. Hàng được giao toàn quốc." },
+      { "q": "File và ảnh tôi gửi có bị chia sẻ không?", "a": "Không. File và ảnh bạn gửi chỉ dùng để báo giá và in đơn của bạn." }
+    ]
+  }
 }

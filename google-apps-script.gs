@@ -3,8 +3,10 @@
  *
  * Script này làm 2 việc:
  * 1. Lưu đơn hàng & yêu cầu tư vấn từ web vào Google Sheet: mỗi đơn là 1 dòng ở trang tính
- *    "Đơn hàng", mỗi yêu cầu tư vấn ở trang tính "Tư vấn". Web chờ script trả về "ok" (đã lưu) mới
- *    báo khách "Đã gửi" — khách không nhắn Zalo nữa, nên điền NOTIFY_EMAIL để biết khi có đơn mới.
+ *    "Đơn hàng", mỗi yêu cầu tư vấn ở trang tính "Tư vấn". Đơn bảng tên, giá đỡ điện thoại và yêu cầu in theo
+ *    file từ trang In 3D (in-3d.html) ở trang tính "In 3D", có cột "Trạng thái" để shop theo dõi từng đơn.
+ *    Web chờ script trả về "ok" (đã lưu) mới báo khách "Đã gửi" — khách không nhắn Zalo nữa,
+ *    nên điền NOTIFY_EMAIL để biết khi có đơn mới.
  *    Ai cũng gửi thẳng được tới script, nên script không tin số liệu gửi lên: tên sản phẩm và tổng tiền
  *    tính lại theo products.json trên website (tổng web gửi khác giá đúng thì ghi ở cột "Kiểm tra"),
  *    dữ liệu sai dạng bị bỏ, gửi dồn dập (VD bị spam) bị chặn tạm thời — khách vẫn có nút gửi qua Zalo.
@@ -29,10 +31,10 @@
  * kho đang để công khai, ai cũng đọc được.
  */
 
-const NOTIFY_EMAIL = '';   // VD: 'shop@gmail.com' — nên điền: nhận email mỗi khi có đơn hàng / yêu cầu tư vấn mới
+const NOTIFY_EMAIL = '';   // VD: 'shop@gmail.com' — nên điền: nhận email mỗi khi có đơn hàng / yêu cầu tư vấn / yêu cầu in 3D mới
 const CODE_FOLDER_ID = ''; // ID thư mục Google Drive chứa các file .zip code mẫu (giữ chế độ "Bị hạn chế")
 const MAX_DOWNLOADS = 20;  // Mỗi mã tải được tối đa bao nhiêu lượt (tính chung mọi file)
-const MAX_SENDS_PER_10_MIN = 30; // Đơn + yêu cầu tư vấn mỗi 10 phút. Quá mức (VD bị spam), web báo khách "chưa gửi được" và mời nhắn Zalo
+const MAX_SENDS_PER_10_MIN = 30; // Đơn + yêu cầu tư vấn + yêu cầu in 3D mỗi 10 phút. Quá mức (VD bị spam), web báo khách "chưa gửi được" và mời nhắn Zalo
 const MAX_SENDS_PER_PHONE = 5;   // Mỗi SĐT gửi tối đa bao nhiêu lần trong 10 phút
 const MAX_EMAILS_PER_HOUR = 10;  // Email báo shop mỗi giờ. Quá mức thì gửi 1 email nhắc mở Sheet, rồi dừng đến đầu giờ sau
 
@@ -48,6 +50,13 @@ const ORDER_KEY_COL = 'Mã tải code'; // Cột ở trang "Đơn hàng": shop g
 const ORDER_CHECK_COL = 'Kiểm tra';  // Script ghi khi tổng web gửi khác giá đúng, hoặc chưa đối chiếu được giá
 const ORDER_HEADER = ['Thời gian', 'Mã đơn', 'Họ tên', 'SĐT', 'Địa chỉ', 'Sản phẩm', 'Tổng (₫)', ORDER_CHECK_COL, 'Ghi chú', ORDER_KEY_COL];
 const PHONE_RE = /^(0|\+?84)(3|5|7|8|9)\d{8}$/; // Giống assets/js/core.js
+
+const PRINT_SHEET = 'In 3D';
+const PRINT_STATUS_COL = 'Trạng thái'; // Shop chọn ở ô thả xuống; đơn, yêu cầu mới ghi "Mới"
+const PRINT_STATUSES = ['Mới', 'Đã liên hệ', 'Đã chốt', 'Đang in', 'Đã giao', 'Huỷ'];
+const PRINT_HEADER = ['Thời gian', 'Mã', 'Loại', 'Họ tên', 'SĐT', 'Địa chỉ', 'Nội dung', 'Số lượng', 'Tạm tính (₫)', ORDER_CHECK_COL, 'Ghi chú', PRINT_STATUS_COL];
+// Chữ in trên bảng tên: chữ cái (có dấu tiếng Việt), số, dấu câu thường dùng. Giống assets/js/print3d.js
+const PLATE_TEXT_RE = /^[\p{Script=Latin}\p{M}\p{Nd} .,:;!?&'"’‘“”()\/+\-–—#@*]*$/u;
 
 /** Mở URL ứng dụng web trên trình duyệt để kiểm tra script đã chạy. */
 function doGet() {
@@ -76,6 +85,7 @@ function doPost(e) {
   try {
     if (data && data.type === 'don-hang') result = saveOrder_(data);
     if (data && data.type === 'tu-van') result = saveLead_(data);
+    if (data && data.type === 'in-3d') result = savePrint_(data);
   } catch (err) {
     console.error(err);
     result = 'error';
@@ -155,11 +165,181 @@ function saveLead_(data) {
   return 'ok';
 }
 
+/* ---------- Trang In 3D: đơn bảng tên, giá đỡ điện thoại, yêu cầu in theo file ---------- */
+
+const PRINT_ROWS = { 'bang-ten': plateRow_, 'gia-do': standRow_, 'theo-file': fileRow_ };
+
 /**
- * Bảng giá theo products.json trên website, lưu tạm 10 phút: "pro:day-du" và "SC Tech Pro|Bộ đầy đủ linh kiện"
- * cùng trỏ tới { line, kit, price } của bộ đó.
+ * Mỗi đơn bảng tên, giá đỡ điện thoại hay yêu cầu in theo file là 1 dòng ở trang tính "In 3D". Cột "Trạng thái"
+ * có ô thả xuống (Mới → Đã liên hệ → …) để shop theo dõi. Giá tính lại theo products.json như đơn bộ xe.
  */
-function catalog_() {
+function savePrint_(data) {
+  const name = clean_(data.name, 100);
+  const phone = normalizePhone_(data.phone);
+  const code = String(data.code || '');
+  if (!name || !PHONE_RE.test(phone) || !/^IN\d{6}-\d{4}$/.test(code)) return 'invalid';
+  const row = PRINT_ROWS.hasOwnProperty(data.kind) ? PRINT_ROWS[data.kind](data) : null;
+  if (!row) return 'invalid';
+  if (overLimit_(phone)) return 'busy';
+
+  const sh = getSheet_(SpreadsheetApp.getActiveSpreadsheet(), PRINT_SHEET, PRINT_HEADER);
+  appendRow_(sh, Object.assign({ 'Thời gian': new Date(), 'Mã': code, 'Họ tên': name, 'SĐT': phone }, row.cells,
+    { [PRINT_STATUS_COL]: PRINT_STATUSES[0] }));
+  const statusCol = colOf_(sh, PRINT_STATUS_COL, false);
+  if (statusCol) {
+    sh.getRange(sh.getLastRow(), statusCol).setDataValidation(
+      SpreadsheetApp.newDataValidation().requireValueInList(PRINT_STATUSES, true).setAllowInvalid(true).build());
+  }
+  notify_(`${row.title} #${code} – ${name}`, [`${name} – ${phone}`, ...row.email].join('\n'));
+  return 'ok';
+}
+
+/**
+ * Đơn bảng tên để bàn. Kiểu bảng (1 hoặc 2 tầng), kiểu chữ, icon, màu tìm theo id trong products.json → print3d:
+ * không có thì bỏ đơn (VD shop vừa bỏ màu đó). Cả bảng tối đa layout.max_chars ký tự (mọi dòng, dấu cách, mỗi icon
+ * 1 ký tự) và nameplate.max_colors màu, tính cả màu icon (lá cờ: màu cố định).
+ * Không đọc được products.json thì vẫn lưu theo tên web gửi, cột "Kiểm tra" nhắc đối chiếu lại.
+ */
+function plateRow_(data) {
+  const p = data.plate || {};
+  const lines = [p.line1, p.line2].map((v) => clean_(String(v == null ? '' : v).normalize('NFC'), 60));
+  const qty = Number(data.qty);
+  const address = clean_(data.address, 300, true);
+  const note = clean_(data.note, 500, true);
+  if (!lines[0] || !lines.every((t) => PLATE_TEXT_RE.test(t))) return null;
+  if (!Number.isInteger(qty) || qty < 1 || qty > 99 || address.length < 10) return null;
+
+  const checks = [];
+  const cat = printCatalog_(checks);
+  const np = cat && cat.nameplate;
+  const find = (list, id, label) => (cat ? findById_(list, id) : { name: clean_(label, 40) });
+  const layout = find(np && np.layouts, p.layout_id, p.layout);
+  const font = find(np && np.fonts, p.font_id, p.font);
+  const body = find(cat && cat.colors, p.body_id, p.body);
+  const text = find(cat && cat.colors, p.text_id, p.text);
+  if (![layout, font, body, text].every((x) => x && x.name)) return null;
+
+  // Icon trước, sau tên: "khong" là để trống
+  const icons = [
+    ['trước', p.icon_before_id, p.icon_before, p.icon_before_color_id, p.icon_before_color],
+    ['sau', p.icon_after_id, p.icon_after, p.icon_after_color_id, p.icon_after_color],
+  ].map(([where, id, label, colorId, colorLabel]) => {
+    if (!id || id === 'khong') return { where, none: true };
+    const icon = find(np && np.icons, id, label);
+    if (!icon || !icon.name) return null;
+    const colors = cat && icon.fixed
+      ? icon.fixed.map((c) => findById_(cat.colors, c))
+      : [find(cat && cat.colors, colorId, colorLabel)];
+    return colors.every((c) => c && c.name) ? { where, icon, colors } : null;
+  });
+  if (icons.includes(null)) return null;
+
+  if (cat) {
+    // Số ký tự của cả bảng: chữ mọi dòng (tính cả dấu cách) và mỗi icon 1 ký tự
+    const twoLines = Number(layout.lines) === 2;
+    const chars = lines.reduce((n, t) => n + Array.from(t).length, 0) + icons.filter((ic) => !ic.none).length;
+    if (twoLines !== Boolean(lines[1]) || chars > (Number(layout.max_chars) || 19)) return null;
+    const used = new Set([body.id, text.id]);
+    icons.forEach((ic) => ic.colors && ic.colors.forEach((c) => used.add(c.id)));
+    if (used.size > np.max_colors) return null;
+  }
+
+  const price = cat ? Number(layout.price) || 0 : Number(data.price) || 0;
+  const total = printTotal_(price, qty, data, checks, Boolean(cat));
+  const iconText = icons.filter((ic) => !ic.none)
+    .map((ic) => `${ic.icon.name} ${ic.where} tên (${ic.icon.fixed ? 'đỏ sao vàng' : ic.colors[0].name})`);
+  const content = [
+    `Kiểu: ${layout.name}`,
+    ...(lines[1] ? [`Dòng 1: ${lines[0]}`, `Dòng 2: ${lines[1]}`] : [`Chữ: ${lines[0]}`]),
+    `Kiểu chữ: ${font.name}${font.family ? ` (font ${font.family})` : ''}`,
+    `Icon: ${iconText.length ? iconText.join(', ') : 'không'}`,
+    `Màu: thân ${body.name}, chữ ${text.name}`,
+  ];
+  return orderRow_('Đơn bảng tên', 'Bảng tên để bàn', { address, content, qty, price, total, checks, note });
+}
+
+/** Đơn giá đỡ điện thoại in tên: tên khắc (in hoa) và màu theo products.json → print3d.stand. */
+function standRow_(data) {
+  const s = data.stand || {};
+  const text = clean_(String(s.text == null ? '' : s.text).normalize('NFC'), 40).toUpperCase();
+  const qty = Number(data.qty);
+  const address = clean_(data.address, 300, true);
+  const note = clean_(data.note, 500, true);
+  if (!text || !PLATE_TEXT_RE.test(text)) return null;
+  if (!Number.isInteger(qty) || qty < 1 || qty > 99 || address.length < 10) return null;
+
+  const checks = [];
+  const cat = printCatalog_(checks);
+  if (cat && !cat.stand) return null; // shop đã bỏ sản phẩm này khỏi products.json
+  const color = cat ? findById_(cat.colors, s.color_id) : { name: clean_(s.color, 40) };
+  if (!color || !color.name) return null;
+  if (cat && Array.from(text).length > (Number(cat.stand.max_chars) || 10)) return null;
+
+  const price = cat ? Number(cat.stand.price) || 0 : Number(data.price) || 0;
+  const total = printTotal_(price, qty, data, checks, Boolean(cat));
+  const content = [`Tên khắc: ${text}`, `Màu: ${color.name}`];
+  return orderRow_('Đơn giá đỡ điện thoại', 'Giá đỡ điện thoại', { address, content, qty, price, total, checks, note });
+}
+
+/** Tổng tiền theo giá trong products.json; tổng web gửi khác thì ghi lời nhắc vào cột "Kiểm tra". */
+function printTotal_(price, qty, data, checks, known) {
+  const total = price * qty;
+  const sent = Number(data.total) || 0;
+  if (known && sent !== total) {
+    checks.push(`Web gửi tổng ${money_(sent)} ₫, giá đúng ${money_(total)} ₫: báo lại giá cho khách khi gọi xác nhận.`);
+  }
+  if (known && !price) checks.push('Sản phẩm này chưa có giá trong products.json: báo giá khi gọi xác nhận.');
+  return total;
+}
+
+/** Dòng ở trang tính "In 3D" và email báo shop cho một đơn đặt ngay (bảng tên, giá đỡ). */
+function orderRow_(title, kind, o) {
+  return {
+    title,
+    cells: {
+      'Loại': kind,
+      'Địa chỉ': o.address,
+      'Nội dung': o.content.join('\n'),
+      'Số lượng': o.qty,
+      'Tạm tính (₫)': o.price ? o.total : '',
+      [ORDER_CHECK_COL]: o.checks.join('\n'),
+      'Ghi chú': o.note,
+    },
+    email: [o.address, '', ...o.content, `Số lượng: ${o.qty}`, `Tạm tính: ${o.price ? `${money_(o.total)} ₫` : 'chưa có giá'}`,
+      `Ghi chú: ${o.note}`, ...(o.checks.length ? ['', `Cần kiểm tra: ${o.checks.join(' ')}`] : [])],
+  };
+}
+
+/** Yêu cầu báo giá in theo file: mô tả, link file (nếu có). File, ảnh trên máy khách gửi qua Zalo kèm mã. */
+function fileRow_(data) {
+  const message = clean_(data.message, 1000, true);
+  const link = clean_(data.link, 500);
+  const material = clean_(data.material, 40);
+  const color = clean_(data.color, 60);
+  const qty = data.qty === '' || data.qty == null ? '' : Number(data.qty);
+  if (!message || data.rights !== true) return null;
+  if (link && !/^https?:\/\/[^\s/]+\.\S+$/i.test(link)) return null;
+  if (qty !== '' && (!Number.isInteger(qty) || qty < 1 || qty > 1000)) return null;
+
+  const content = [
+    message,
+    link ? `File: ${link}` : '',
+    `Vật liệu: ${material || 'shop tư vấn'}`,
+    color ? `Màu: ${color}` : '',
+  ].filter(Boolean);
+  return {
+    title: 'Yêu cầu in 3D',
+    cells: { 'Loại': 'In theo file', 'Nội dung': content.join('\n'), 'Số lượng': qty },
+    email: ['', ...content, ...(qty ? [`Số lượng: ${qty}`] : []), '', 'Khách có thể gửi file, ảnh qua Zalo kèm mã này.'],
+  };
+}
+
+function findById_(list, id) {
+  return (list || []).find((x) => x && x.id === id) || null;
+}
+
+/** products.json trên website (đã đọc thành object), lưu tạm 10 phút. */
+function siteData_() {
   const cache = CacheService.getScriptCache();
   let text = cache.get('products');
   const fresh = !text;
@@ -168,12 +348,7 @@ function catalog_() {
     if (res.getResponseCode() !== 200) throw new Error(`HTTP ${res.getResponseCode()}`);
     text = res.getContentText('UTF-8');
   }
-  const kits = new Map();
-  JSON.parse(text).lines.forEach((l) => l.kits.forEach((k) => {
-    const kit = { line: l.name, kit: k.name, price: Number(k.price) || 0 };
-    kits.set(`${l.id}:${k.id}`, kit);
-    kits.set(`${l.name}|${k.name}`, kit); // trang web bản cũ chưa gửi line_id, kit_id: chỉ có tên dòng, tên bộ
-  }));
+  const data = JSON.parse(text);
   if (fresh) {
     try {
       cache.put('products', text, 600);
@@ -181,7 +356,44 @@ function catalog_() {
       console.warn(err); // file lớn hơn 100 KB thì không lưu tạm được: lần sau đọc lại
     }
   }
+  return data;
+}
+
+/**
+ * Bảng giá theo products.json trên website: "pro:day-du" và "SC Tech Pro|Bộ đầy đủ linh kiện"
+ * cùng trỏ tới { line, kit, price } của bộ đó.
+ */
+function catalog_() {
+  const kits = new Map();
+  siteData_().lines.forEach((l) => l.kits.forEach((k) => {
+    const kit = { line: l.name, kit: k.name, price: Number(k.price) || 0 };
+    kits.set(`${l.id}:${k.id}`, kit);
+    kits.set(`${l.name}|${k.name}`, kit); // trang web bản cũ chưa gửi line_id, kit_id: chỉ có tên dòng, tên bộ
+  }));
   return kits;
+}
+
+/**
+ * Bảng màu, bảng tên (kiểu bảng kèm giá, kiểu chữ, icon) và giá đỡ đang bán: products.json → print3d.
+ * Không đọc được products.json thì trả null và ghi lời nhắc vào `checks` (cột "Kiểm tra"): đơn vẫn được lưu.
+ */
+function printCatalog_(checks) {
+  try {
+    const p = siteData_().print3d || {};
+    const np = p.nameplate || {};
+    return {
+      colors: p.colors || [],
+      nameplate: {
+        layouts: np.layouts || [], fonts: np.fonts || [], icons: np.icons || [],
+        max_colors: Number(np.max_colors) || 4,
+      },
+      stand: p.stand || null,
+    };
+  } catch (err) {
+    console.error(err);
+    if (checks) checks.push('Chưa đối chiếu được với products.json: kiểm tra lại lựa chọn, màu và giá.');
+    return null;
+  }
 }
 
 /** Chống spam: 1 SĐT gửi quá nhiều lần, hoặc tổng số lần gửi quá nhiều, trong 10 phút. Chỉ đếm lần gửi hợp lệ. */
@@ -338,7 +550,9 @@ function checkSetup() {
   const lines = [];
   try {
     CacheService.getScriptCache().remove('products'); // đọc bản mới nhất trên website
-    lines.push(`✓ Đọc được bảng giá ${SITE_URL}/products.json: ${new Set(catalog_().values()).size} bộ.`);
+    const print = printCatalog_();
+    lines.push(`✓ Đọc được bảng giá ${SITE_URL}/products.json: ${new Set(catalog_().values()).size} bộ xe, ` +
+      `${print ? print.nameplate.layouts.length : 0} kiểu bảng tên, ${print && print.stand ? 1 : 0} giá đỡ điện thoại.`);
   } catch (err) {
     const why = /external_request/.test(err.message)
       ? 'chưa cấp quyền "Kết nối với dịch vụ bên ngoài" (cách cấp: README mục 5, bước 7)'
@@ -674,7 +888,7 @@ function notify_(subject, body) {
   if (count > MAX_EMAILS_PER_HOUR + 1) return;
   if (count > MAX_EMAILS_PER_HOUR) {
     subject = 'SmartCarTech: tạm dừng email báo đơn đến đầu giờ sau';
-    body = `Trong giờ này đã có hơn ${MAX_EMAILS_PER_HOUR} đơn hàng / yêu cầu tư vấn mới, có thể web đang bị spam. ` +
+    body = `Trong giờ này đã có hơn ${MAX_EMAILS_PER_HOUR} đơn hàng / yêu cầu mới, có thể web đang bị spam. ` +
       'Các đơn vẫn được lưu: mở Google Sheet để xem. Email báo đơn tự gửi lại từ đầu giờ sau.';
   }
   try {

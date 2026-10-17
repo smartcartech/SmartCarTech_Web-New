@@ -322,10 +322,17 @@ export function normalizePhone(v) {
   return String(v || '').replace(/[\s.\-()]/g, '');
 }
 
+/** Code shown to the customer and saved in the Sheet, e.g. "SC260926-4821" (prefix + yymmdd + 4 digits). */
+export function orderCode(prefix) {
+  const d = new Date();
+  const ymd = [d.getFullYear() % 100, d.getMonth() + 1, d.getDate()].map((n) => String(n).padStart(2, '0')).join('');
+  return `${prefix}${ymd}-${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
 /* ---------- Form helpers ---------- */
-/** Show/clear an inline error for a field (uses its aria-describedby element). */
+/** Show/clear an inline error for a field (the first element in its aria-describedby). */
 export function fieldError(input, msg) {
-  const err = document.getElementById(input.getAttribute('aria-describedby') || '');
+  const err = document.getElementById((input.getAttribute('aria-describedby') || '').split(/\s+/)[0]);
   input.setAttribute('aria-invalid', msg ? 'true' : 'false');
   if (err) err.textContent = msg || '';
   return !msg;
@@ -355,16 +362,106 @@ export function renderSendResult(el, { site, title, code = '', text, details = [
   if (onReset) $('[data-reset]', el).addEventListener('click', onReset);
 }
 
+/* ---------- FAQ accordion (one open at a time) ---------- */
+/** Render [{q, a}] into `list` as an accordion; the first answer starts open. */
+export function renderAccordion(list, items) {
+  list.innerHTML = items.map((f, i) => `
+    <div class="acc-item">
+      <h3>
+        <button type="button" class="acc-item__btn" id="faq-q-${i}" aria-expanded="${i === 0}" aria-controls="faq-a-${i}">
+          <span>${esc(f.q)}</span>
+          <span class="acc-item__sign" aria-hidden="true">${icon('plus', 'i-plus')}${icon('minus', 'i-minus')}</span>
+        </button>
+      </h3>
+      <div class="acc-item__panel${i === 0 ? ' is-open' : ''}" id="faq-a-${i}" role="region" aria-labelledby="faq-q-${i}"${i === 0 ? '' : ' inert'}>
+        <div><p>${esc(f.a)}</p></div>
+      </div>
+    </div>`).join('');
+
+  list.addEventListener('click', (e) => {
+    const btn = e.target.closest('.acc-item__btn');
+    if (!btn) return;
+    const willOpen = btn.getAttribute('aria-expanded') !== 'true';
+    $$('.acc-item__btn', list).forEach((b) => {
+      const open = b === btn && willOpen;
+      b.setAttribute('aria-expanded', String(open));
+      const panel = document.getElementById(b.getAttribute('aria-controls'));
+      panel.classList.toggle('is-open', open);
+      panel.inert = !open;
+    });
+  });
+}
+
 /* ---------- Focus trap for dialogs ---------- */
 function trapFocus(container, e) {
   if (e.key !== 'Tab') return;
-  const f = $$('a[href], button:not([disabled]), input, textarea, [tabindex]:not([tabindex="-1"])', container)
+  const f = $$('a[href], button:not([disabled]), input, textarea, video[controls], [tabindex]:not([tabindex="-1"])', container)
     .filter((el) => el.offsetParent !== null);
   if (!f.length) return;
   const first = f[0];
   const last = f[f.length - 1];
   if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
+
+/* ---------- Lightbox: enlarged photo or video ---------- */
+/**
+ * Full-screen viewer. `items`: one or more { src, alt, caption } photos or { video, poster, alt, caption } MP4 clips.
+ * With several items, the arrow buttons and ←/→ keys step through them. Esc or a click outside closes it and
+ * focus goes back to `opener` (Safari does not focus a button on click, so pass the button that was clicked).
+ */
+export function openLightbox(items, start = 0, opener = null) {
+  const list = Array.isArray(items) ? items : [items];
+  const many = list.length > 1;
+  let index = 0;
+  const box = document.createElement('div');
+  box.className = 'lightbox';
+  box.setAttribute('role', 'dialog');
+  box.setAttribute('aria-modal', 'true');
+  box.innerHTML = `
+    <div class="lightbox__stage" data-lb-stage></div>
+    <p class="lightbox__caption" data-lb-caption></p>
+    ${many ? `
+    <button type="button" class="icon-btn lightbox__nav lightbox__nav--prev" data-lb-step="-1" aria-label="Xem ảnh trước">${icon('chevron-right')}</button>
+    <button type="button" class="icon-btn lightbox__nav lightbox__nav--next" data-lb-step="1" aria-label="Xem ảnh sau">${icon('chevron-right')}</button>` : ''}
+    <button type="button" class="icon-btn lightbox__close" aria-label="Đóng">${icon('close')}</button>`;
+  const stage = $('[data-lb-stage]', box);
+  const caption = $('[data-lb-caption]', box);
+
+  function show(i) {
+    index = (i + list.length) % list.length;
+    const item = list[index];
+    // Replacing the stage also stops a clip that was playing
+    stage.innerHTML = item.video
+      ? `<video src="${esc(item.video)}"${item.poster ? ` poster="${esc(item.poster)}"` : ''} controls autoplay muted playsinline preload="auto" aria-label="${esc(item.alt || 'Video')}"></video>`
+      : `<img src="${esc(item.src)}" alt="${esc(item.alt || '')}">`;
+    box.setAttribute('aria-label', item.alt || 'Xem ảnh');
+    caption.textContent = [item.caption, many ? `${index + 1} / ${list.length}` : ''].filter(Boolean).join(' · ');
+    caption.hidden = !caption.textContent;
+  }
+
+  const last = opener || document.activeElement;
+  const close = () => {
+    box.remove();
+    document.documentElement.style.overflow = '';
+    last?.focus?.();
+  };
+  box.addEventListener('click', (e) => {
+    const step = e.target.closest('[data-lb-step]');
+    if (step) show(index + Number(step.dataset.lbStep));
+    else if (e.target === box || e.target === stage || e.target.closest('.lightbox__close')) close();
+  });
+  box.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') close();
+    // ←/→ on a focused video seek inside the clip instead
+    else if (many && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && e.target.tagName !== 'VIDEO') {
+      show(index + (e.key === 'ArrowLeft' ? -1 : 1));
+    } else trapFocus(box, e);
+  });
+  document.body.appendChild(box);
+  document.documentElement.style.overflow = 'hidden';
+  show(start);
+  $('.lightbox__close', box).focus();
 }
 
 /* ---------- Cart drawer ---------- */
