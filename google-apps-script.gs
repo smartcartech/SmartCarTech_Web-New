@@ -44,8 +44,11 @@ const MAX_EMAILS_PER_HOUR = 10;  // Email báo shop mỗi giờ. Quá mức thì
 
 const CODE_SHEET = 'Mã tải code';
 const PRINTED_COL = 'Đã in';
+const CODE_ID_COL = 'Mã tải code'; // Cột chứa mã
+const CODE_ID_OLD_COL = 'Mã';      // Tên cột đó ở bản script đầu tiên: Sheet còn tên này thì script vẫn nhận
 // "Mã đơn", "Khách hàng": script tự điền khi shop gõ mã của thẻ vào đơn ở trang "Đơn hàng"
-const CODE_HEADER = ['Mã', 'Ghi chú', 'Khoá', 'Số lần tải', 'Tải lần đầu', 'Tải gần nhất', 'File tải gần nhất', PRINTED_COL, 'Mã đơn', 'Khách hàng'];
+const CODE_HEADER = [CODE_ID_COL, 'Ghi chú', 'Khoá', 'Số lần tải', 'Tải lần đầu', 'Tải gần nhất', 'File tải gần nhất', PRINTED_COL, 'Mã đơn', 'Khách hàng'];
+const CODE_NEEDED_COLS = [CODE_ID_COL, 'Khoá', 'Số lần tải']; // Quyết định mã có tải được không: thiếu cột nào thì script dừng (codeCols_)
 // Không có 0/O, 1/I/L để khách đọc và gõ không nhầm
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
@@ -54,6 +57,9 @@ const ORDER_KEY_COL = 'Mã tải code'; // Cột ở trang "Đơn hàng": shop g
 const ORDER_CHECK_COL = 'Kiểm tra';  // Script ghi khi tổng web gửi khác giá đúng, hoặc chưa đối chiếu được giá
 const ORDER_PLATFORM_COL = 'Nền tảng'; // Đơn từ web ghi WEB_PLATFORM; đơn gộp từ "Customer Infor" ghi Shopee, Tiktok…
 const WEB_PLATFORM = 'Website';
+const ORDER_REVENUE_COL = 'Doanh thu sau điều chỉnh'; // Shop tự điền 2 cột này; đủ 2 số thì ORDER_PROFIT_COL tự tính (syncProfit_)
+const ORDER_COST_COL = 'Chi phí';
+const ORDER_PROFIT_COL = 'Lợi nhuận';
 const ORDER_HEADER = ['Thời gian', 'Mã đơn', 'Họ tên', 'SĐT', 'Địa chỉ', 'Sản phẩm', 'Tổng (₫)', ORDER_CHECK_COL, 'Ghi chú', ORDER_KEY_COL];
 const PHONE_RE = /^(0|\+?84)(3|5|7|8|9)\d{8}$/; // Giống assets/js/core.js
 
@@ -65,6 +71,7 @@ const PRINT_HEADER = ['Thời gian', 'Mã', 'Loại', 'Họ tên', 'SĐT', 'Đ�
 const PLATE_TEXT_RE = /^[\p{Script=Latin}\p{M}\p{Nd} .,:;!?&'"’‘“”()\/+\-–—#@*]*$/u;
 
 const LEAD_SHEET = 'Tư vấn';
+const LEAD_HEADER = ['Thời gian', 'Họ tên', 'SĐT', 'Nội dung'];
 
 // Trang quản trị (quan-tri.html). Tạo tài khoản: menu "SmartCarTech" → "Tài khoản trang quản trị…"
 const ADMIN_LOG_SHEET = 'Nhật ký quản trị'; // Script ghi mọi lần đăng nhập, sửa, thêm, xoá dòng trên trang quản trị
@@ -185,8 +192,8 @@ function saveLead_(data) {
   if (!name || !PHONE_RE.test(phone)) return 'invalid';
   if (overLimit_(phone)) return 'busy';
 
-  const sh = getSheet_(SpreadsheetApp.getActiveSpreadsheet(), LEAD_SHEET, ['Thời gian', 'Họ tên', 'SĐT', 'Nội dung']);
-  sh.appendRow([new Date(), safe_(name), safe_(phone), safe_(message)]);
+  const sh = getSheet_(SpreadsheetApp.getActiveSpreadsheet(), LEAD_SHEET, LEAD_HEADER);
+  appendRow_(sh, { 'Thời gian': new Date(), 'Họ tên': name, 'SĐT': phone, 'Nội dung': message });
   notify_(`Yêu cầu tư vấn – ${name}`, `${name} – ${phone}\n\n${message}`);
   return 'ok';
 }
@@ -472,18 +479,24 @@ function downloadCode_(data) {
   lock.waitLock(20000);
   try {
     const sh = getSheet_(SpreadsheetApp.getActiveSpreadsheet(), CODE_SHEET, CODE_HEADER);
+    const cols = codeCols_(sh);
+    if (cols.missing) return { ok: false, error: `Shop đang cập nhật danh sách mã (thiếu cột ${cols.missing}). Vui lòng nhắn Zalo cho shop.` };
     const rows = sh.getDataRange().getValues();
-    const i = rows.findIndex((r, n) => n > 0 && normalizeCode_(r[0]) === code);
+    const i = rows.findIndex((r, n) => n > 0 && normalizeCode_(r[cols.id - 1]) === code);
     if (i < 0) return { ok: false, error: 'Mã không đúng. Kiểm tra lại mã in trên thẻ trong hộp.' };
     const row = rows[i];
-    if (isLocked_(row[2])) return { ok: false, error: 'Mã này đã bị khoá. Vui lòng nhắn Zalo cho shop.' };
-    const count = Number(row[3]) || 0;
+    if (isLocked_(row[cols.lock - 1])) return { ok: false, error: 'Mã này đã bị khoá. Vui lòng nhắn Zalo cho shop.' };
+    const count = Number(row[cols.count - 1]) || 0;
     if (count >= MAX_DOWNLOADS) return { ok: false, error: 'Mã này đã hết lượt tải. Vui lòng nhắn Zalo cho shop.' };
 
     const file = codeFile_(name);
     if (!file) return { ok: false, error: 'File code này đang được cập nhật. Vui lòng nhắn Zalo cho shop.' };
     const now = new Date();
-    sh.getRange(i + 1, 4, 1, 4).setValues([[count + 1, row[4] || now, now, name]]);
+    const [first, latest, lastFile] = ['Tải lần đầu', 'Tải gần nhất', 'File tải gần nhất'].map((col) => colOf_(sh, col, true));
+    sh.getRange(i + 1, cols.count).setValue(count + 1);
+    if (!row[first - 1]) sh.getRange(i + 1, first).setValue(now);
+    sh.getRange(i + 1, latest).setValue(now);
+    sh.getRange(i + 1, lastFile).setValue(name);
     return { ok: true, name: file.getName(), data: Utilities.base64Encode(file.getBlob().getBytes()) };
   } finally {
     lock.releaseLock();
@@ -508,6 +521,24 @@ function normalizeCode_(value) {
 /** Ô "Khoá" được tích, hoặc có ghi bất kỳ chữ nào (VD "x"). */
 function isLocked_(value) {
   return value === true || (typeof value === 'string' && value.trim() !== '');
+}
+
+/**
+ * Số thứ tự cột mã, Khoá, Số lần tải ở trang "Mã tải code", tìm theo tên nên shop đổi thứ tự cột vẫn đúng. "Khóa", "KHOÁ"
+ * cũng nhận ra: gõ lại tên cột dễ khác dấu. Thiếu cột thì missing ghi tên cột đó và script dừng, không tự thêm cột như các
+ * cột khác: cột mới trống thì mã đã khoá lại tải được, lượt tải đếm lại từ 0.
+ */
+function codeCols_(sh) {
+  const [idName, oldName] = [CODE_ID_COL, CODE_ID_OLD_COL].map(matchText_);
+  const head = header_(sh).map(matchText_).map((name) => (name === oldName ? idName : name));
+  const [id, lock, count] = CODE_NEEDED_COLS.map((name) => head.indexOf(matchText_(name)) + 1);
+  const missing = CODE_NEEDED_COLS.filter((name) => !head.includes(matchText_(name)));
+  return { id, lock, count, missing: missing.map((name) => `"${name}"`).join(', ') };
+}
+
+/** Câu báo shop khi thiếu cột: ở menu, khi gán mã cho đơn, ở "Kiểm tra cài đặt". */
+function codeColsIssue_(cols) {
+  return `Trang "${CODE_SHEET}" không có cột ${cols.missing} (có thể vừa bị đổi tên). Đổi lại đúng tên ở dòng 1 rồi làm lại.`;
 }
 
 /** Mã ngẫu nhiên dạng "K7M3-Q9XP": 31^8 ≈ 850 tỉ khả năng, không đoán được. */
@@ -562,20 +593,27 @@ function createCodes() {
   const note = safe_(noted.getResponseText().trim());
 
   const sh = getSheet_(SpreadsheetApp.getActiveSpreadsheet(), CODE_SHEET, CODE_HEADER);
-  const used = new Set(sh.getDataRange().getValues().map((r) => normalizeCode_(r[0])));
-  const rows = [];
-  while (rows.length < count) {
+  const cols = codeCols_(sh);
+  if (cols.missing) {
+    ui.alert(codeColsIssue_(cols));
+    return;
+  }
+  const used = new Set(sh.getDataRange().getValues().map((r) => normalizeCode_(r[cols.id - 1])));
+  const codes = [];
+  while (codes.length < count) {
     const code = newCode_();
     if (used.has(normalizeCode_(code))) continue;
     used.add(normalizeCode_(code));
-    rows.push([code, note, false, 0].concat(CODE_HEADER.slice(4).map(() => '')));
+    codes.push([code]);
   }
+  const noteCol = colOf_(sh, 'Ghi chú', true);
   const start = sh.getLastRow() + 1;
-  sh.getRange(start, 1, count, 1).setNumberFormat('@'); // giữ mã ở dạng chữ, VD "2345-6789" không bị đổi thành số
-  sh.getRange(start, 1, count, CODE_HEADER.length).setValues(rows);
-  sh.getRange(start, 3, count, 1).insertCheckboxes();
+  sh.getRange(start, cols.id, count, 1).setNumberFormat('@').setValues(codes); // giữ mã ở dạng chữ, VD "2345-6789" không bị đổi thành số
+  sh.getRange(start, noteCol, count, 1).setValue(note);
+  sh.getRange(start, cols.lock, count, 1).insertCheckboxes();
+  sh.getRange(start, cols.count, count, 1).setValue(0);
   sh.activate();
-  sh.setActiveRange(sh.getRange(start, 1, count, 1));
+  sh.setActiveRange(sh.getRange(start, cols.id, count, 1));
   ui.alert(`Đã tạo ${count} mã mới (dòng ${start}–${start + count - 1}). Các mã này đang được chọn sẵn: vào menu SmartCarTech → In thẻ cho các mã đang chọn… để in.`);
 }
 
@@ -603,6 +641,7 @@ function checkSetup() {
     ? `✓ Email báo đơn gửi tới ${NOTIFY_EMAIL}. Hôm nay còn gửi được ${MailApp.getRemainingDailyQuota()} email.`
     : '✗ Chưa điền NOTIFY_EMAIL: shop sẽ không nhận email khi có đơn mới.');
   lines.push(codeFolderStatus_());
+  lines.push(...columnLines_());
   const admins = Object.keys(adminAccounts_()).sort();
   lines.push(admins.length
     ? `✓ Trang quản trị ${SITE_URL}/quan-tri.html: ${admins.length} tài khoản (${admins.join(', ')}).`
@@ -633,6 +672,29 @@ function codeFolderStatus_() {
   }
 }
 
+/**
+ * So dòng 1 của các trang này với tên cột script tìm, để biết trước khi triển khai: tên cột trên Sheet có thể khác tên
+ * trong script (VD shop đã đổi tên). Trang chưa có hoặc còn trống thì script tự tạo đủ cột. Chỉ đọc, không ghi gì.
+ */
+function columnLines_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const lines = [];
+  const fine = [];
+  [[CODE_SHEET, CODE_HEADER], [LEAD_SHEET, LEAD_HEADER], [ADMIN_LOG_SHEET, ADMIN_LOG_HEADER]].forEach(([name, header]) => {
+    const sh = ss.getSheetByName(name);
+    if (!sh || !sh.getLastRow()) return;
+    const head = header_(sh);
+    const cols = name === CODE_SHEET ? codeCols_(sh) : { missing: '' };
+    const others = header.filter((col) => !CODE_NEEDED_COLS.includes(col) && !head.includes(col));
+    const current = `Dòng 1 đang là: ${head.filter(Boolean).join(' | ')}.`;
+    if (cols.missing) lines.push(`✗ ${codeColsIssue_(cols)} ${current} Trong lúc thiếu cột, khách không tải được code; menu tạo mã, in thẻ và việc gán mã cho đơn cũng dừng.`);
+    if (others.length) lines.push(`✗ Trang "${name}" không có cột ${others.map((col) => `"${col}"`).join(', ')}. ${current} Cột nào chỉ khác tên thì đổi lại đúng tên, nếu không script sẽ thêm cột mới ở cuối bảng và ghi vào đó.`);
+    if (!cols.missing && !others.length) fine.push(name);
+  });
+  if (fine.length) lines.push(`✓ Các trang ${fine.join(', ')} có đủ cột script cần.`);
+  return lines;
+}
+
 /* ---------- In thẻ mã: 10 thẻ cỡ danh thiếp (85 × 54 mm) trên 1 tờ A4 ---------- */
 
 const SITE_URL = 'https://smartcartech.vn'; // Địa chỉ in trên thẻ, trong mã QR, và nơi script đọc products.json để đối chiếu giá
@@ -649,6 +711,11 @@ function printCards() {
     ui.alert(`Mở trang tính "${CODE_SHEET}", bôi chọn các mã cần in rồi chọn lại menu này.`);
     return;
   }
+  const cols = codeCols_(sh);
+  if (cols.missing) {
+    ui.alert(codeColsIssue_(cols));
+    return;
+  }
   const last = sh.getLastRow();
   const rowNums = new Set();
   const ranges = sh.getActiveRangeList();
@@ -663,10 +730,10 @@ function printCards() {
   const data = { site: SITE_URL, logo: LOGO_URL, zalo: SHOP_ZALO, cards: [], locked: 0, used: 0, linked: 0 };
   [...rowNums].sort((a, b) => a - b).forEach((n) => {
     const row = values[n - 1];
-    const code = String(row[0]).trim();
+    const code = String(row[cols.id - 1]).trim();
     if (!normalizeCode_(code)) return;
-    if (isLocked_(row[2])) data.locked++;
-    else if (Number(row[3]) > 0) data.used++;
+    if (isLocked_(row[cols.lock - 1])) data.locked++;
+    else if (Number(row[cols.count - 1]) > 0) data.used++;
     else if (orderCol && String(row[orderCol - 1]).trim()) data.linked++;
     else data.cards.push({ code, printed: printedCol ? printedText_(row[printedCol - 1], tz) : '' });
   });
@@ -679,7 +746,7 @@ function printCards() {
     ].filter(Boolean);
     ui.alert(skipped.length
       ? `Không có mã nào để in: ${skipped.join(', ')}. Hãy chọn các mã chưa dùng.`
-      : 'Bôi chọn các mã cần in ở cột "Mã" (chọn được nhiều dòng) rồi chọn lại menu này.');
+      : `Bôi chọn các mã cần in ở cột "${CODE_ID_COL}" (chọn được nhiều dòng) rồi chọn lại menu này.`);
     return;
   }
   // Mã hoá dấu "<" để dữ liệu không đóng nhầm thẻ <script>; replace nhận hàm để giữ nguyên ký tự "$"
@@ -696,9 +763,10 @@ function markCardsPrinted(codes) {
   try {
     const sh = getSheet_(SpreadsheetApp.getActiveSpreadsheet(), CODE_SHEET, CODE_HEADER);
     const last = sh.getLastRow();
-    if (last < 2 || !want.size) return 0;
+    const idCol = codeCols_(sh).id;
+    if (last < 2 || !want.size || !idCol) return 0;
     const col = colOf_(sh, PRINTED_COL, true);
-    const keys = sh.getRange(2, 1, last - 1, 1).getValues();
+    const keys = sh.getRange(2, idCol, last - 1, 1).getValues();
     const range = sh.getRange(2, col, last - 1, 1);
     const printed = range.getValues();
     const now = new Date();
@@ -726,14 +794,19 @@ function printedText_(value, tz) {
  * Tự chạy khi sửa Sheet. Lúc đóng hàng, shop gõ mã của thẻ bỏ vào hộp vào cột "Mã tải code" của đơn ở
  * trang "Đơn hàng" (nhiều hộp: các mã cách nhau bằng dấu phẩy; có máy quét thì quét QR trên thẻ cũng được).
  * Script ghi "Mã đơn" và "Khách hàng" sang trang "Mã tải code". Sửa mã đơn, tên hoặc SĐT thì cũng cập nhật theo.
+ * Sửa Doanh thu, Chi phí thì Lợi nhuận tự tính (syncProfit_).
  */
 function onEdit(e) {
   if (!e || !e.range) return;
   const sh = e.range.getSheet();
-  if (e.range.getLastRow() < 2 || !watchesCodes_(sh, e.range.getColumn(), e.range.getLastColumn())) return;
-  const done = withDocLock_(() => linkCodes_(sh, e.range.getRow(), e.range.getLastRow()));
-  if (done && done.issue) sh.getParent().toast(done.issue, 'Chưa gán được mã', 8);
-  else if (done && done.linked) sh.getParent().toast(`Đã ghi Mã đơn, Khách hàng ở trang "${CODE_SHEET}".`, 'Đã gán mã', 4);
+  if (sh.getName() !== ORDER_SHEET || e.range.getLastRow() < 2) return;
+  const [rowFrom, rowTo, colFrom, colTo] = [e.range.getRow(), e.range.getLastRow(), e.range.getColumn(), e.range.getLastColumn()];
+  if (watchesCodes_(sh, colFrom, colTo)) {
+    const done = withDocLock_(() => linkCodes_(sh, rowFrom, rowTo));
+    if (done && done.issue) sh.getParent().toast(done.issue, 'Chưa gán được mã', 8);
+    else if (done && done.linked) sh.getParent().toast(`Đã ghi Mã đơn, Khách hàng ở trang "${CODE_SHEET}".`, 'Đã gán mã', 4);
+  }
+  if (watchesProfit_(sh, colFrom, colTo)) withDocLock_(() => syncProfit_(sh, rowFrom, rowTo));
 }
 
 /** Cột colFrom–colTo của trang "Đơn hàng" có "Mã đơn", "Họ tên", "SĐT" hoặc "Mã tải code": sửa thì phải gán lại mã. */
@@ -755,6 +828,9 @@ function linkCodes_(os, from, to) {
   const cs = ss.getSheetByName(CODE_SHEET);
   const last = os.getLastRow();
   if (!cs || !cs.getLastRow() || last < 2) return;
+  // Không tìm được cột mã mà vẫn chạy tiếp thì mọi mã đang gán bị xoá khỏi đơn: dừng, không ghi gì
+  const cols = codeCols_(cs);
+  if (cols.missing) return { issue: codeColsIssue_(cols), linked: false };
   const head = header_(os);
   const [iId, iName, iPhone, iKey] = ['Mã đơn', 'Họ tên', 'SĐT', ORDER_KEY_COL].map((name) => head.indexOf(name));
   const orders = os.getRange(2, 1, last - 1, head.length).getValues();
@@ -765,7 +841,7 @@ function linkCodes_(os, from, to) {
   const codes = cs.getLastRow() > 1 ? cs.getRange(2, 1, cs.getLastRow() - 1, cs.getLastColumn()).getValues() : [];
   const index = new Map(); // mã đã chuẩn hoá → dòng ở trang "Mã tải code"
   codes.forEach((r, ci) => {
-    const k = normalizeCode_(r[0]);
+    const k = normalizeCode_(r[cols.id - 1]);
     if (k && !index.has(k)) index.set(k, ci);
   });
   const ids = new Set(orders.map((r) => text(r, iId)).filter(Boolean));
@@ -781,8 +857,8 @@ function linkCodes_(os, from, to) {
       const ci = index.get(k);
       if (ci === undefined) {
         problems[i].push(`Không có mã ${showCode_(k)} ở trang "${CODE_SHEET}".`);
-      } else if (isLocked_(codes[ci][2])) {
-        problems[i].push(`Mã ${codes[ci][0]} đã bị khoá.`);
+      } else if (isLocked_(codes[ci][cols.lock - 1])) {
+        problems[i].push(`Mã ${codes[ci][cols.id - 1]} đã bị khoá.`);
       } else if (id && !owner.has(k)) {
         owner.set(k, i);
       } else if (id) {
@@ -790,14 +866,14 @@ function linkCodes_(os, from, to) {
         const takeOver = text(codes[ci], cOrder - 1) === id && text(orders[prev], iId) !== id;
         if (takeOver) owner.set(k, i);
         const [keep, lose] = takeOver ? [i, prev] : [prev, i];
-        problems[lose].push(`Mã ${codes[ci][0]} đã gán cho đơn ${text(orders[keep], iId)} (dòng ${keep + 2}).`);
+        problems[lose].push(`Mã ${codes[ci][cols.id - 1]} đã gán cho đơn ${text(orders[keep], iId)} (dòng ${keep + 2}).`);
       }
     });
   });
 
   // Chỉ ghi ô thay đổi: ghi lại cả cột có thể làm hỏng giá trị khác (VD mã đơn toàn số bị đổi thành số)
   codes.forEach((r, ci) => {
-    const oi = owner.get(normalizeCode_(r[0]));
+    const oi = owner.get(normalizeCode_(r[cols.id - 1]));
     let want;
     if (oi !== undefined) {
       const o = orders[oi];
@@ -820,7 +896,7 @@ function linkCodes_(os, from, to) {
     const i = row - 2;
     edited.push(i);
     const shown = parsed[i].keys
-      .map((k) => (index.has(k) ? String(codes[index.get(k)][0]).trim() : showCode_(k)))
+      .map((k) => (index.has(k) ? String(codes[index.get(k)][cols.id - 1]).trim() : showCode_(k)))
       .concat(parsed[i].bad)
       .join(', ');
     if (shown !== text(orders[i], iKey)) os.getRange(row, iKey + 1).setValue(safe_(shown));
@@ -874,6 +950,47 @@ function withDocLock_(fn) {
   }
 }
 
+/* ---------- Lợi nhuận của đơn: tự tính khi shop điền đủ Doanh thu và Chi phí ---------- */
+
+/** Số thứ tự cột Doanh thu, Chi phí, Lợi nhuận ở trang "Đơn hàng" (tìm theo tên); trang khác hoặc thiếu cột thì null. */
+function profitCols_(sh) {
+  if (sh.getName() !== ORDER_SHEET) return null;
+  const head = header_(sh);
+  const [revenue, cost, profit] = [ORDER_REVENUE_COL, ORDER_COST_COL, ORDER_PROFIT_COL].map((name) => head.indexOf(name) + 1);
+  return revenue && cost && profit ? { revenue, cost, profit } : null;
+}
+
+/** Chỉ có dấu trừ, không có dấu phân cách đối số (Sheet vùng Việt Nam có thể dùng ";" thay ","): vùng nào cũng nhận. */
+function profitFormula_(cols, row) {
+  return `=${colName_(cols.revenue)}${row}-${colName_(cols.cost)}${row}`;
+}
+
+/** Cột colFrom–colTo có Doanh thu hoặc Chi phí: sửa thì phải chạy syncProfit_. */
+function watchesProfit_(sh, colFrom, colTo) {
+  const cols = profitCols_(sh);
+  return Boolean(cols) && [cols.revenue, cols.cost].some((c) => c >= colFrom && c <= colTo);
+}
+
+/**
+ * Dòng from–to: đủ 2 số Doanh thu, Chi phí mà ô Lợi nhuận còn trống thì đặt công thức; thiếu 1 trong 2 số thì xoá đúng
+ * công thức đó (nếu không, đơn chỉ có doanh thu sẽ hiện lợi nhuận bằng cả doanh thu). Ô shop tự gõ số, công thức khác giữ nguyên.
+ */
+function syncProfit_(sh, from, to) {
+  const cols = profitCols_(sh);
+  const first = Math.max(from, 2);
+  const last = Math.min(to, sh.getLastRow());
+  if (!cols || last < first) return;
+  const values = sh.getRange(first, 1, last - first + 1, sh.getLastColumn()).getValues();
+  const formulas = sh.getRange(first, cols.profit, last - first + 1, 1).getFormulas();
+  values.forEach((row, i) => {
+    const wanted = profitFormula_(cols, first + i);
+    const formula = formulas[i][0];
+    const both = typeof row[cols.revenue - 1] === 'number' && typeof row[cols.cost - 1] === 'number';
+    if (both && row[cols.profit - 1] === '' && !formula) sh.getRange(first + i, cols.profit).setFormula(wanted);
+    else if (!both && formula.replace(/\s/g, '').toUpperCase() === wanted) sh.getRange(first + i, cols.profit).clearContent();
+  });
+}
+
 /* ---------- Trang quản trị (quan-tri.html): admin xem, sửa Google Sheet ngay trên web ---------- */
 
 const ADMIN_ACCOUNTS_KEY = 'quan-tri:tai-khoan'; // Script Properties: { tên: { salt, hash, ver } }, không lưu mật khẩu
@@ -892,7 +1009,7 @@ const ADMIN_RULES = {
   [LEAD_SHEET]: { header: true },
   [PRINT_SHEET]: { header: true },
   [CODE_SHEET]: {
-    header: true, readOnly: ['Mã', 'Mã đơn', 'Khách hàng'], noAdd: true, noDelete: true,
+    header: true, readOnly: [CODE_ID_COL, CODE_ID_OLD_COL, 'Mã đơn', 'Khách hàng'], noAdd: true, noDelete: true,
     tip: 'Tạo mã mới, in thẻ: mở Google Sheet → menu SmartCarTech. Mã đã in trên thẻ không xoá ở đây: muốn ngừng một mã thì tích ô Khoá.',
   },
   [ADMIN_LOG_SHEET]: {
@@ -1033,11 +1150,11 @@ function sheetGone_(name) {
 
 function adminRules_(sh) {
   const rule = ADMIN_RULES.hasOwnProperty(sh.getName()) ? ADMIN_RULES[sh.getName()] : {};
-  const head = rule.readOnly ? header_(sh) : [];
+  const head = rule.readOnly ? header_(sh).map(matchText_) : [];
   return {
     all: Boolean(rule.all),
     header: Boolean(rule.header),
-    cols: (rule.readOnly || []).map((name) => head.indexOf(name) + 1).filter(Boolean),
+    cols: (rule.readOnly || []).map((name) => head.indexOf(matchText_(name)) + 1).filter(Boolean),
     add: !rule.all && !rule.noAdd,
     del: !rule.all && !rule.noDelete,
     tip: rule.tip || '',
@@ -1322,6 +1439,7 @@ function adminEdit_(data, user) {
     }
     changes.forEach((ch) => (ch.next.formula !== undefined ? ch.cell.setFormula(ch.next.formula) : ch.cell.setValue(ch.next.value)));
     const linked = changes.some((ch) => watchesCodes_(sh, ch.col, ch.col)) ? linkCodes_(sh, row, row) || {} : null;
+    if (changes.some((ch) => watchesProfit_(sh, ch.col, ch.col))) syncProfit_(sh, row, row);
     const fresh = gridRows_(sh.getRange(row, 1, 1, sh.getLastColumn()), ctx)[0];
     changes.forEach((ch) => {
       const cell = fresh.cells[ch.col - 1];
@@ -1375,6 +1493,7 @@ function adminAppend_(data, user) {
       if (checks && checks[0].some(Boolean)) sh.getRange(added, 1, 1, width).setDataValidations(checks);
     }
     if (watchesCodes_(sh, 1, width)) linkCodes_(sh, added, added);
+    syncProfit_(sh, added, added);
     adminLog_(user, 'Thêm dòng', sh.getName(), `Dòng ${added}`, '', text.join('\n'));
     return { ok: true, row: added };
   });
@@ -1412,7 +1531,7 @@ function adminDelete_(data, user) {
 function adminLog_(user, action, sheet, where, before, after) {
   try {
     const sh = getSheet_(SpreadsheetApp.getActiveSpreadsheet(), ADMIN_LOG_SHEET, ADMIN_LOG_HEADER);
-    sh.appendRow([new Date()].concat([user, action, sheet, where, before, after].map((v) => safe_(v, 45000))));
+    appendRow_(sh, { 'Thời gian': new Date(), 'Tài khoản': user, 'Việc': action, 'Trang tính': sheet, 'Vị trí': where, 'Trước': before, 'Sau': after }, 45000);
     return true;
   } catch (err) {
     console.error(err);
@@ -1493,15 +1612,14 @@ function removeAdminAccount(name) {
 /* ---------- Gộp trang "Customer Infor" (nhập từ file kế hoạch Excel) vào "Đơn hàng" ---------- */
 
 const CUSTOMER_SHEET = 'Customer Infor';
-const CUSTOMER_PROFIT_COL = 'Lợi nhuận';
 // [cột ở "Customer Infor", cột cùng ý nghĩa ở "Đơn hàng"]. "Đơn hàng" chưa có cột đó thì thêm vào cuối
 const CUSTOMER_COLS = [
   ['Thứ tự', 'Thứ tự'], ['Ngày', 'Thời gian'], ['Nền tảng', ORDER_PLATFORM_COL], ['Tên', 'Họ tên'], ['Email', 'Email'],
   ['Số ĐT', 'SĐT'], ['Địa Chỉ', 'Địa chỉ'], ['Sản Phẩm', 'Sản phẩm'], ['Tổng tiền sản phẩm', 'Tổng (₫)'],
-  ['Tiền thu người nhận', 'Tiền thu người nhận'], ['Doanh thu sau điều chỉnh', 'Doanh thu sau điều chỉnh'],
-  ['Chi phí', 'Chi phí'], [CUSTOMER_PROFIT_COL, CUSTOMER_PROFIT_COL], ['Note', 'Ghi chú'],
+  ['Tiền thu người nhận', 'Tiền thu người nhận'], [ORDER_REVENUE_COL, ORDER_REVENUE_COL],
+  [ORDER_COST_COL, ORDER_COST_COL], [ORDER_PROFIT_COL, ORDER_PROFIT_COL], ['Note', 'Ghi chú'],
 ];
-const CUSTOMER_MONEY_COLS = ['Tiền thu người nhận', 'Doanh thu sau điều chỉnh', 'Chi phí', CUSTOMER_PROFIT_COL];
+const CUSTOMER_MONEY_COLS = ['Tiền thu người nhận', ORDER_REVENUE_COL, ORDER_COST_COL, ORDER_PROFIT_COL];
 
 /**
  * Menu "Gộp Customer Infor vào Đơn hàng…". Chỉ thêm, không sửa ô đang có:
@@ -1605,7 +1723,7 @@ function customerRows_(src, tz, orderHead) {
     .map((name) => [name, orderHead.find((h) => matchText_(h) === matchText_(name)) || name]));
 
   const own = (formula, row) => new RegExp(
-    `^=\\s*${colName_(col('Doanh thu sau điều chỉnh') + 1)}${row}\\s*-\\s*${colName_(col('Chi phí') + 1)}${row}\\s*$`, 'i').test(formula);
+    `^=\\s*${colName_(col(ORDER_REVENUE_COL) + 1)}${row}\\s*-\\s*${colName_(col(ORDER_COST_COL) + 1)}${row}\\s*$`, 'i').test(formula);
   const rows = [];
   let skipped = 0;
   values.slice(1).forEach((row, i) => {
@@ -1616,7 +1734,7 @@ function customerRows_(src, tz, orderHead) {
       if (typeof v !== 'string') cells[to] = v;
       else cells[to] = /^\s*(n\/?a|-+)?\s*$/i.test(v) ? '' : v.trim(); // "N/A": không có thông tin, để trống như các đơn khác
     });
-    if (cols.every(([, to]) => to === 'Thứ tự' || to === CUSTOMER_PROFIT_COL || cells[to] === '')) {
+    if (cols.every(([, to]) => to === 'Thứ tự' || to === ORDER_PROFIT_COL || cells[to] === '')) {
       skipped++;
       return;
     }
@@ -1626,8 +1744,8 @@ function customerRows_(src, tz, orderHead) {
     const digits = String(cells['SĐT']).replace(/\D/g, '');
     cells['SĐT'] = /^(0|84)?[35789]\d{8}$/.test(digits) ? `0${digits.slice(-9)}` : String(cells['SĐT']);
     // Lợi nhuận = Doanh thu − Chi phí của chính dòng đó: giữ là công thức, theo cột mới ở "Đơn hàng"
-    const formula = own(formulas[i + 1][col(CUSTOMER_PROFIT_COL)], i + 2);
-    if (formula) cells[CUSTOMER_PROFIT_COL] = '';
+    const formula = own(formulas[i + 1][col(ORDER_PROFIT_COL)], i + 2);
+    if (formula) cells[ORDER_PROFIT_COL] = '';
     rows.push({ from: i + 2, cells, time, formula });
   });
   return { rows, skipped, cols };
@@ -1636,7 +1754,7 @@ function customerRows_(src, tz, orderHead) {
 /** Dòng này đã gộp từ lần chạy trước: mọi cột gộp đều giống hệt. Nhờ vậy chạy lại không thêm dòng, kể cả dòng thiếu ngày, tên, địa chỉ. */
 function customerSame_(rec, cols, row, head, tz) {
   return cols.every(([, to]) => {
-    if (to === CUSTOMER_PROFIT_COL && rec.formula) return true;
+    if (to === ORDER_PROFIT_COL && rec.formula) return true;
     const cur = head.includes(to) ? row[head.indexOf(to)] : '';
     const value = rec.cells[to];
     return value === '' || cur === '' ? value === cur : sameContent_(to, cur, value, tz);
@@ -1659,7 +1777,7 @@ function customerFill_(rec, cols, row, notes, head, tz) {
     const text = `${CUSTOMER_SHEET} ghi: ${shown}`;
     if (!String(notes[i] || '').includes(text)) out.notes.push([to, text]);
   });
-  const profit = head.indexOf(CUSTOMER_PROFIT_COL);
+  const profit = head.indexOf(ORDER_PROFIT_COL);
   out.formula = rec.formula && (profit < 0 || row[profit] === '');
   return out;
 }
@@ -1700,8 +1818,8 @@ function applyCustomerPlan_(ss, plan) {
   if (plan.newCols.length) os.getRange(1, oldWidth).copyFormatToRange(os, oldWidth + 1, oldWidth + plan.newCols.length, 1, 1);
   const head = header_(os);
   const col = (name) => head.indexOf(name) + 1;
-  const setProfit = (row) => os.getRange(row, col(CUSTOMER_PROFIT_COL))
-    .setFormula(`=${colName_(col('Doanh thu sau điều chỉnh'))}${row}-${colName_(col('Chi phí'))}${row}`);
+  const cols = profitCols_(os);
+  const setProfit = (row) => os.getRange(row, cols.profit).setFormula(profitFormula_(cols, row));
   const dateOnly = (row, value) => {
     if (value instanceof Date && Utilities.formatDate(value, tz, 'HH:mm:ss') === '00:00:00') {
       os.getRange(row, col('Thời gian')).setNumberFormat('dd/mm/yyyy'); // file Excel chỉ ghi ngày: không hiện 00:00:00
@@ -1829,8 +1947,14 @@ function colOf_(sh, name, create) {
   const head = header_(sh);
   const col = head.indexOf(name) + 1;
   if (col || !create) return col;
-  sh.getRange(1, head.length + 1).setValue(name);
+  addHeadCell_(sh, head.length + 1, name);
   return head.length + 1;
+}
+
+/** Ghi tên cột mới ở dòng 1. Trang tính đã xoá hết cột trống ở bên phải thì thêm cột trước, nếu không Sheet báo lỗi. */
+function addHeadCell_(sh, col, name) {
+  if (col > sh.getMaxColumns()) sh.insertColumnsAfter(sh.getMaxColumns(), col - sh.getMaxColumns());
+  sh.getRange(1, col).setValue(name);
 }
 
 function header_(sh) {
@@ -1849,18 +1973,19 @@ function getSheet_(ss, name, header) {
 
 /**
  * Thêm 1 dòng theo tên cột ở dòng 1 (shop đổi thứ tự cột vẫn ghi đúng chỗ); cột chưa có thì thêm vào cuối.
- * Chữ được ghi qua safe_(). Không ghi vào các cột trống ở cuối dòng (VD cột "Mã tải code" shop tự điền).
+ * Chữ được ghi qua safe_(), max là số ký tự tối đa mỗi ô như ở safe_(). Không ghi vào các cột trống ở cuối dòng (VD cột
+ * "Mã tải code" shop tự điền).
  */
-function appendRow_(sh, values) {
+function appendRow_(sh, values, max) {
   const head = header_(sh);
   Object.keys(values).forEach((name) => {
     if (head.includes(name)) return;
     head.push(name);
-    sh.getRange(1, head.length).setValue(name);
+    addHeadCell_(sh, head.length, name);
   });
   const row = head.map((name) => {
     const v = values.hasOwnProperty(name) ? values[name] : '';
-    return typeof v === 'string' ? safe_(v) : v;
+    return typeof v === 'string' ? safe_(v, max) : v;
   });
   while (row.length && row[row.length - 1] === '') row.pop();
   sh.appendRow(row);

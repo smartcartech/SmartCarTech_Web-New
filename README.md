@@ -193,7 +193,8 @@ Mỗi hộp có một thẻ in **mã tải code** riêng, VD `K7M3-Q9XP`. Ở tr
    Cửa sổ kết quả cho biết:
    - script đọc được bảng giá chưa;
    - email báo đơn gửi tới đâu, hôm nay còn gửi được bao nhiêu email;
-   - thư mục code và các file trong đó có đang ở chế độ **Bị hạn chế** không.
+   - thư mục code và các file trong đó có đang ở chế độ **Bị hạn chế** không;
+   - các trang **Mã tải code**, **Tư vấn**, **Nhật ký quản trị** có đủ cột script cần không. Dòng ✗ cho biết thiếu cột nào và dòng 1 của trang đó đang ghi gì.
 
    Dòng nào có dấu ✗ thì sửa theo lời nhắc rồi chạy lại.
 8. **Tạo mã:** chọn menu **SmartCarTech → Tạo mã tải code…**, nhập số mã cần tạo và ghi chú (VD lô hàng). Mã mới nằm ở trang tính **Mã tải code**.
@@ -216,6 +217,9 @@ Mỗi hộp có một thẻ in **mã tải code** riêng, VD `K7M3-Q9XP`. Ở tr
 - **Tra ngược:** mã bị tải nhiều bất thường thì xem cột Mã đơn, Khách hàng của mã đó để biết của khách nào.
 - **Mã bị lộ:** tích ô **Khoá**. **Khách hết lượt tải:** sửa Số lần tải của mã đó về 0.
 - **Thay file code:** xoá file cũ trong thư mục Drive rồi tải file mới cùng tên lên.
+- **Sắp xếp lại cột:** ở các trang Đơn hàng, Tư vấn, In 3D, Mã tải code và Nhật ký quản trị, kéo tiêu đề cột để đổi chỗ, hoặc chèn thêm cột của shop, đều được: script tìm cột theo tên ở dòng 1. Dòng 1 phải luôn là tên cột, và đừng đổi tên các cột script dùng:
+  - **Mã tải code** (tên cũ `Mã` cũng được), **Khoá**, **Số lần tải** ở trang Mã tải code: đổi tên thì script dừng để không mở nhầm mã đã khoá. Khách không tải được code, web báo thiếu cột nào. Tạo mã, in thẻ, gán mã cũng dừng và báo như vậy. Đổi lại đúng tên là chạy lại ngay (gõ `Khóa` hay `KHOÁ` cũng được).
+  - Các cột khác: script thêm lại cột mang tên cũ ở cuối bảng và ghi dữ liệu mới vào đó. Dữ liệu cũ vẫn nằm ở cột vừa đổi tên.
 - **Sửa script sau này:** sửa trong trình soạn Apps Script, rồi vào **Triển khai → Quản lý các lần triển khai**, bấm biểu tượng bút chì, chọn Phiên bản **Phiên bản mới** → **Triển khai**. Làm vậy thì URL giữ nguyên. Nếu chọn "Tùy chọn triển khai mới", URL sẽ đổi và phải dán lại vào `products.json`.
   - Menu trên Sheet (tạo mã, in thẻ) và phần gán mã cho đơn luôn chạy bản vừa **Lưu**, không cần triển khai lại. Tải lại trang Sheet để script thêm các cột mới. Chỉ phần web dùng (lưu đơn, tải code) mới cần triển khai phiên bản mới.
   - Dán đè toàn bộ bằng bản script mới thì nhớ điền lại `NOTIFY_EMAIL` và `CODE_FOLDER_ID`.
@@ -240,7 +244,7 @@ Mở `smartcartech.vn/quan-tri.html`, đăng nhập, rồi xem và sửa dữ li
 
 - Mỗi lần lưu, script kiểm tra dòng đó có bị đổi ở nơi khác từ lúc mở không: VD vừa sửa trên Google Sheet, có đơn mới, hay vừa xoá một dòng phía trên. Nếu có, web không ghi gì, tải lại dữ liệu mới, rồi hiện lại nội dung bạn vừa gõ để làm lại.
 - Dòng 1 (tên cột) của các trang Đơn hàng, Tư vấn, In 3D, Mã tải code chỉ sửa được trên Sheet, vì script tìm cột theo tên để ghi đơn.
-- Trang Mã tải code không thêm, xoá dòng trên web được, vì mã đã in trên thẻ. Cột Mã, Mã đơn, Khách hàng chỉ xem. Tạo mã, in thẻ vẫn làm ở menu SmartCarTech. Muốn ngừng một mã: tích ô Khoá.
+- Trang Mã tải code không thêm, xoá dòng trên web được, vì mã đã in trên thẻ. Cột Mã tải code, Mã đơn, Khách hàng chỉ xem. Tạo mã, in thẻ vẫn làm ở menu SmartCarTech. Muốn ngừng một mã: tích ô Khoá.
 - Sửa cột Mã tải code (hoặc Mã đơn, Họ tên, SĐT) ở trang Đơn hàng trên web thì script gán mã y như khi gõ trên Sheet.
 - Mọi lần đăng nhập, sửa ô, thêm, xoá dòng được ghi ở trang tính **Nhật ký quản trị** (script tự tạo; trên web chỉ xem). Dòng bị xoá được lưu đủ nội dung ở cột *Trước*: lỡ tay xoá thì chép lại từ đây. Script không ghi được nhật ký thì cũng không xoá dòng.
 - Google Sheet cũng giữ mọi thay đổi ở **Tệp → Lịch sử phiên bản**.
@@ -314,7 +318,9 @@ Cột sau này mới thêm vào Customer Infor cũng theo quy tắc đó: cùng 
 **Sau khi gộp:**
 
 - Đơn web có sẵn và đơn web mới ghi Nền tảng là `Website`. Đơn mới tự ghi cần triển khai phiên bản mới của script (mục 5, *Sửa script sau này*).
-- Các cột tiền của đơn mới để trống, shop tự điền. Lợi nhuận của đơn mới chưa tự tính.
+- Các cột tiền của đơn mới để trống, shop tự điền, trên trang quản trị hay trên Sheet đều được. Điền đủ Doanh thu và Chi phí thì Lợi nhuận tự tính.
+- Xoá 1 trong 2 số đó thì Lợi nhuận trống lại. Ô Lợi nhuận shop tự gõ số hoặc công thức khác thì được giữ nguyên.
+- Tự tính khi sửa trên Sheet chạy ngay sau khi Lưu script; khi sửa trên trang quản trị thì cần triển khai phiên bản mới.
 
 ## 7. Ghi chú kỹ thuật
 
