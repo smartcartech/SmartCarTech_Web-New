@@ -2597,3 +2597,139 @@ a.contact-item:hover .contact-item__value { color: var(--c-accent); }
   .steps--plain .step__title { font-size: 21px; }
   .steps--plain .step__text, .steps--plain .step:last-child .step__text { padding-bottom: 0; }
 }
+
+/* ---------- ADMIN (quan-tri.html) ----------
+   Đăng nhập + lưới Google Sheet. Lưới dùng nền giấy trắng để màu nền, màu chữ của từng ô hiện đúng như trên Sheet. */
+.admin { display: flex; flex-direction: column; padding: 16px 0 24px; }
+.admin-user { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.admin-user__name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; font-size: 14px; color: var(--c-text-2); }
+.admin-user__name .icon { color: var(--c-accent); }
+.admin-user__name span { max-width: 32vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-boot { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 64px var(--gutter); text-align: center; color: var(--c-text-2); }
+
+/* Đăng nhập. is-modal: phiên hết hạn khi đang làm, khung nổi lên trên để không mất phần đang sửa */
+.admin-login { display: flex; justify-content: center; padding: 8px var(--gutter) 48px; }
+.admin-login.is-modal { position: fixed; inset: 0; z-index: 120; align-items: center; padding: 24px var(--gutter); overflow-y: auto; background: rgba(4, 8, 12, 0.9); }
+.admin-login__card { width: min(100%, 440px); display: flex; flex-direction: column; gap: 20px; padding: 24px; }
+.admin-login__head { display: flex; flex-direction: column; gap: 8px; }
+.admin-login__title { font-family: var(--f-head); font-size: 28px; font-weight: 700; line-height: 1.15; }
+.admin-login__lead { font-size: 15px; line-height: 1.55; color: var(--c-text-2); }
+.admin-login__note { font-size: 13px; line-height: 1.55; color: var(--c-muted); }
+.admin-login__note strong { color: var(--c-text-2); font-weight: 600; }
+.admin-login__msg { font-size: 14px; line-height: 1.5; color: var(--c-text-2); }
+.admin-login__msg.is-error { color: var(--c-danger); }
+.admin-pass { position: relative; }
+.admin-pass .field__input { padding-right: 56px; }
+.admin-pass__toggle { position: absolute; top: 4px; right: 4px; color: var(--c-muted); }
+@media (min-width: 768px) {
+  .admin-login { padding-top: 40px; }
+  .admin-login__card { padding: 32px; }
+}
+
+/* Thanh trang tính, công cụ, ghi chú */
+.admin-work { display: flex; flex-direction: column; gap: 12px; padding: 0 var(--gutter); }
+.admin-tabs { position: relative; display: flex; gap: 8px; overflow-x: auto; margin: 0 calc(-1 * var(--gutter)); padding: 0 var(--gutter) 4px; scrollbar-width: thin; }
+.admin-tab { flex: none; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-tab.is-hidden { border-style: dashed; color: var(--c-muted); }
+.admin-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-search { position: relative; flex: 1 1 260px; display: flex; align-items: center; }
+.admin-search > .icon { position: absolute; left: 14px; color: var(--c-muted); pointer-events: none; }
+.admin-search .field__input { min-height: 44px; padding-left: 42px; font-size: 15px; }
+.admin-tools__buttons { flex: 1 1 auto; display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-tools__buttons .btn { flex: 1 0 auto; }
+/* Điện thoại: "Tải lại", "Google Sheet" chỉ còn biểu tượng, chung hàng với "Thêm dòng" */
+@media (max-width: 767.98px) {
+  .admin-tools__buttons .admin-tools__icon { flex: 0 0 48px; padding: 0; }
+}
+.admin-info { display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 1.5; color: var(--c-muted); }
+.admin-info__facts strong { color: var(--c-text); font-weight: 600; }
+.admin-info__note { display: flex; align-items: flex-start; gap: 8px; }
+.admin-info__note .icon { color: var(--c-accent); margin-top: 2px; }
+.admin-status { font-size: 14px; color: var(--c-accent); }
+.admin-status.is-error { color: var(--c-danger); }
+@media (min-width: 1024px) {
+  .admin-tabs { flex-wrap: wrap; overflow: visible; margin: 0; padding: 0; }
+  .admin-tools__buttons, .admin-tools__buttons .btn { flex: 0 0 auto; }
+}
+
+/* Lưới: cuộn trong khung; cột chữ A, B, C…, dòng tiêu đề và cột số dòng đứng yên */
+.admin-grid {
+  overflow: auto;
+  min-height: 320px;
+  background: #fff;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-opt);
+  overscroll-behavior: contain;
+  transition: opacity .2s ease;
+}
+.admin-grid[aria-busy="true"] { opacity: 0.55; }
+.admin-empty { padding: 32px 16px; text-align: center; color: #5B6B78; }
+/* Bảng rộng theo chữ rồi cuộn ngang trong khung, không bị ép hẹp làm ngắt giữa số, ngày */
+.sheet { width: max-content; border-collapse: separate; border-spacing: 0; font-size: 13px; line-height: 1.4; color: #1F2A33; }
+.sheet--fixed { table-layout: fixed; min-width: 100%; }
+.sheet th, .sheet td { padding: 6px 8px; border-right: 1px solid #E2E6EA; border-bottom: 1px solid #E2E6EA; text-align: left; vertical-align: top; }
+.sheet td { position: relative; min-width: 64px; background: #fff; cursor: pointer; }
+.sheet thead th, .sheet thead td { position: sticky; top: 0; z-index: 2; }
+.sheet thead th, .sheet tbody th { background: #F1F3F5; color: #5B6B78; font-weight: 600; }
+.sheet__letters th { padding: 4px 8px; font-size: 12px; text-align: center; }
+.sheet th[scope="row"] { position: sticky; left: 0; z-index: 1; padding: 0; text-align: center; vertical-align: middle; }
+.sheet thead th[scope="row"], .sheet__corner { left: 0; z-index: 3; }
+.sheet__numcol { width: 52px; }
+.sheet__num { width: 100%; min-width: 44px; min-height: 32px; padding: 4px; color: #5B6B78; font-size: 12px; font-weight: 600; }
+.sheet__num:hover { color: #0B6E8A; }
+.sheet__num:focus-visible { outline-offset: -2px; }
+.sheet__cell { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; max-width: min(340px, 70vw); white-space: pre-wrap; overflow-wrap: break-word; }
+.sheet--fixed .sheet__cell { max-width: none; }
+.sheet td.is-num { text-align: right; }
+.sheet td.is-num .sheet__cell { white-space: nowrap; }
+.sheet td.is-bold { font-weight: 700; }
+.sheet__chip { display: inline-block; padding: 1px 10px; border-radius: var(--r-pill); background: #E8EDF1; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.sheet__check { display: inline-block; width: 16px; height: 16px; border: 2px solid #8A9199; border-radius: 3px; vertical-align: middle; }
+.sheet__check.is-on {
+  border-color: #0B6E8A;
+  background: #0B6E8A url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12 5 5 9-10'/%3E%3C/svg%3E") center / 12px no-repeat;
+}
+.sheet__muted { color: #8A9199; font-style: italic; }
+.sheet__note { position: absolute; top: 0; right: 0; border-top: 8px solid #E8A33D; border-left: 8px solid transparent; }
+.sheet tbody tr:hover td { box-shadow: inset 0 0 0 9999px rgba(11, 110, 138, 0.05); }
+.sheet tr.is-active td { box-shadow: inset 0 0 0 9999px rgba(24, 229, 254, 0.16); }
+.sheet tr.is-active th { background: var(--c-accent); }
+.sheet tr.is-active .sheet__num { color: var(--c-on-accent); }
+.sheet .sheet__gap td { padding: 10px 12px; background: #F8F9FA; color: #5B6B78; font-style: italic; cursor: default; box-shadow: none; }
+@media (min-width: 768px) {
+  .sheet { font-size: 14px; }
+}
+
+/* Khung xem, sửa, thêm một dòng (bên phải, như giỏ hàng) */
+.drawer--wide { width: min(560px, 100%); }
+.admin-panel__titles { min-width: 0; }
+.admin-panel__sub { margin-top: 2px; overflow: hidden; font-size: 13px; color: var(--c-muted); text-overflow: ellipsis; white-space: nowrap; }
+.admin-panel__body { padding: 16px 20px 24px; }
+.admin-panel__intro { margin-bottom: 16px; font-size: 14px; line-height: 1.55; color: var(--c-text-2); }
+.admin-fields { display: flex; flex-direction: column; gap: 18px; }
+.admin-field { display: flex; flex-direction: column; gap: 6px; }
+.admin-field .field__label { font-size: 13px; }
+textarea.admin-field__input { min-height: 46px; max-height: 45vh; padding: 11px 14px; overflow-y: auto; font-size: 15px; line-height: 1.5; resize: vertical; }
+.admin-field__input.is-formula { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 14px; }
+.admin-field select.field__input { min-height: 46px; font-size: 15px; }
+.admin-field__value { padding: 11px 14px; border: 1px dashed var(--c-line); border-radius: var(--r-btn); font-size: 15px; line-height: 1.5; color: var(--c-text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-field__check { align-items: center; min-height: 32px; }
+.admin-field__hint { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 1.5; color: var(--c-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-field__hint .icon { margin-top: 1px; }
+.admin-panel__more { margin-top: 12px; }
+.admin-notice { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; padding: 12px 14px; border: 1px solid var(--c-warn); border-radius: var(--r-opt); font-size: 14px; line-height: 1.5; color: var(--c-text-2); }
+.admin-notice p:first-child { color: var(--c-warn); }
+.admin-notice ul { margin: 0; padding-left: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-panel__foot { gap: 10px; }
+.admin-panel__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-panel__actions .btn { flex: 1 1 auto; }
+.admin-panel__delete { margin-right: auto; color: var(--c-danger); }
+.admin-panel__delete:hover { border-color: var(--c-danger); }
+.admin-confirm { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--c-danger); border-radius: var(--r-opt); font-size: 14px; line-height: 1.5; color: var(--c-text-2); }
+.admin-confirm__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn--danger { border: 1px solid var(--c-danger); color: var(--c-danger); }
+.btn--danger:hover { background: rgba(255, 138, 138, 0.1); }
+@media (min-width: 768px) {
+  .admin-panel__body { padding: 20px 28px 28px; }
+  .admin-panel__actions .btn { flex: 0 0 auto; }
+}

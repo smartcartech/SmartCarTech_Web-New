@@ -12,8 +12,10 @@ dat-hang.html         Đặt hàng (?mua=pro:day-du:2  hoặc  ?tu=gio-hang)
 in-3d.html            In 3D theo yêu cầu: bảng tên để bàn, giá đỡ điện thoại in tên (đặt ngay), in theo file
 chinh-sach.html       Chính sách bảo hành (#bao-hanh), vận chuyển & đổi trả (#van-chuyen)
 chinh-sach-bao-mat.html  Chính sách bảo mật thông tin khách hàng
+quan-tri.html         Trang quản trị (chỉ admin): xem, sửa dữ liệu Google Sheet ngay trên web — mục 6
 products.json         ★ DỮ LIỆU — file duy nhất bạn cần sửa
-google-apps-script.gs Lưu đơn vào Google Sheet + kiểm tra mã tải code mẫu — không tải lên hosting
+google-apps-script.gs Lưu đơn vào Google Sheet + kiểm tra mã tải code mẫu + trang quản trị — không tải lên hosting
+source plan/          File kế hoạch Excel (có thông tin khách hàng, giá vốn) — không đưa lên GitHub, không tải lên hosting
 robots.txt, sitemap.xml  Cho Google biết các trang cần hiển thị
 _config.yml           Danh sách file GitHub Pages không đưa lên web
 assets/css/style.css  Toàn bộ giao diện (màu, font, khoảng cách ở đầu file)
@@ -38,7 +40,7 @@ Web chạy trên mọi hosting tĩnh, không cần cài đặt thêm gì trên s
 **Tải lên:**
 
 ```
-index.html  san-pham.html  huong-dan.html  dat-hang.html  in-3d.html  chinh-sach.html  chinh-sach-bao-mat.html
+index.html  san-pham.html  huong-dan.html  dat-hang.html  in-3d.html  chinh-sach.html  chinh-sach-bao-mat.html  quan-tri.html
 products.json  robots.txt  sitemap.xml
 assets/        (cả thư mục)
 ```
@@ -47,6 +49,7 @@ assets/        (cả thư mục)
 
 - `README.md`: ghi chú nội bộ (việc cần làm, nguồn ảnh…).
 - `google-apps-script.gs`: chỉ dùng để dán vào Google Apps Script. Nếu điền email báo đơn vào file này rồi tải lên thì email bị lộ.
+- `source plan/`: file kế hoạch Excel có tên, địa chỉ khách và giá vốn. Đã khai báo trong `.gitignore` (không đưa lên GitHub) và `_config.yml` (không lên web).
 - `_config.yml`, `.git/`, `.gitignore`, `.gitattributes`: file cấu hình.
 
 Cách làm với từng loại hosting:
@@ -207,7 +210,7 @@ Mỗi hộp có một thẻ in **mã tải code** riêng, VD `K7M3-Q9XP`. Ở tr
   - Có máy quét mã vạch đọc được QR: quét thẻ thay vì gõ.
   - Script tự điền **Mã đơn** và **Khách hàng** (tên – SĐT) của mã đó ở trang **Mã tải code**. Đừng gõ tay vào 2 cột này.
   - Ô tô đỏ: mã gõ sai, mã đã khoá hoặc đã gán cho đơn khác. Rê chuột vào ô để xem lý do.
-- **Đơn Shopee, đơn Zalo không đặt qua web:** thêm 1 dòng ở trang **Đơn hàng**, ít nhất có **Mã đơn** (VD mã đơn Shopee) và **Họ tên**, rồi gõ mã như trên.
+- **Đơn Shopee, đơn Zalo không đặt qua web:** thêm 1 dòng ở trang **Đơn hàng**, ít nhất có **Mã đơn** (VD mã đơn Shopee) và **Họ tên**, rồi gõ mã như trên. Cột **Nền tảng** ghi nơi khách mua; đơn web script tự ghi `Website`.
 - **Gửi mã qua Zalo thay vì bỏ thẻ:** chọn một mã chưa in, chưa gán (cột Đã in và Mã đơn trống), gửi cho khách rồi gõ mã vào đơn như trên.
 - **Khách làm mất thẻ:** tìm đơn của khách ở trang **Đơn hàng**, gửi lại mã ở cột Mã tải code.
 - **Tra ngược:** mã bị tải nhiều bất thường thì xem cột Mã đơn, Khách hàng của mã đó để biết của khách nào.
@@ -218,6 +221,100 @@ Mỗi hộp có một thẻ in **mã tải code** riêng, VD `K7M3-Q9XP`. Ở tr
   - Dán đè toàn bộ bằng bản script mới thì nhớ điền lại `NOTIFY_EMAIL` và `CODE_FOLDER_ID`.
   - Dán bản mới, bấm **Lưu** xong thì tải lại Sheet và chạy **SmartCarTech → Kiểm tra cài đặt…** *trước khi* triển khai. Bản mới cần thêm quyền thì Google hỏi ở bước này.
 
+## 6. Trang quản trị (chỉ admin)
+
+Mở `smartcartech.vn/quan-tri.html`, đăng nhập, rồi xem và sửa dữ liệu Google Sheet của shop ngay trên web, trên điện thoại cũng được, không cần mở Google Sheet. Web không có link nào tới trang này, Google cũng không hiện trang này khi tìm kiếm.
+
+**Làm được gì:**
+
+- Xem mọi trang tính trong Sheet: Đơn hàng, Tư vấn, In 3D, Mã tải code, các trang kế hoạch nhập từ Excel (xem *Đưa file kế hoạch Excel vào Google Sheet* bên dưới) và trang Nhật ký quản trị. Màu nền, màu chữ, chữ đậm, ô gộp hiện như trên Sheet.
+- Bấm số dòng hoặc một ô: cả dòng mở ở khung bên phải. Sửa rồi bấm **Lưu thay đổi**.
+  - Ô thả xuống (VD *Trạng thái* ở trang In 3D) và ô tích (VD *Khoá* ở trang Mã tải code) hiện đúng như trên Sheet.
+  - Ô công thức hiện công thức để sửa, kèm kết quả hiện tại.
+- **Thêm dòng**: thêm vào cuối trang tính, VD đơn Shopee, đơn Zalo. Ô thả xuống, ô tích lấy theo dòng cuối hiện có.
+- **Xoá dòng**: nút ở cuối khung, bấm thêm một lần để xác nhận.
+- Ô tìm kiếm lọc các dòng có chữ đó, không cần gõ dấu: gõ "binh" tìm được "Bình".
+- Ghi đúng kiểu như khi gõ trên Sheet: SĐT giữ số 0 ở đầu, mã đơn dài giữ dạng chữ, ô số nhận "2.980.000", ô ngày nhận "31/10/2026 14:30".
+
+**Dữ liệu được giữ an toàn:**
+
+- Mỗi lần lưu, script kiểm tra dòng đó có bị đổi ở nơi khác từ lúc mở không: VD vừa sửa trên Google Sheet, có đơn mới, hay vừa xoá một dòng phía trên. Nếu có, web không ghi gì, tải lại dữ liệu mới, rồi hiện lại nội dung bạn vừa gõ để làm lại.
+- Dòng 1 (tên cột) của các trang Đơn hàng, Tư vấn, In 3D, Mã tải code chỉ sửa được trên Sheet, vì script tìm cột theo tên để ghi đơn.
+- Trang Mã tải code không thêm, xoá dòng trên web được, vì mã đã in trên thẻ. Cột Mã, Mã đơn, Khách hàng chỉ xem. Tạo mã, in thẻ vẫn làm ở menu SmartCarTech. Muốn ngừng một mã: tích ô Khoá.
+- Sửa cột Mã tải code (hoặc Mã đơn, Họ tên, SĐT) ở trang Đơn hàng trên web thì script gán mã y như khi gõ trên Sheet.
+- Mọi lần đăng nhập, sửa ô, thêm, xoá dòng được ghi ở trang tính **Nhật ký quản trị** (script tự tạo; trên web chỉ xem). Dòng bị xoá được lưu đủ nội dung ở cột *Trước*: lỡ tay xoá thì chép lại từ đây. Script không ghi được nhật ký thì cũng không xoá dòng.
+- Google Sheet cũng giữ mọi thay đổi ở **Tệp → Lịch sử phiên bản**.
+- Hình ảnh đặt trên trang tính và định dạng (màu, cỡ chữ, độ rộng cột) chỉ sửa trên Google Sheet.
+- Trang tính rất lớn (hơn 40.000 ô, `ADMIN_MAX_CELLS` trong script): web chỉ hiện các dòng cuối, dòng cũ hơn xem trên Sheet.
+
+**Tài khoản, đăng nhập:**
+
+- Tạo tài khoản trong Google Sheet: menu **SmartCarTech → Tài khoản trang quản trị…**. Nhập tên đăng nhập (chữ không dấu) và mật khẩu ít nhất 10 ký tự, hoặc bấm *Tạo mật khẩu mạnh* rồi chép lại. Bấm **Lưu tài khoản**. Tạo được nhiều tài khoản, VD mỗi người một tài khoản.
+- Quên hoặc muốn đổi mật khẩu: nhập lại tên đó với mật khẩu mới. Mọi nơi đang đăng nhập bằng tài khoản đó bị đăng xuất. Xoá tài khoản: bấm *Xoá* 2 lần.
+- Mật khẩu chỉ lưu dạng mã hoá trong script (Script Properties), không nằm trong kho GitHub hay trên web: không ai xem lại được mật khẩu, kể cả chủ Sheet.
+- Sai mật khẩu 5 lần trong 15 phút thì tài khoản đó tạm khoá 15 phút. Cả web sai 30 lần thì mọi tài khoản tạm khoá 15 phút. Như vậy không ai dò được mật khẩu. Bị khoá mà cần gấp thì mở thẳng Google Sheet.
+- Phiên đăng nhập chỉ giữ trong tab đang mở: đóng tab là phải đăng nhập lại. Không thao tác 3 giờ (`ADMIN_IDLE_HOURS`) hoặc dùng quá 12 giờ (`ADMIN_MAX_HOURS`) cũng phải đăng nhập lại. Đang sửa dở thì khung đăng nhập hiện đè lên: đăng nhập xong bấm Lưu lần nữa, nội dung đang sửa không mất.
+- Ai được chia sẻ quyền **sửa** Google Sheet thì cũng mở được Apps Script và menu tạo tài khoản: chỉ chia sẻ quyền sửa cho người tin cậy.
+
+**Cài đặt (làm một lần, theo đúng thứ tự):**
+
+1. Dự phòng: mở Google Sheet → **Tệp → Lịch sử phiên bản → Đặt tên cho phiên bản hiện tại**, VD "Trước trang quản trị".
+2. Dán bản `google-apps-script.gs` mới vào Apps Script, điền lại `NOTIFY_EMAIL` và `CODE_FOLDER_ID`, bấm **Lưu**.
+3. Tải lại Sheet → **SmartCarTech → Kiểm tra cài đặt…** (Google hỏi cấp quyền thì làm như mục 5, bước 7). Dòng cuối báo chưa có tài khoản trang quản trị là đúng.
+4. **SmartCarTech → Tài khoản trang quản trị…** → tạo tài khoản. Chạy lại *Kiểm tra cài đặt…*: dòng cuối có ✓ và tên tài khoản.
+5. Triển khai phiên bản mới (mục 5, *Sửa script sau này*). URL giữ nguyên, không phải sửa `products.json`.
+6. Đưa web lên, rồi mở `smartcartech.vn/quan-tri.html` và đăng nhập.
+
+Web lên trước khi triển khai script mới thì trang quản trị báo "chưa có bản mới"; các phần khác của web vẫn chạy bình thường.
+
+### Đưa file kế hoạch Excel vào Google Sheet
+
+File `source plan/SmartCarTech_Plan.xlsx` (10 trang: Video Creation, Product, Customer Infor, Affiliate, Assembly Instruction, Commercial video, Note_Buy, Contact, Tips) được nhập vào chính Google Sheet đơn hàng. Mọi thứ nằm một chỗ, xem và sửa được trên trang quản trị.
+
+1. Làm bước dự phòng ở trên (đặt tên phiên bản hiện tại).
+2. Mở Google Sheet của shop → **Tệp → Nhập → Tải lên** → chọn file `SmartCarTech_Plan.xlsx`.
+3. Ở **Nhập vị trí**, chọn **Chèn trang tính mới**. Không tích **Nhập giao diện**: ô đó thay giao diện cả bảng tính, có thể đổi định dạng các trang đang có. Bấm **Nhập dữ liệu**.
+   - **Không chọn "Thay thế bảng tính"**: lựa chọn đó xoá hết đơn hàng, mã tải code đang có.
+4. 10 trang tính mới được thêm vào cuối, giữ công thức, màu, ô gộp. Các trang Đơn hàng, Tư vấn, In 3D, Mã tải code không bị đụng tới. Mở các trang có hình (Product, Assembly Instruction, Commercial video) xem hình đã sang đủ chưa; thiếu thì chèn lại trên Sheet.
+
+- Từ đây sửa kế hoạch trên Google Sheet hoặc trang quản trị. File Excel trên máy chỉ còn là bản lưu.
+
+### Gộp "Customer Infor" vào "Đơn hàng"
+
+Sau khi nhập file Excel, gộp danh sách đơn cũ (Shopee, TikTok…) vào trang Đơn hàng để mọi đơn nằm trong một bảng.
+
+1. Làm bước dự phòng ở trên nếu chưa làm (đặt tên phiên bản hiện tại).
+2. Tải lại trang Google Sheet → **SmartCarTech → Gộp Customer Infor vào Đơn hàng…**. Mục này chỉ hiện khi Sheet có trang Customer Infor, và chạy được ngay sau khi Lưu script, không cần triển khai.
+3. Cửa sổ cho biết sẽ thêm cột nào, bao nhiêu dòng mới, dòng nào trùng đơn đã có. Đọc rồi bấm **Có**. Bấm **Không** thì chưa có gì được ghi.
+4. Kiểm tra trang Đơn hàng. Đúng rồi thì xoá trang Customer Infor: mục trong menu tự mất ở lần mở Sheet sau. Gộp sai thì khôi phục phiên bản đã đặt tên ở **Tệp → Lịch sử phiên bản**.
+
+| Customer Infor | Đơn hàng |
+|---|---|
+| Ngày | Thời gian |
+| Tên | Họ tên |
+| Số ĐT | SĐT |
+| Địa Chỉ | Địa chỉ |
+| Sản Phẩm | Sản phẩm |
+| Tổng tiền sản phẩm | Tổng (₫) |
+| Note | Ghi chú |
+| Thứ tự, Nền tảng, Email, Tiền thu người nhận, Doanh thu sau điều chỉnh, Chi phí, Lợi nhuận | Cột mới, thêm vào cuối bảng, giữ nguyên tên |
+
+Cột sau này mới thêm vào Customer Infor cũng theo quy tắc đó: cùng tên thì vào cột có sẵn, chưa có thì thêm vào cuối.
+
+**Cách gộp:**
+
+- Các ô đang có ở Đơn hàng không bị sửa, các cột cũ giữ nguyên vị trí, trang Customer Infor giữ nguyên.
+- Dòng chưa có: thêm mới, xếp đúng vị trí theo ngày. Mã đơn để trống vì Customer Infor không có mã; muốn gán mã tải code cho đơn đó thì điền Mã đơn trước.
+- Dòng trùng đơn đã có (cùng ngày và cùng SĐT, cùng tên, hoặc cùng địa chỉ kèm sản phẩm hay tổng tiền): không thêm dòng, chỉ điền các ô còn trống. Ô đã có mà khác thì giữ nguyên, giá trị của Customer Infor được ghi vào ghi chú của ô đó.
+- Có thể trùng nhưng chưa chắc (VD cùng SĐT khác ngày, có thể là khách cũ mua lại): vẫn thêm mới, cột Kiểm tra nhắc xem lại. Trùng thật thì xoá 1 dòng.
+- Đổi cho giống các đơn khác: "N/A" thành ô trống, SĐT về dạng 0… (VD `(+84)912345678` → `0912345678`). Dòng chỉ có số thứ tự bị bỏ qua.
+- Lợi nhuận vẫn là công thức Doanh thu − Chi phí của chính dòng đó, tính theo cột mới.
+- Chạy lại không tạo dòng trùng, chỉ thêm phần chưa có (VD dòng mới ghi thêm vào Customer Infor).
+
+**Sau khi gộp:**
+
+- Đơn web có sẵn và đơn web mới ghi Nền tảng là `Website`. Đơn mới tự ghi cần triển khai phiên bản mới của script (mục 5, *Sửa script sau này*).
+- Các cột tiền của đơn mới để trống, shop tự điền. Lợi nhuận của đơn mới chưa tự tính.
 
 ## 7. Ghi chú kỹ thuật
 
@@ -227,6 +324,7 @@ Mỗi hộp có một thẻ in **mã tải code** riêng, VD `K7M3-Q9XP`. Ở tr
   - Mỗi trang có title và description riêng.
   - Trang Sản phẩm và Hướng dẫn tự đổi title theo dòng xe đang chọn.
   - Có dữ liệu cấu trúc Product và FAQ (JSON-LD).
-  - Trang Đặt hàng đặt `noindex` để không hiện trên Google.
+  - Trang Đặt hàng đặt `noindex` để không hiện trên Google. Trang quản trị đặt `noindex, nofollow` và không có trong `sitemap.xml`.
+- **Trang quản trị:** `quan-tri.html` có Content-Security-Policy, chỉ cho chạy script của chính web và chỉ gửi dữ liệu tới Google Apps Script. Trang không mở được khi bị trang khác nhúng vào khung. Mọi quyền đọc, ghi nằm ở script: không có mã phiên còn hạn thì script không trả dữ liệu, dù ai cũng mở được file HTML.
 - **Ảnh:** định dạng WebP, `loading="lazy"` (trừ ảnh đầu trang) và có `alt` đầy đủ.
 - **Trình duyệt hỗ trợ:** Chrome, Edge, Safari, Firefox bản từ 2023 trở lên.

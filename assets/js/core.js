@@ -393,9 +393,9 @@ export function renderAccordion(list, items) {
 }
 
 /* ---------- Focus trap for dialogs ---------- */
-function trapFocus(container, e) {
+export function trapFocus(container, e) {
   if (e.key !== 'Tab') return;
-  const f = $$('a[href], button:not([disabled]), input, textarea, video[controls], [tabindex]:not([tabindex="-1"])', container)
+  const f = $$('a[href], button:not([disabled]), input, select, textarea, video[controls], [tabindex]:not([tabindex="-1"])', container)
     .filter((el) => el.offsetParent !== null);
   if (!f.length) return;
   const first = f[0];

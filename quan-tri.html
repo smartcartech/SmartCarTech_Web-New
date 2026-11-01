@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Chỉ chạy script của chính web; chỉ gửi dữ liệu tới Google Apps Script của shop.
+       Dấu ; ở cuối: phần mềm diệt virus (VD Kaspersky) nối thêm quy tắc của nó vào đây mà không thêm dấu ; -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; base-uri 'self'; form-action 'none'; object-src 'none';">
+  <title>Quản trị | SmartCarTech</title>
+  <meta name="description" content="Trang quản trị dữ liệu của SmartCarTech, chỉ dành cho quản trị viên.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="same-origin">
+  <meta name="theme-color" content="#04080C">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Chakra+Petch:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <script type="module" src="assets/js/admin.js"></script>
+</head>
+<body class="page-admin">
+  <a class="skip-link" href="#main">Bỏ qua, đến nội dung chính</a>
+
+  <!-- ============ HEADER ============ -->
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a class="logo" href="index.html" aria-label="SmartCarTech – Trang chủ">
+        <img class="logo__img" src="assets/img/logo-smartcartech-nen-toi.webp" alt="" width="372" height="160">
+      </a>
+      <div class="admin-user" data-admin-user hidden>
+        <span class="admin-user__name">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-shield"></use></svg>
+          <span data-admin-name></span>
+        </span>
+        <button type="button" class="btn btn--ghost btn--sm" data-admin-logout>
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-logout"></use></svg>
+          <span class="hide-mobile">Đăng xuất</span><span class="sr-only show-mobile">Đăng xuất</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="admin">
+    <div class="admin-boot" data-admin-boot role="status">
+      <p data-admin-boot-text>Đang mở trang quản trị…</p>
+      <noscript><p>Trang quản trị cần bật JavaScript.</p></noscript>
+    </div>
+
+    <!-- ============ ĐĂNG NHẬP ============ -->
+    <section class="admin-login" data-admin-login hidden aria-labelledby="login-title">
+      <div class="card admin-login__card">
+        <span class="icon-ring" aria-hidden="true">
+          <svg class="icon" focusable="false"><use href="assets/img/icons.svg#i-lock"></use></svg>
+        </span>
+        <div class="admin-login__head">
+          <h1 class="admin-login__title" id="login-title">Đăng nhập quản trị</h1>
+          <p class="admin-login__lead">Xem và sửa dữ liệu Google Sheet của shop: đơn hàng, In 3D, tư vấn, mã tải code và kế hoạch.</p>
+        </div>
+        <form class="form" data-login-form novalidate>
+          <div class="field">
+            <label class="field__label" for="a-user">Tên đăng nhập</label>
+            <input class="field__input" id="a-user" name="user" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="40" required>
+          </div>
+          <div class="field">
+            <label class="field__label" for="a-pass">Mật khẩu</label>
+            <div class="admin-pass">
+              <input class="field__input" id="a-pass" name="pass" type="password" autocomplete="current-password" maxlength="200" required>
+              <button type="button" class="icon-btn admin-pass__toggle" data-pass-toggle aria-pressed="false" aria-label="Hiện mật khẩu">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-eye"></use></svg>
+              </button>
+            </div>
+          </div>
+          <p class="admin-login__msg" data-login-msg role="alert" hidden></p>
+          <button type="submit" class="btn btn--primary btn--block" data-login-submit>Đăng nhập</button>
+        </form>
+        <p class="admin-login__note">Chỉ dành cho quản trị viên. Tài khoản tạo trong Google Sheet của shop: menu <strong>SmartCarTech → Tài khoản trang quản trị…</strong></p>
+      </div>
+    </section>
+
+    <!-- ============ DỮ LIỆU GOOGLE SHEET ============ -->
+    <section class="admin-work" data-admin-work hidden aria-labelledby="work-title">
+      <h1 class="sr-only" id="work-title">Dữ liệu Google Sheet</h1>
+      <nav class="admin-tabs" data-admin-tabs aria-label="Trang tính"></nav>
+      <div class="admin-tools">
+        <label class="admin-search">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-search"></use></svg>
+          <span class="sr-only">Tìm trong trang tính đang mở</span>
+          <input class="field__input" type="search" data-admin-search placeholder="Tìm tên, SĐT, mã đơn…" autocomplete="off">
+        </label>
+        <div class="admin-tools__buttons">
+          <button type="button" class="btn btn--ghost btn--sm admin-tools__icon" data-admin-reload aria-label="Tải lại">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-refresh"></use></svg>
+            <span class="hide-mobile">Tải lại</span>
+          </button>
+          <a class="btn btn--ghost btn--sm admin-tools__icon" data-admin-open href="#" target="_blank" rel="noopener" aria-label="Mở trên Google Sheet">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-external"></use></svg>
+            <span class="hide-mobile">Google Sheet</span>
+          </a>
+          <button type="button" class="btn btn--primary btn--sm" data-admin-add hidden>
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-plus"></use></svg>
+            Thêm dòng
+          </button>
+        </div>
+      </div>
+      <div class="admin-info" data-admin-info></div>
+      <p class="admin-status" data-admin-status role="status" hidden></p>
+      <div class="admin-grid" data-admin-grid tabindex="0" aria-label="Nội dung trang tính. Bấm số dòng hoặc một ô để xem, sửa cả dòng."></div>
+    </section>
+  </main>
+</body>
+</html>

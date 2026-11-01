@@ -15,3 +15,6 @@ __pycache__/
 source image and video/
 tmp/
 
+# File kế hoạch nội bộ: có thông tin khách hàng, giá vốn. Kho GitHub để công khai nên không đưa lên
+source plan/
+

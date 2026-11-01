@@ -5,6 +5,7 @@ exclude:
   - README.md
   - google-apps-script.gs
   - source image and video
+  - source plan
   - tmp
   - scripts
   - SC_TECH_PRO_MEDIA.md

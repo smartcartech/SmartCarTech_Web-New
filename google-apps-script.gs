@@ -1,7 +1,7 @@
 /**
  * SmartCarTech — Google Apps Script cho website. Hướng dẫn cài từng bước: README.md, mục 5.
  *
- * Script này làm 2 việc:
+ * Script này làm 3 việc:
  * 1. Lưu đơn hàng & yêu cầu tư vấn từ web vào Google Sheet: mỗi đơn là 1 dòng ở trang tính
  *    "Đơn hàng", mỗi yêu cầu tư vấn ở trang tính "Tư vấn". Đơn bảng tên, giá đỡ điện thoại và yêu cầu in theo
  *    file từ trang In 3D (in-3d.html) ở trang tính "In 3D", có cột "Trạng thái" để shop theo dõi từng đơn.
@@ -16,6 +16,10 @@
  *    In thẻ bỏ vào hộp: bôi chọn các mã → menu "SmartCarTech" → "In thẻ cho các mã đang chọn…".
  *    Biết khách nào nhận mã nào: gõ mã của thẻ vào cột "Mã tải code" của đơn ở trang "Đơn hàng",
  *    script tự điền "Mã đơn" và "Khách hàng" ở trang "Mã tải code".
+ * 3. Trang quản trị (smartcartech.vn/quan-tri.html): admin đăng nhập bằng tài khoản tạo ở menu "SmartCarTech" →
+ *    "Tài khoản trang quản trị…", rồi xem, sửa, thêm, xoá dòng của mọi trang tính ngay trên web (kể cả các trang
+ *    kế hoạch nhập từ Excel). Dòng tiêu đề và các cột script tự điền chỉ sửa được trên Sheet. Mọi lần đăng nhập, sửa,
+ *    thêm, xoá được ghi ở trang tính "Nhật ký quản trị"; dòng bị xoá được lưu đủ nội dung để chép lại.
  *
  * Cách cài tóm tắt:
  * 1. Tạo 1 Google Sheet mới → Tiện ích mở rộng (Extensions) → Apps Script.
@@ -48,6 +52,8 @@ const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const ORDER_SHEET = 'Đơn hàng';
 const ORDER_KEY_COL = 'Mã tải code'; // Cột ở trang "Đơn hàng": shop gõ mã của thẻ bỏ vào hộp của đơn đó
 const ORDER_CHECK_COL = 'Kiểm tra';  // Script ghi khi tổng web gửi khác giá đúng, hoặc chưa đối chiếu được giá
+const ORDER_PLATFORM_COL = 'Nền tảng'; // Đơn từ web ghi WEB_PLATFORM; đơn gộp từ "Customer Infor" ghi Shopee, Tiktok…
+const WEB_PLATFORM = 'Website';
 const ORDER_HEADER = ['Thời gian', 'Mã đơn', 'Họ tên', 'SĐT', 'Địa chỉ', 'Sản phẩm', 'Tổng (₫)', ORDER_CHECK_COL, 'Ghi chú', ORDER_KEY_COL];
 const PHONE_RE = /^(0|\+?84)(3|5|7|8|9)\d{8}$/; // Giống assets/js/core.js
 
@@ -57,6 +63,16 @@ const PRINT_STATUSES = ['Mới', 'Đã liên hệ', 'Đã chốt', 'Đang in', '
 const PRINT_HEADER = ['Thời gian', 'Mã', 'Loại', 'Họ tên', 'SĐT', 'Địa chỉ', 'Nội dung', 'Số lượng', 'Tạm tính (₫)', ORDER_CHECK_COL, 'Ghi chú', PRINT_STATUS_COL];
 // Chữ in trên bảng tên: chữ cái (có dấu tiếng Việt), số, dấu câu thường dùng. Giống assets/js/print3d.js
 const PLATE_TEXT_RE = /^[\p{Script=Latin}\p{M}\p{Nd} .,:;!?&'"’‘“”()\/+\-–—#@*]*$/u;
+
+const LEAD_SHEET = 'Tư vấn';
+
+// Trang quản trị (quan-tri.html). Tạo tài khoản: menu "SmartCarTech" → "Tài khoản trang quản trị…"
+const ADMIN_LOG_SHEET = 'Nhật ký quản trị'; // Script ghi mọi lần đăng nhập, sửa, thêm, xoá dòng trên trang quản trị
+const ADMIN_IDLE_HOURS = 3;    // Không thao tác quá bấy nhiêu giờ thì phải đăng nhập lại (tối đa 6)
+const ADMIN_MAX_HOURS = 12;    // Mỗi lần đăng nhập dùng được tối đa bấy nhiêu giờ
+const ADMIN_MAX_FAILS = 5;     // 1 tài khoản sai mật khẩu quá bấy nhiêu lần trong 15 phút thì tạm khoá 15 phút (cả web: gấp 6 lần)
+const ADMIN_MIN_PASSWORD = 10; // Mật khẩu ít nhất bấy nhiêu ký tự
+const ADMIN_MAX_CELLS = 40000; // Trang tính lớn hơn thì web chỉ hiện các dòng tiêu đề và các dòng cuối (mới nhất)
 
 /** Mở URL ứng dụng web trên trình duyệt để kiểm tra script đã chạy. */
 function doGet() {
@@ -77,6 +93,15 @@ function doPost(e) {
     } catch (err) {
       console.error(err);
       return json_({ ok: false, error: 'Chưa tải được code. Vui lòng thử lại sau ít phút hoặc nhắn Zalo cho shop.' });
+    }
+  }
+
+  if (data && data.type === 'quan-tri') {
+    try {
+      return json_(adminApi_(data));
+    } catch (err) {
+      console.error(err);
+      return json_({ ok: false, error: 'Script đang lỗi nên chưa làm được việc này. Thử lại sau ít phút.' });
     }
   }
 
@@ -143,6 +168,7 @@ function saveOrder_(data) {
     'Tổng (₫)': total,
     [ORDER_CHECK_COL]: checks.join('\n'),
     'Ghi chú': note,
+    [ORDER_PLATFORM_COL]: WEB_PLATFORM,
   });
   notify_(`Đơn mới #${code} – ${name}`, [
     `${name} – ${phone}`, address, '', ...products, '',
@@ -159,7 +185,7 @@ function saveLead_(data) {
   if (!name || !PHONE_RE.test(phone)) return 'invalid';
   if (overLimit_(phone)) return 'busy';
 
-  const sh = getSheet_(SpreadsheetApp.getActiveSpreadsheet(), 'Tư vấn', ['Thời gian', 'Họ tên', 'SĐT', 'Nội dung']);
+  const sh = getSheet_(SpreadsheetApp.getActiveSpreadsheet(), LEAD_SHEET, ['Thời gian', 'Họ tên', 'SĐT', 'Nội dung']);
   sh.appendRow([new Date(), safe_(name), safe_(phone), safe_(message)]);
   notify_(`Yêu cầu tư vấn – ${name}`, `${name} – ${phone}\n\n${message}`);
   return 'ok';
@@ -410,6 +436,11 @@ function bump_(name, seconds) {
   return count;
 }
 
+/** Số lần bump_ đã đếm trong khung thời gian hiện tại, không tính thêm lần này. */
+function count_(name, seconds) {
+  return Number(CacheService.getScriptCache().get(`${name}:${Math.floor(Date.now() / 1000 / seconds)}`)) || 0;
+}
+
 /** Chữ khách nhập: bỏ khoảng trắng ở hai đầu, cắt ở `max` ký tự. Ô một dòng (tên) gộp xuống dòng thành dấu cách. */
 function clean_(value, max, multiline) {
   const s = String(value == null ? '' : value).trim();
@@ -489,13 +520,22 @@ function newCode_() {
 
 /** Thêm menu "SmartCarTech" khi mở Google Sheet; trang tính tạo từ bản script cũ được thêm các cột mới. */
 function onOpen() {
-  SpreadsheetApp.getUi()
+  const menu = SpreadsheetApp.getUi()
     .createMenu('SmartCarTech')
     .addItem('Tạo mã tải code…', 'createCodes')
     .addItem('In thẻ cho các mã đang chọn…', 'printCards')
     .addSeparator()
-    .addItem('Kiểm tra cài đặt…', 'checkSetup')
-    .addToUi();
+    .addItem('Tài khoản trang quản trị…', 'showAdminAccounts')
+    .addItem('Kiểm tra cài đặt…', 'checkSetup');
+  try {
+    // Chỉ hiện khi còn trang "Customer Infor": gộp xong, xoá trang đó thì mục này tự mất
+    if (SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CUSTOMER_SHEET)) {
+      menu.addSeparator().addItem('Gộp Customer Infor vào Đơn hàng…', 'mergeCustomerInfo');
+    }
+  } catch (err) {
+    console.warn(err);
+  }
+  menu.addToUi();
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const codes = ss.getSheetByName(CODE_SHEET);
@@ -563,6 +603,10 @@ function checkSetup() {
     ? `✓ Email báo đơn gửi tới ${NOTIFY_EMAIL}. Hôm nay còn gửi được ${MailApp.getRemainingDailyQuota()} email.`
     : '✗ Chưa điền NOTIFY_EMAIL: shop sẽ không nhận email khi có đơn mới.');
   lines.push(codeFolderStatus_());
+  const admins = Object.keys(adminAccounts_()).sort();
+  lines.push(admins.length
+    ? `✓ Trang quản trị ${SITE_URL}/quan-tri.html: ${admins.length} tài khoản (${admins.join(', ')}).`
+    : '✗ Chưa có tài khoản trang quản trị: menu SmartCarTech → Tài khoản trang quản trị… để tạo.');
   const ui = SpreadsheetApp.getUi();
   ui.alert('Kiểm tra cài đặt', lines.join('\n\n'), ui.ButtonSet.OK);
 }
@@ -686,18 +730,25 @@ function printedText_(value, tz) {
 function onEdit(e) {
   if (!e || !e.range) return;
   const sh = e.range.getSheet();
-  if (sh.getName() !== ORDER_SHEET || e.range.getLastRow() < 2) return;
+  if (e.range.getLastRow() < 2 || !watchesCodes_(sh, e.range.getColumn(), e.range.getLastColumn())) return;
+  const done = withDocLock_(() => linkCodes_(sh, e.range.getRow(), e.range.getLastRow()));
+  if (done && done.issue) sh.getParent().toast(done.issue, 'Chưa gán được mã', 8);
+  else if (done && done.linked) sh.getParent().toast(`Đã ghi Mã đơn, Khách hàng ở trang "${CODE_SHEET}".`, 'Đã gán mã', 4);
+}
+
+/** Cột colFrom–colTo của trang "Đơn hàng" có "Mã đơn", "Họ tên", "SĐT" hoặc "Mã tải code": sửa thì phải gán lại mã. */
+function watchesCodes_(sh, colFrom, colTo) {
+  if (sh.getName() !== ORDER_SHEET) return false;
   const head = header_(sh);
-  if (!head.includes(ORDER_KEY_COL)) return;
+  if (!head.includes(ORDER_KEY_COL)) return false;
   const watched = ['Mã đơn', 'Họ tên', 'SĐT', ORDER_KEY_COL].map((name) => head.indexOf(name) + 1);
-  if (!watched.some((c) => c >= e.range.getColumn() && c <= e.range.getLastColumn())) return;
-  withDocLock_(() => linkCodes_(sh, e.range.getRow(), e.range.getLastRow()));
+  return watched.some((c) => c >= colFrom && c <= colTo);
 }
 
 /**
  * Đối chiếu mọi đơn với trang "Mã tải code": điền "Mã đơn", "Khách hàng" cho mã đã gán, xoá ở mã mà đơn
  * không còn ghi. Ô có mã sai được tô đỏ, rê chuột vào ô để xem lý do. Dòng from–to (vừa sửa) được viết lại
- * mã cho đúng dạng (VD "k7m3 q9xp" → "K7M3-Q9XP").
+ * mã cho đúng dạng (VD "k7m3 q9xp" → "K7M3-Q9XP"). Trả { issue: lỗi đầu tiên ở các dòng vừa sửa, linked: có gán mã }.
  */
 function linkCodes_(os, from, to) {
   const ss = os.getParent();
@@ -775,8 +826,7 @@ function linkCodes_(os, from, to) {
     if (shown !== text(orders[i], iKey)) os.getRange(row, iKey + 1).setValue(safe_(shown));
   }
   const issue = edited.map((i) => problems[i][0]).find(Boolean);
-  if (issue) ss.toast(issue, 'Chưa gán được mã', 8);
-  else if (edited.some((i) => parsed[i].keys.length)) ss.toast(`Đã ghi Mã đơn, Khách hàng ở trang "${CODE_SHEET}".`, 'Đã gán mã', 4);
+  return { issue: issue || '', linked: edited.some((i) => parsed[i].keys.length) };
 }
 
 /**
@@ -822,6 +872,954 @@ function withDocLock_(fn) {
   } finally {
     if (lock) lock.releaseLock();
   }
+}
+
+/* ---------- Trang quản trị (quan-tri.html): admin xem, sửa Google Sheet ngay trên web ---------- */
+
+const ADMIN_ACCOUNTS_KEY = 'quan-tri:tai-khoan'; // Script Properties: { tên: { salt, hash, ver } }, không lưu mật khẩu
+const ADMIN_HASH_ROUNDS = 1000;
+const ADMIN_LOG_HEADER = ['Thời gian', 'Tài khoản', 'Việc', 'Trang tính', 'Vị trí', 'Trước', 'Sau'];
+const ADMIN_BAD = 'Yêu cầu không hợp lệ. Tải lại trang rồi thử lại.';
+const ADMIN_CONFLICT = 'Dòng này vừa thay đổi ở nơi khác (VD vừa sửa trên Google Sheet, có đơn mới hoặc vừa xoá dòng) ' +
+  'nên chưa lưu. Đã tải lại dữ liệu mới nhất: kiểm tra rồi làm lại.';
+
+/**
+ * Trang tính script tự ghi: dòng 1 là tiêu đề, script tìm cột theo tên nên chỉ đổi trên Sheet. Trang "Mã tải code":
+ * mã đã in trên thẻ nên không thêm, xoá dòng trên web; "Mã đơn", "Khách hàng" do script điền. Nhật ký chỉ xem.
+ */
+const ADMIN_RULES = {
+  [ORDER_SHEET]: { header: true },
+  [LEAD_SHEET]: { header: true },
+  [PRINT_SHEET]: { header: true },
+  [CODE_SHEET]: {
+    header: true, readOnly: ['Mã', 'Mã đơn', 'Khách hàng'], noAdd: true, noDelete: true,
+    tip: 'Tạo mã mới, in thẻ: mở Google Sheet → menu SmartCarTech. Mã đã in trên thẻ không xoá ở đây: muốn ngừng một mã thì tích ô Khoá.',
+  },
+  [ADMIN_LOG_SHEET]: {
+    all: true,
+    tip: 'Mọi lần đăng nhập, sửa, thêm, xoá dòng trên trang quản trị. Dòng bị xoá được lưu đủ nội dung ở cột "Trước" để chép lại khi cần.',
+  },
+};
+const ADMIN_ACTIONS = { doc: adminRead_, sua: adminEdit_, them: adminAppend_, xoa: adminDelete_ };
+
+/** Mọi yêu cầu từ trang quản trị. Trừ đăng nhập, việc nào cũng cần mã phiên còn hạn. */
+function adminApi_(data) {
+  if (data.action === 'dang-nhap') return adminLogin_(data);
+  const session = adminSession_(data.token);
+  if (!session) return { ok: false, login: true, error: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' };
+  if (data.action === 'dang-xuat') {
+    CacheService.getScriptCache().remove(`qt:phien:${data.token}`);
+    return { ok: true };
+  }
+  if (!ADMIN_ACTIONS.hasOwnProperty(data.action)) return { ok: false, error: ADMIN_BAD };
+  return ADMIN_ACTIONS[data.action](data, session.user);
+}
+
+/**
+ * Đúng tên và mật khẩu thì trả mã phiên. Sai quá ADMIN_MAX_FAILS lần trong 15 phút thì tạm khoá tài khoản đó, cả web
+ * sai quá 6 lần số đó thì tạm khoá mọi tài khoản: không ai dò được mật khẩu, kể cả khi thử nhiều tên.
+ */
+function adminLogin_(data) {
+  const name = String(data.user == null ? '' : data.user).trim().toLowerCase().slice(0, 40);
+  const password = String(data.pass == null ? '' : data.pass).slice(0, 200);
+  const accounts = adminAccounts_();
+  if (!Object.keys(accounts).length) {
+    return { ok: false, error: 'Chưa có tài khoản quản trị. Mở Google Sheet của shop → menu SmartCarTech → "Tài khoản trang quản trị…" để tạo.' };
+  }
+  if (count_(`qt:sai:${name}`, 900) >= ADMIN_MAX_FAILS || count_('qt:sai', 900) >= ADMIN_MAX_FAILS * 6) {
+    return { ok: false, error: 'Đăng nhập sai quá nhiều lần. Vui lòng thử lại sau 15 phút.' };
+  }
+  const account = accounts.hasOwnProperty(name) ? accounts[name] : null;
+  // Tên không có thật vẫn tính mã băm: thời gian trả lời như nhau, không dò được tên nào có thật
+  const hash = passwordHash_(password, account ? account.salt : 'AAAAAAAAAAAAAAAAAAAAAA==');
+  if (!account || !sameText_(hash, account.hash)) {
+    bump_(`qt:sai:${name}`, 900);
+    bump_('qt:sai', 900);
+    return { ok: false, error: 'Sai tên đăng nhập hoặc mật khẩu.' };
+  }
+  const token = randomKey_();
+  CacheService.getScriptCache().put(`qt:phien:${token}`, JSON.stringify({ user: name, ver: account.ver, since: Date.now() }), adminIdle_());
+  adminLog_(name, 'Đăng nhập', '', '', '', '');
+  return { ok: true, token, user: name };
+}
+
+/**
+ * Phiên còn hạn: tài khoản còn, chưa đổi mật khẩu, chưa quá ADMIN_MAX_HOURS kể từ lúc đăng nhập.
+ * Mỗi lần dùng được gia hạn thêm ADMIN_IDLE_HOURS.
+ */
+function adminSession_(token) {
+  if (typeof token !== 'string' || !/^[\w-]{40,64}$/.test(token)) return null;
+  const cache = CacheService.getScriptCache();
+  const key = `qt:phien:${token}`;
+  let session = null;
+  try {
+    session = JSON.parse(cache.get(key) || 'null');
+  } catch (err) {
+    session = null;
+  }
+  if (!session) return null;
+  const accounts = adminAccounts_();
+  const account = accounts.hasOwnProperty(session.user) ? accounts[session.user] : null;
+  if (!account || account.ver !== session.ver || Date.now() - session.since > ADMIN_MAX_HOURS * 3600000) {
+    cache.remove(key);
+    return null;
+  }
+  cache.put(key, JSON.stringify(session), adminIdle_());
+  return session;
+}
+
+function adminIdle_() {
+  return Math.min(21600, Math.max(300, Math.round(ADMIN_IDLE_HOURS * 3600))); // CacheService giữ tối đa 6 giờ
+}
+
+/** Tài khoản trang quản trị, lưu trong Script Properties: chỉ người sửa được script mới xem được, và chỉ thấy mã băm. */
+function adminAccounts_() {
+  try {
+    const accounts = JSON.parse(PropertiesService.getScriptProperties().getProperty(ADMIN_ACCOUNTS_KEY) || '{}');
+    return accounts && typeof accounts === 'object' ? accounts : {};
+  } catch (err) {
+    return {};
+  }
+}
+
+/** PBKDF2-HMAC-SHA256 có muối: lộ Script Properties cũng không đọc ngược ra được mật khẩu. */
+function passwordHash_(password, salt) {
+  const key = Utilities.newBlob(String(password)).getBytes();
+  let u = Utilities.computeHmacSha256Signature(Utilities.base64Decode(salt).concat([0, 0, 0, 1]), key);
+  const out = u.slice();
+  for (let i = 1; i < ADMIN_HASH_ROUNDS; i++) {
+    u = Utilities.computeHmacSha256Signature(u, key);
+    for (let j = 0; j < out.length; j++) out[j] ^= u[j];
+  }
+  return Utilities.base64Encode(out);
+}
+
+/** So 2 chuỗi mất cùng một thời gian dù khác ở ký tự nào. */
+function sameText_(a, b) {
+  const x = String(a);
+  const y = String(b);
+  let diff = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x.charCodeAt(i) || 0) ^ (y.charCodeAt(i) || 0);
+  return diff === 0;
+}
+
+/** Chuỗi ngẫu nhiên 43 ký tự (256 bit), không đoán được: mã phiên, muối, phiên bản tài khoản. */
+function randomKey_() {
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.getUuid() + Utilities.getUuid());
+  return Utilities.base64EncodeWebSafe(bytes).replace(/=+$/, '');
+}
+
+/** Danh sách trang tính và nội dung trang đang mở (không có tên đó thì mở trang đầu tiên). */
+function adminRead_(data, user) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = ss.getSheets();
+  return {
+    ok: true,
+    user,
+    url: ss.getUrl(),
+    log: ADMIN_LOG_SHEET,
+    sheets: sheets.map((s) => ({ name: s.getName(), hidden: s.isSheetHidden() })),
+    sheet: sheetView_(adminSheet_(data.sheet) || sheets[0]),
+  };
+}
+
+function adminSheet_(name) {
+  return typeof name === 'string' && name ? SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name) : null;
+}
+
+function sheetGone_(name) {
+  return { ok: false, conflict: true, error: `Không còn trang tính "${String(name).slice(0, 100)}" (có thể vừa đổi tên hoặc xoá trên Google Sheet).` };
+}
+
+function adminRules_(sh) {
+  const rule = ADMIN_RULES.hasOwnProperty(sh.getName()) ? ADMIN_RULES[sh.getName()] : {};
+  const head = rule.readOnly ? header_(sh) : [];
+  return {
+    all: Boolean(rule.all),
+    header: Boolean(rule.header),
+    cols: (rule.readOnly || []).map((name) => head.indexOf(name) + 1).filter(Boolean),
+    add: !rule.all && !rule.noAdd,
+    del: !rule.all && !rule.noDelete,
+    tip: rule.tip || '',
+  };
+}
+
+function editable_(rules, row, col) {
+  return !rules.all && !(rules.header && row === 1) && !rules.cols.includes(col);
+}
+
+/**
+ * Nội dung một trang tính: chữ hiện như trên Sheet, chữ để sửa, màu nền, màu chữ, chữ đậm, ghi chú, ô tích, ô thả
+ * xuống, ô gộp, độ rộng cột. Trang lớn hơn ADMIN_MAX_CELLS ô: chỉ gửi các dòng tiêu đề và các dòng cuối (mới nhất).
+ */
+function sheetView_(sh) {
+  const ctx = gridContext_(sh);
+  const rows = sh.getLastRow();
+  const cols = sh.getLastColumn();
+  const view = {
+    name: sh.getName(), id: sh.getSheetId(), rows, cols, frozen: sh.getFrozenRows(), rules: adminRules_(sh),
+    dec: ctx.dec, images: tryGet_(() => sh.getImages().length) || 0, formulas: false,
+    widths: [], kinds: [], merges: [], lists: [], rowNums: [], hashes: [], cells: [],
+  };
+  if (!rows || !cols) return view;
+  const head = Math.min(rows, Math.max(view.frozen, 1));
+  const fit = Math.max(head + 1, Math.floor(ADMIN_MAX_CELLS / cols));
+  const parts = rows > fit ? [[1, head], [rows - (fit - head) + 1, rows]] : [[1, rows]];
+  const kinds = [];
+  parts.forEach(([from, to]) => {
+    gridRows_(sh.getRange(from, 1, to - from + 1, cols), ctx).forEach((r, i) => {
+      view.rowNums.push(from + i);
+      view.hashes.push(r.hash);
+      view.cells.push(r.cells);
+      if (from + i > head) kinds.push(r.kinds);
+    });
+  });
+  view.kinds = Array.from({ length: cols }, (_, c) => majorityKind_(kinds.map((k) => k[c])));
+  view.widths = tryGet_(() => Array.from({ length: cols }, (_, c) => sh.getColumnWidth(c + 1))) || [];
+  view.merges = (tryGet_(() => sh.getRange(1, 1, rows, cols).getMergedRanges()) || [])
+    .map((m) => [m.getRow(), m.getColumn(), m.getNumRows(), m.getNumColumns()]);
+  view.lists = ctx.lists;
+  view.formulas = ctx.formulas;
+  return view;
+}
+
+/** Múi giờ, dấu thập phân theo vùng của Sheet (VD vi_VN: 1,5) và các danh sách thả xuống đã gặp khi đọc. */
+function gridContext_(sh) {
+  const ss = sh.getParent();
+  const locale = tryGet_(() => ss.getSpreadsheetLocale()) || 'vi_VN';
+  return {
+    tz: ss.getSpreadsheetTimeZone(),
+    dec: /^(vi|de|fr|es|it|pt|ru|id|nl|tr|pl|cs|da|fi|nb|sv|uk|ro|hu|el|bg|hr|sk|sl|lt|lv|et)/i.test(locale) ? ',' : '.',
+    lists: [], listIndex: new Map(), ranges: new Map(), formulas: false,
+  };
+}
+
+/** Các dòng của `range`; ô trống hẳn (không chữ, màu, ghi chú) là null cho dữ liệu gửi đi gọn. */
+function gridRows_(range, ctx) {
+  const values = range.getValues();
+  const shown = range.getDisplayValues();
+  const formulas = range.getFormulas();
+  const notes = tryGet_(() => range.getNotes());
+  const bgs = tryGet_(() => range.getBackgrounds());
+  const colors = tryGet_(() => range.getFontColors());
+  const weights = tryGet_(() => range.getFontWeights());
+  const rules = tryGet_(() => range.getDataValidations());
+  const color = (list, r, c, plain) => {
+    const v = list && String(list[r][c] || '').toLowerCase();
+    return v && /^#[0-9a-f]{6}$/.test(v) && v !== plain ? v : '';
+  };
+  return values.map((row, r) => ({
+    hash: rowHash_(row),
+    kinds: row.map(cellKind_),
+    cells: row.map((value, c) => {
+      const cell = {};
+      const text = shown[r][c];
+      const formula = formulas[r][c];
+      const kind = cellKind_(value);
+      if (text !== '') cell.d = text;
+      if (kind && kind !== 's') cell.t = kind;
+      const edit = formula || editText_(value, text, ctx);
+      if (edit !== text) cell.e = edit;
+      if (formula) {
+        cell.f = 1;
+        ctx.formulas = true;
+      }
+      if (notes && notes[r][c]) cell.n = String(notes[r][c]);
+      const bg = color(bgs, r, c, '#ffffff');
+      const fc = color(colors, r, c, '#000000');
+      if (bg) cell.bg = bg;
+      if (fc) cell.fc = fc;
+      if (weights && weights[r][c] === 'bold') cell.b = 1;
+      const rule = rules && rules[r][c] ? ruleView_(rules[r][c], ctx) : null;
+      if (rule !== null) cell.v = rule;
+      return Object.keys(cell).length ? cell : null;
+    }),
+  }));
+}
+
+/** Ô tích → "c"; ô thả xuống → số thứ tự danh sách lựa chọn trong ctx.lists (nhiều ô cùng danh sách chỉ gửi 1 lần). */
+function ruleView_(rule, ctx) {
+  const C = SpreadsheetApp.DataValidationCriteria;
+  const type = rule.getCriteriaType();
+  const args = rule.getCriteriaValues() || [];
+  let list;
+  if (type === C.CHECKBOX) {
+    if (!args.length) return 'c';
+    list = args.filter((v) => v !== '' && v != null).map(String); // ô tích dùng giá trị riêng, VD "Có" / "Không"
+  } else if (type === C.VALUE_IN_LIST) {
+    list = (args[0] || []).map(String);
+  } else if (type === C.VALUE_IN_RANGE && args[0]) {
+    const key = `${args[0].getSheet().getName()}!${args[0].getA1Notation()}`;
+    if (!ctx.ranges.has(key)) {
+      ctx.ranges.set(key, [...new Set(args[0].getDisplayValues().flat().map((s) => s.trim()).filter(Boolean))].slice(0, 500));
+    }
+    list = ctx.ranges.get(key);
+  } else {
+    return null;
+  }
+  const id = JSON.stringify(list);
+  if (!ctx.listIndex.has(id)) {
+    ctx.listIndex.set(id, ctx.lists.length);
+    ctx.lists.push(list);
+  }
+  return ctx.listIndex.get(id);
+}
+
+/** "" ô trống, "s" chữ, "n" số, "d" ngày giờ, "b" đúng/sai, "o" thứ khác (VD hình ảnh trong ô). */
+function cellKind_(value) {
+  if (value === '' || value == null) return '';
+  if (value instanceof Date) return 'd';
+  if (typeof value === 'number') return 'n';
+  if (typeof value === 'boolean') return 'b';
+  return typeof value === 'string' ? 's' : 'o';
+}
+
+/** Kiểu của đa số ô trong cột ("" khi cột chưa có dữ liệu): ô trống mới gõ thì ghi theo kiểu này, VD cột "Tổng (₫)" là số. */
+function majorityKind_(kinds) {
+  const count = {};
+  let total = 0;
+  kinds.forEach((k) => {
+    if (!k) return;
+    count[k] = (count[k] || 0) + 1;
+    total++;
+  });
+  const top = Object.keys(count).sort((a, b) => count[b] - count[a])[0];
+  if (!top) return '';
+  return count[top] * 2 >= total && top !== 'o' ? top : 's';
+}
+
+function columnKind_(sh, col) {
+  const skip = Math.max(sh.getFrozenRows(), 1);
+  const last = sh.getLastRow();
+  return last > skip ? majorityKind_(sh.getRange(skip + 1, col, last - skip, 1).getValues().map((r) => cellKind_(r[0]))) : '';
+}
+
+/** Chữ hiện trong ô sửa: số không có dấu nghìn (2980000, 1,5, 15%), ngày dd/mm/yyyy hh:mm:ss theo múi giờ của Sheet. */
+function editText_(value, shown, ctx) {
+  if (value instanceof Date) {
+    const time = Utilities.formatDate(value, ctx.tz, 'HH:mm:ss');
+    if (value.getFullYear() < 1900) return time; // ô chỉ có giờ (Sheet tính từ 30/12/1899)
+    return Utilities.formatDate(value, ctx.tz, 'dd/MM/yyyy') + (time === '00:00:00' ? '' : ` ${time}`);
+  }
+  if (typeof value === 'number') {
+    const pct = /%\s*$/.test(shown);
+    return String(pct ? Number((value * 100).toPrecision(12)) : value).replace('.', ctx.dec) + (pct ? '%' : '');
+  }
+  if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
+  return value !== null && typeof value === 'object' ? shown : String(value);
+}
+
+/**
+ * Chữ admin gõ → giá trị ghi vào ô, giống gõ trên Sheet nhưng giữ đúng kiểu của ô (kind, xem cellKind_; ô trống
+ * thì theo kiểu đa số của cột): "=…" là công thức; ô số nhận "2.980.000", "1,5", "15%"; ô ngày nhận "31/10/2026 14:30".
+ * Số 0 ở đầu (SĐT), dấu + ở đầu, số dài hơn 15 chữ số (mã đơn) luôn giữ dạng chữ.
+ */
+function cellInput_(input, kind, format, ctx) {
+  if (typeof input === 'boolean') return { value: input };
+  const text = String(input == null ? '' : input).replace(/\r\n?/g, '\n').trim().slice(0, 50000);
+  if (text === '') return { value: '' };
+  if (text[0] === '=') return { formula: text };
+  if (kind === 'd') {
+    const date = dateFrom_(text, ctx.tz);
+    if (date) return { value: date };
+  }
+  if (kind === 'n' || kind === '') {
+    const n = numberFrom_(text, ctx.dec);
+    if (n !== null) return { value: n };
+  }
+  if (kind === 'b' && /^(true|false)$/i.test(text)) return { value: /^true$/i.test(text) };
+  // Chữ: thêm dấu ' để Sheet không tự đổi thành số, ngày (ô định dạng "Văn bản thuần" thì Sheet không đổi)
+  if (format === '@' || text[0] === "'" || !/^[+\-@0-9.,$₫(]|^(true|false)$/i.test(text)) return { value: text };
+  return { value: `'${text}` };
+}
+
+/** "2.980.000", "2980000", "1,5", "15%", "119.000đ" → số; dec là dấu thập phân của Sheet. Không phải số thì null. */
+function numberFrom_(text, dec) {
+  let s = String(text).replace(/[\s\u00a0]/g, '').replace(/(₫|đ|vnđ|vnd)$/i, '');
+  const pct = s.endsWith('%');
+  if (pct) s = s.slice(0, -1);
+  const group = dec === ',' ? '.' : ',';
+  const g = group === '.' ? '\\.' : ',';
+  const d = dec === '.' ? '\\.' : ',';
+  let plain = null;
+  if (new RegExp(`^-?\\d{1,3}(${g}\\d{3})+(${d}\\d+)?$`).test(s)) plain = s.split(group).join('').replace(dec, '.');
+  else if (new RegExp(`^-?\\d+(${d}\\d+)?$`).test(s)) plain = s.replace(dec, '.');
+  else if (new RegExp(`^-?\\d+${g}(\\d{1,2}|\\d{4,})$`).test(s)) plain = s.replace(group, '.'); // VD gõ 1.5 khi Sheet dùng dấu phẩy
+  if (plain === null || /^-?0\d/.test(plain) || plain.replace(/\D/g, '').length > 15) return null;
+  const n = Number(plain);
+  return Number.isFinite(n) ? (pct ? n / 100 : n) : null;
+}
+
+/** "31/10/2026", "31/10/2026 14:30", "14:30" (ô chỉ có giờ) → Date theo múi giờ của Sheet; sai ngày (VD 31/02) thì null. */
+function dateFrom_(text, tz) {
+  const m = String(text).trim().match(/^(?:(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4}))?\s*(?:(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (!m || (!m[1] && !m[4])) return null;
+  const [d, mo, y] = m[1] ? [m[1], m[2], m[3]].map(Number) : [30, 12, 1899];
+  const [h, mi, se] = [m[4], m[5], m[6]].map((v) => Number(v || 0));
+  if (mo < 1 || mo > 12 || d < 1 || d > new Date(Date.UTC(y, mo, 0)).getUTCDate() || h > 23 || mi > 59 || se > 59) return null;
+  const pad = (n) => String(n).padStart(2, '0');
+  return Utilities.parseDate(`${pad(d)}/${pad(mo)}/${y} ${pad(h)}:${pad(mi)}:${pad(se)}`, tz, 'dd/MM/yyyy HH:mm:ss');
+}
+
+/** Giá trị mới giống hệt ô hiện có: không ghi, không ghi nhật ký. */
+function sameCell_(before, formula, next) {
+  if (next.formula !== undefined) return next.formula === formula;
+  if (formula) return false;
+  const v = next.value;
+  if (v instanceof Date) return before instanceof Date && before.getTime() === v.getTime();
+  if (typeof v === 'string') return typeof before === 'string' && before === v.replace(/^'/, '');
+  return before === v;
+}
+
+/** Mã nhận diện nội dung một dòng (băm cyrb53). Web gửi kèm khi sửa, xoá: dòng đã đổi thì không ghi. */
+function rowHash_(row) {
+  const cells = row.map((v) => (v instanceof Date ? `d${v.getTime()}` : v !== null && typeof v === 'object' ? 'o' : `${typeof v}:${v}`));
+  while (cells.length && cells[cells.length - 1] === 'string:') cells.pop();
+  const s = cells.join('\u0001');
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+
+/**
+ * Sửa các ô của một dòng. Web gửi kèm mã của dòng lúc tải: dòng đã đổi (VD vừa sửa trên Sheet, vừa xoá dòng phía
+ * trên) thì không ghi gì. Sửa cột "Mã tải code" (hoặc mã đơn, tên, SĐT) ở trang "Đơn hàng" thì gán mã như khi gõ trên Sheet.
+ */
+function adminEdit_(data, user) {
+  const sh = adminSheet_(data.sheet);
+  if (!sh) return sheetGone_(data.sheet);
+  const row = Number(data.row);
+  const items = Array.isArray(data.cells) ? data.cells : [];
+  if (!Number.isInteger(row) || row < 1 || !items.length || items.length > 500) return { ok: false, error: ADMIN_BAD };
+  const rules = adminRules_(sh);
+  return withDocLock_(() => {
+    const width = sh.getLastColumn();
+    if (row > sh.getLastRow()) return { ok: false, conflict: true, error: ADMIN_CONFLICT };
+    const range = sh.getRange(row, 1, 1, width);
+    const values = range.getValues()[0];
+    if (rowHash_(values) !== data.hash) return { ok: false, conflict: true, error: ADMIN_CONFLICT };
+    const ctx = gridContext_(sh);
+    const formulas = range.getFormulas()[0];
+    const shown = range.getDisplayValues()[0];
+    const changes = [];
+    for (const item of items) {
+      const col = Number(item && item.col);
+      if (!Number.isInteger(col) || col < 1 || col > width) return { ok: false, error: ADMIN_BAD };
+      if (!editable_(rules, row, col) || cellKind_(values[col - 1]) === 'o') {
+        return { ok: false, error: `Ô ${colName_(col)}${row} chỉ sửa được trên Google Sheet.` };
+      }
+      const cell = sh.getRange(row, col);
+      const kind = cellKind_(values[col - 1]) || columnKind_(sh, col);
+      const next = cellInput_(item.value, kind, cell.getNumberFormat(), ctx);
+      if (!sameCell_(values[col - 1], formulas[col - 1], next)) changes.push({ cell, col, next, before: formulas[col - 1] || shown[col - 1] });
+    }
+    changes.forEach((ch) => (ch.next.formula !== undefined ? ch.cell.setFormula(ch.next.formula) : ch.cell.setValue(ch.next.value)));
+    const linked = changes.some((ch) => watchesCodes_(sh, ch.col, ch.col)) ? linkCodes_(sh, row, row) || {} : null;
+    const fresh = gridRows_(sh.getRange(row, 1, 1, sh.getLastColumn()), ctx)[0];
+    changes.forEach((ch) => {
+      const cell = fresh.cells[ch.col - 1];
+      adminLog_(user, 'Sửa ô', sh.getName(), `${colName_(ch.col)}${row}`, ch.before, cell ? (cell.f ? cell.e : cell.d) || '' : '');
+    });
+    return {
+      ok: true, saved: changes.length, row: { hash: fresh.hash, cells: fresh.cells, lists: ctx.lists },
+      reload: Boolean(linked), message: linked && linked.issue ? linked.issue : '',
+    };
+  });
+}
+
+/** Thêm một dòng vào cuối trang tính (ô theo thứ tự cột). Ô tích, ô thả xuống lấy theo dòng cuối hiện có. */
+function adminAppend_(data, user) {
+  const sh = adminSheet_(data.sheet);
+  if (!sh) return sheetGone_(data.sheet);
+  const rules = adminRules_(sh);
+  if (!rules.add) return { ok: false, error: 'Trang tính này không thêm dòng trên web được.' };
+  const input = Array.isArray(data.values) ? data.values : [];
+  return withDocLock_(() => {
+    const width = sh.getLastColumn();
+    const last = sh.getLastRow();
+    if (!width || input.length > width || rowHash_(sh.getRange(1, 1, 1, width).getValues()[0]) !== data.head) {
+      return { ok: false, conflict: true, error: 'Các cột vừa thay đổi trên Google Sheet nên chưa thêm dòng. Đã tải lại: kiểm tra rồi làm lại.' };
+    }
+    const ctx = gridContext_(sh);
+    const skip = Math.max(sh.getFrozenRows(), 1);
+    const old = last > skip ? sh.getRange(skip + 1, 1, last - skip, width).getValues() : [];
+    // Định dạng của dòng sắp thêm (VD cả cột để "Văn bản thuần"); dòng cuối của trang thì Sheet tự thêm dòng mới
+    const formats = last < sh.getMaxRows() ? sh.getRange(last + 1, 1, 1, width).getNumberFormats()[0] : [];
+    const head = rules.header ? header_(sh) : [];
+    const row = [];
+    const text = [];
+    for (let c = 0; c < width; c++) {
+      const value = input[c];
+      if (value == null || value === '') {
+        row.push('');
+        continue;
+      }
+      if (!editable_(rules, last + 1, c + 1)) return { ok: false, error: `Cột ${colName_(c + 1)} chỉ sửa được trên Google Sheet.` };
+      const next = cellInput_(value, majorityKind_(old.map((r) => cellKind_(r[c]))), formats[c] || '', ctx);
+      row.push(next.formula !== undefined ? next.formula : next.value);
+      text.push(`${head[c] || colName_(c + 1)}: ${typeof value === 'boolean' ? (value ? 'đã tích' : 'chưa tích') : value}`);
+    }
+    while (row.length && row[row.length - 1] === '') row.pop();
+    if (!text.length) return { ok: false, error: 'Dòng mới còn trống: điền ít nhất một ô.' };
+    sh.appendRow(row);
+    const added = sh.getLastRow();
+    if (last > skip) {
+      const checks = tryGet_(() => sh.getRange(last, 1, 1, width).getDataValidations());
+      if (checks && checks[0].some(Boolean)) sh.getRange(added, 1, 1, width).setDataValidations(checks);
+    }
+    if (watchesCodes_(sh, 1, width)) linkCodes_(sh, added, added);
+    adminLog_(user, 'Thêm dòng', sh.getName(), `Dòng ${added}`, '', text.join('\n'));
+    return { ok: true, row: added };
+  });
+}
+
+/** Xoá một dòng: ghi đủ nội dung vào "Nhật ký quản trị" trước (để chép lại khi lỡ tay), ghi được rồi mới xoá. */
+function adminDelete_(data, user) {
+  const sh = adminSheet_(data.sheet);
+  if (!sh) return sheetGone_(data.sheet);
+  const rules = adminRules_(sh);
+  const row = Number(data.row);
+  if (!rules.del) return { ok: false, error: 'Trang tính này không xoá dòng trên web được.' };
+  if (!Number.isInteger(row) || row < (rules.header ? 2 : 1)) return { ok: false, error: ADMIN_BAD };
+  return withDocLock_(() => {
+    if (row > sh.getLastRow()) return { ok: false, conflict: true, error: ADMIN_CONFLICT };
+    const range = sh.getRange(row, 1, 1, sh.getLastColumn());
+    if (rowHash_(range.getValues()[0]) !== data.hash) return { ok: false, conflict: true, error: ADMIN_CONFLICT };
+    const formulas = range.getFormulas()[0];
+    const head = rules.header ? header_(sh) : [];
+    const text = range.getDisplayValues()[0]
+      .map((shown, c) => [head[c] || colName_(c + 1), formulas[c] || shown])
+      .filter(([, v]) => v !== '')
+      .map(([name, v]) => `${name}: ${v}`);
+    if (!adminLog_(user, 'Xoá dòng', sh.getName(), `Dòng ${row}`, text.join('\n'), '')) {
+      return { ok: false, error: 'Chưa ghi được nhật ký nên chưa xoá dòng. Thử lại sau ít phút.' };
+    }
+    // Google Sheet không cho xoá hết các dòng không cố định: thêm 1 dòng trống ở cuối trước
+    if (sh.getMaxRows() <= sh.getFrozenRows() + 1) sh.insertRowAfter(sh.getMaxRows());
+    sh.deleteRow(row);
+    return { ok: true };
+  });
+}
+
+/** Ghi 1 dòng vào trang tính "Nhật ký quản trị" (script tự tạo). Trả false nếu chưa ghi được. */
+function adminLog_(user, action, sheet, where, before, after) {
+  try {
+    const sh = getSheet_(SpreadsheetApp.getActiveSpreadsheet(), ADMIN_LOG_SHEET, ADMIN_LOG_HEADER);
+    sh.appendRow([new Date()].concat([user, action, sheet, where, before, after].map((v) => safe_(v, 45000))));
+    return true;
+  } catch (err) {
+    console.error(err);
+    return false;
+  }
+}
+
+/** 1 → "A", 27 → "AA" */
+function colName_(n) {
+  let s = '';
+  for (let x = n; x > 0; x = Math.floor((x - 1) / 26)) s = String.fromCharCode(65 + ((x - 1) % 26)) + s;
+  return s;
+}
+
+/** Đọc phần phụ (màu, ghi chú, độ rộng…): lỗi thì bỏ qua phần đó, trang quản trị vẫn hiện được dữ liệu. */
+function tryGet_(fn) {
+  try {
+    return fn();
+  } catch (err) {
+    console.warn(err);
+    return null;
+  }
+}
+
+/** Menu "Tài khoản trang quản trị…": tạo tài khoản, đổi mật khẩu, xoá tài khoản đăng nhập quan-tri.html. */
+function showAdminAccounts() {
+  const json = JSON.stringify({ page: `${SITE_URL}/quan-tri.html`, min: ADMIN_MIN_PASSWORD }).replace(/</g, '\\u003c');
+  const page = HtmlService.createHtmlOutput(ADMIN_ACCOUNTS_HTML.replace('__DATA__', () => json)).setWidth(460).setHeight(620);
+  SpreadsheetApp.getUi().showModalDialog(page, 'Tài khoản trang quản trị');
+}
+
+/** Cửa sổ tài khoản gọi: tên các tài khoản (không có mật khẩu). */
+function listAdminAccounts() {
+  return Object.keys(adminAccounts_()).sort();
+}
+
+/** Tạo tài khoản, hoặc đổi mật khẩu nếu tên đã có: mọi nơi đang đăng nhập bằng tài khoản đó bị đăng xuất. */
+function saveAdminAccount(name, password) {
+  const user = String(name == null ? '' : name).trim().toLowerCase();
+  const pass = String(password == null ? '' : password);
+  if (!/^[a-z0-9][a-z0-9._-]{2,29}$/.test(user)) {
+    throw new Error('Tên đăng nhập 3–30 ký tự: chữ không dấu, số, dấu chấm, gạch ngang, gạch dưới.');
+  }
+  if (pass.length < ADMIN_MIN_PASSWORD || pass.length > 200) throw new Error(`Mật khẩu cần ít nhất ${ADMIN_MIN_PASSWORD} ký tự.`);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const accounts = adminAccounts_();
+    const changed = accounts.hasOwnProperty(user);
+    const salt = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.getUuid()).slice(0, 16));
+    accounts[user] = { salt, hash: passwordHash_(pass, salt), ver: randomKey_().slice(0, 12) };
+    PropertiesService.getScriptProperties().setProperty(ADMIN_ACCOUNTS_KEY, JSON.stringify(accounts));
+    adminLog_('Google Sheet', changed ? 'Đổi mật khẩu' : 'Tạo tài khoản', '', user, '', '');
+  } finally {
+    lock.releaseLock();
+  }
+  return listAdminAccounts();
+}
+
+/** Xoá tài khoản: người đang đăng nhập bằng tài khoản này bị đăng xuất ở lần bấm tiếp theo. */
+function removeAdminAccount(name) {
+  const user = String(name == null ? '' : name);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const accounts = adminAccounts_();
+    if (accounts.hasOwnProperty(user)) {
+      delete accounts[user];
+      PropertiesService.getScriptProperties().setProperty(ADMIN_ACCOUNTS_KEY, JSON.stringify(accounts));
+      adminLog_('Google Sheet', 'Xoá tài khoản', '', user, '', '');
+    }
+  } finally {
+    lock.releaseLock();
+  }
+  return listAdminAccounts();
+}
+
+/* ---------- Gộp trang "Customer Infor" (nhập từ file kế hoạch Excel) vào "Đơn hàng" ---------- */
+
+const CUSTOMER_SHEET = 'Customer Infor';
+const CUSTOMER_PROFIT_COL = 'Lợi nhuận';
+// [cột ở "Customer Infor", cột cùng ý nghĩa ở "Đơn hàng"]. "Đơn hàng" chưa có cột đó thì thêm vào cuối
+const CUSTOMER_COLS = [
+  ['Thứ tự', 'Thứ tự'], ['Ngày', 'Thời gian'], ['Nền tảng', ORDER_PLATFORM_COL], ['Tên', 'Họ tên'], ['Email', 'Email'],
+  ['Số ĐT', 'SĐT'], ['Địa Chỉ', 'Địa chỉ'], ['Sản Phẩm', 'Sản phẩm'], ['Tổng tiền sản phẩm', 'Tổng (₫)'],
+  ['Tiền thu người nhận', 'Tiền thu người nhận'], ['Doanh thu sau điều chỉnh', 'Doanh thu sau điều chỉnh'],
+  ['Chi phí', 'Chi phí'], [CUSTOMER_PROFIT_COL, CUSTOMER_PROFIT_COL], ['Note', 'Ghi chú'],
+];
+const CUSTOMER_MONEY_COLS = ['Tiền thu người nhận', 'Doanh thu sau điều chỉnh', 'Chi phí', CUSTOMER_PROFIT_COL];
+
+/**
+ * Menu "Gộp Customer Infor vào Đơn hàng…". Chỉ thêm, không sửa ô đang có:
+ * - Dòng chưa có ở "Đơn hàng": thêm mới, xếp đúng vị trí theo ngày.
+ * - Dòng trùng đơn đã có (xem sameOrder_): chỉ điền các ô còn trống; ô đã có mà khác thì giữ nguyên, ghi giá trị
+ *   của "Customer Infor" vào ghi chú của ô đó.
+ * Hỏi lại trước khi ghi; chạy lại không tạo dòng trùng. Trang "Customer Infor" giữ nguyên, kiểm tra xong shop tự xoá.
+ */
+function mergeCustomerInfo() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const title = `Gộp ${CUSTOMER_SHEET} vào ${ORDER_SHEET}`;
+  const plan = customerPlan_(ss);
+  if (plan.error) {
+    ui.alert(title, plan.error, ui.ButtonSet.OK);
+    return;
+  }
+  if (!customerPending_(plan)) {
+    ui.alert(title, `Không còn gì để gộp: ${plan.total} dòng của "${CUSTOMER_SHEET}" đều đã có ở "${ORDER_SHEET}". Kiểm tra xong thì có thể xoá trang "${CUSTOMER_SHEET}".`, ui.ButtonSet.OK);
+    return;
+  }
+  const asked = customerPlanLines_(plan).concat('',
+    `Các ô đang có ở "${ORDER_SHEET}" không bị sửa, trang "${CUSTOMER_SHEET}" giữ nguyên.`,
+    'Nên đặt tên phiên bản trước khi gộp: Tệp → Lịch sử phiên bản → Đặt tên cho phiên bản hiện tại.', '', 'Gộp ngay?');
+  if (ui.alert(title, asked.join('\n'), ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
+
+  // Đọc lại sau khi bấm: trong lúc hộp thoại mở có thể đã có đơn mới
+  const done = withDocLock_(() => {
+    const fresh = customerPlan_(ss);
+    if (!fresh.error) applyCustomerPlan_(ss, fresh);
+    return fresh;
+  });
+  if (done.error) {
+    ui.alert(title, done.error, ui.ButtonSet.OK);
+    return;
+  }
+  ss.getSheetByName(ORDER_SHEET).activate();
+  ui.alert(title, ['Đã gộp xong.', ...customerPlanLines_(done), '',
+    `Kiểm tra lại trang "${ORDER_SHEET}". Đúng rồi thì xoá trang "${CUSTOMER_SHEET}", mục này trong menu tự mất ở lần mở sau.`,
+    'Gộp sai: Tệp → Lịch sử phiên bản, khôi phục phiên bản đã đặt tên.'].join('\n'), ui.ButtonSet.OK);
+}
+
+/** Việc sẽ làm, chưa ghi gì: { total, skipped, newCols, fill: dòng trùng đơn đã có, add: dòng mới, web: đơn web chưa ghi nền tảng, times }. */
+function customerPlan_(ss) {
+  const src = ss.getSheetByName(CUSTOMER_SHEET);
+  if (!src) return { error: `Không thấy trang "${CUSTOMER_SHEET}". Nhập file kế hoạch Excel trước (README mục 6) rồi tải lại Sheet.` };
+  const tz = ss.getSpreadsheetTimeZone();
+  const os = getSheet_(ss, ORDER_SHEET, ORDER_HEADER);
+  const head = header_(os);
+  const source = customerRows_(src, tz, head);
+  if (source.error) return source;
+  const last = os.getLastRow();
+  const range = last > 1 ? os.getRange(2, 1, last - 1, head.length) : null;
+  const rows = range ? range.getValues() : [];
+  const notes = range ? range.getNotes() : [];
+  const getter = (row) => (name) => (head.includes(name) ? row[head.indexOf(name)] : '');
+  const signs = rows.map((row) => orderSign_(getter(row), tz));
+  const label = (i) => [getter(rows[i])('Mã đơn'), getter(rows[i])('Họ tên')].filter(Boolean).join(' – ') || `dòng ${i + 2}`;
+
+  const plan = { total: source.rows.length, skipped: source.skipped, newCols: [], fill: [], add: [], web: [],
+    times: rows.map((row) => timeOf_(getter(row)('Thời gian'), tz)) };
+  const used = new Set();
+  source.rows.forEach((rec) => {
+    const sign = orderSign_((name) => rec.cells[name], tz);
+    let at = rows.findIndex((row, i) => !used.has(i) && customerSame_(rec, source.cols, row, head, tz));
+    if (at < 0) at = signs.findIndex((o, i) => !used.has(i) && sameOrder_(sign, o));
+    if (at < 0) {
+      const similar = signs.findIndex((o) => maybeSameOrder_(sign, o));
+      plan.add.push(Object.assign({ warn: similar < 0 ? '' : `Có thể trùng đơn ${label(similar)}: kiểm tra, trùng thì xoá 1 dòng.` }, rec));
+      return;
+    }
+    used.add(at);
+    plan.fill.push(Object.assign({ row: at + 2, label: label(at) }, customerFill_(rec, source.cols, rows[at], notes[at], head, tz)));
+  });
+
+  const platform = new Set(plan.fill.filter((f) => f.cells.some(([to]) => to === ORDER_PLATFORM_COL)).map((f) => f.row));
+  rows.forEach((row, i) => {
+    const code = String(getter(row)('Mã đơn')).trim();
+    if (/^SC\d{6}-\d{4}$/.test(code) && getter(row)(ORDER_PLATFORM_COL) === '' && !platform.has(i + 2)) plan.web.push(i + 2);
+  });
+  const wanted = source.cols.map(([, to]) => to).concat(plan.add.some((rec) => rec.warn) ? [ORDER_CHECK_COL] : []);
+  plan.newCols = wanted.filter((name, i) => !head.includes(name) && wanted.indexOf(name) === i);
+  return plan;
+}
+
+/**
+ * Các dòng có dữ liệu của "Customer Infor" đã đổi về dạng của "Đơn hàng"; dòng chỉ có số thứ tự (để dành sẵn) bị bỏ qua.
+ * cols: các cột gộp. Cột ngoài CUSTOMER_COLS (VD shop mới thêm vào Excel): vào cột cùng tên ở "Đơn hàng", chưa có thì thêm mới.
+ */
+function customerRows_(src, tz, orderHead) {
+  const range = src.getRange(1, 1, Math.max(src.getLastRow(), 1), Math.max(src.getLastColumn(), 1));
+  const values = range.getValues();
+  const formulas = range.getFormulas();
+  const names = values[0].map((v) => String(v).trim());
+  const head = names.map(matchText_);
+  const col = (name) => head.indexOf(matchText_(name));
+  const missing = CUSTOMER_COLS.map(([from]) => from).filter((from) => col(from) < 0);
+  if (missing.length) return { error: `Trang "${CUSTOMER_SHEET}" thiếu cột: ${missing.join(', ')}. Đổi lại đúng tên cột rồi chạy lại.` };
+  const known = CUSTOMER_COLS.map(([from]) => matchText_(from));
+  const cols = CUSTOMER_COLS.concat(names.filter((name) => name && !known.includes(matchText_(name)))
+    .map((name) => [name, orderHead.find((h) => matchText_(h) === matchText_(name)) || name]));
+
+  const own = (formula, row) => new RegExp(
+    `^=\\s*${colName_(col('Doanh thu sau điều chỉnh') + 1)}${row}\\s*-\\s*${colName_(col('Chi phí') + 1)}${row}\\s*$`, 'i').test(formula);
+  const rows = [];
+  let skipped = 0;
+  values.slice(1).forEach((row, i) => {
+    const cells = {};
+    cols.forEach(([from, to]) => {
+      const v = row[col(from)];
+      if (cells[to] !== undefined && cells[to] !== '') return; // 2 cột cùng vào 1 cột: giữ giá trị đầu
+      if (typeof v !== 'string') cells[to] = v;
+      else cells[to] = /^\s*(n\/?a|-+)?\s*$/i.test(v) ? '' : v.trim(); // "N/A": không có thông tin, để trống như các đơn khác
+    });
+    if (cols.every(([, to]) => to === 'Thứ tự' || to === CUSTOMER_PROFIT_COL || cells[to] === '')) {
+      skipped++;
+      return;
+    }
+    const time = timeOf_(cells['Thời gian'], tz);
+    if (time) cells['Thời gian'] = time;
+    // Số bị Excel làm mất số 0 ở đầu, hoặc có "(+84)" → dạng SĐT của các đơn khác
+    const digits = String(cells['SĐT']).replace(/\D/g, '');
+    cells['SĐT'] = /^(0|84)?[35789]\d{8}$/.test(digits) ? `0${digits.slice(-9)}` : String(cells['SĐT']);
+    // Lợi nhuận = Doanh thu − Chi phí của chính dòng đó: giữ là công thức, theo cột mới ở "Đơn hàng"
+    const formula = own(formulas[i + 1][col(CUSTOMER_PROFIT_COL)], i + 2);
+    if (formula) cells[CUSTOMER_PROFIT_COL] = '';
+    rows.push({ from: i + 2, cells, time, formula });
+  });
+  return { rows, skipped, cols };
+}
+
+/** Dòng này đã gộp từ lần chạy trước: mọi cột gộp đều giống hệt. Nhờ vậy chạy lại không thêm dòng, kể cả dòng thiếu ngày, tên, địa chỉ. */
+function customerSame_(rec, cols, row, head, tz) {
+  return cols.every(([, to]) => {
+    if (to === CUSTOMER_PROFIT_COL && rec.formula) return true;
+    const cur = head.includes(to) ? row[head.indexOf(to)] : '';
+    const value = rec.cells[to];
+    return value === '' || cur === '' ? value === cur : sameContent_(to, cur, value, tz);
+  });
+}
+
+/** Việc cho một dòng trùng đơn đã có: { from, cells: ô còn trống cần điền, notes: ô đã có mà khác, formula: cần công thức lợi nhuận }. */
+function customerFill_(rec, cols, row, notes, head, tz) {
+  const out = { from: rec.from, cells: [], notes: [], formula: false };
+  new Set(cols.map(([, to]) => to)).forEach((to) => {
+    const value = rec.cells[to];
+    if (value === '') return;
+    const i = head.indexOf(to);
+    if (i < 0 || row[i] === '') {
+      out.cells.push([to, value]);
+      return;
+    }
+    if (sameContent_(to, row[i], value, tz)) return;
+    const shown = value instanceof Date ? Utilities.formatDate(value, tz, 'dd/MM/yyyy HH:mm:ss') : value;
+    const text = `${CUSTOMER_SHEET} ghi: ${shown}`;
+    if (!String(notes[i] || '').includes(text)) out.notes.push([to, text]);
+  });
+  const profit = head.indexOf(CUSTOMER_PROFIT_COL);
+  out.formula = rec.formula && (profit < 0 || row[profit] === '');
+  return out;
+}
+
+function customerPending_(plan) {
+  return Boolean(plan.newCols.length || plan.add.length || plan.web.length || plan.fill.some(fillPending_));
+}
+
+function fillPending_(f) {
+  return Boolean(f.cells.length || f.notes.length || f.formula);
+}
+
+function customerPlanLines_(plan) {
+  const lines = [`Trang "${CUSTOMER_SHEET}" có ${plan.total} dòng dữ liệu${plan.skipped ? ` (bỏ qua ${plan.skipped} dòng chỉ có số thứ tự)` : ''}.`];
+  if (plan.newCols.length) lines.push(`• Thêm ${plan.newCols.length} cột vào cuối "${ORDER_SHEET}": ${plan.newCols.join(', ')}.`);
+  if (plan.add.length) lines.push(`• ${plan.add.length} dòng chưa có: thêm mới, xếp đúng vị trí theo ngày.`);
+  const fill = plan.fill.filter(fillPending_);
+  if (fill.length) {
+    lines.push(`• ${fill.length} dòng trùng đơn đã có: chỉ điền các ô còn trống; ô đã có mà khác thì ghi vào ghi chú của ô:`);
+    fill.forEach((f) => lines.push(`   Dòng ${f.from} ↔ ${f.label}`));
+  }
+  const warn = plan.add.filter((rec) => rec.warn);
+  if (warn.length) {
+    lines.push(`• ${warn.length} dòng có thể trùng nhưng chưa chắc: vẫn thêm mới, nhắc ở cột "${ORDER_CHECK_COL}":`);
+    warn.forEach((rec) => lines.push(`   Dòng ${rec.from}: ${rec.warn}`));
+  }
+  if (plan.web.length) lines.push(`• ${plan.web.length} đơn web có sẵn: ghi ${ORDER_PLATFORM_COL} = ${WEB_PLATFORM}.`);
+  return lines;
+}
+
+function applyCustomerPlan_(ss, plan) {
+  const os = ss.getSheetByName(ORDER_SHEET);
+  const tz = ss.getSpreadsheetTimeZone();
+  const oldWidth = os.getLastColumn();
+  const spare = oldWidth + plan.newCols.length - os.getMaxColumns();
+  if (spare > 0) os.insertColumnsAfter(os.getMaxColumns(), spare);
+  plan.newCols.forEach((name) => colOf_(os, name, true));
+  if (plan.newCols.length) os.getRange(1, oldWidth).copyFormatToRange(os, oldWidth + 1, oldWidth + plan.newCols.length, 1, 1);
+  const head = header_(os);
+  const col = (name) => head.indexOf(name) + 1;
+  const setProfit = (row) => os.getRange(row, col(CUSTOMER_PROFIT_COL))
+    .setFormula(`=${colName_(col('Doanh thu sau điều chỉnh'))}${row}-${colName_(col('Chi phí'))}${row}`);
+  const dateOnly = (row, value) => {
+    if (value instanceof Date && Utilities.formatDate(value, tz, 'HH:mm:ss') === '00:00:00') {
+      os.getRange(row, col('Thời gian')).setNumberFormat('dd/mm/yyyy'); // file Excel chỉ ghi ngày: không hiện 00:00:00
+    }
+  };
+
+  // Điền ô trống trước khi chèn dòng: số dòng trong kế hoạch còn đúng
+  plan.fill.forEach((f) => {
+    f.cells.forEach(([name, value]) => {
+      const cell = os.getRange(f.row, col(name));
+      cell.setValue(customerValue_(value, cell.getNumberFormat()));
+      if (name === 'Thời gian') dateOnly(f.row, value);
+    });
+    f.notes.forEach(([name, text]) => {
+      const cell = os.getRange(f.row, col(name));
+      const old = cell.getNote();
+      cell.setNote(old ? `${old}\n${text}` : text);
+    });
+    if (f.formula) setProfit(f.row);
+  });
+  plan.web.forEach((row) => os.getRange(row, col(ORDER_PLATFORM_COL)).setValue(WEB_PLATFORM));
+
+  // Dòng mới theo thứ tự ngày, đặt trước đơn đầu tiên mới hơn nó. Mới hơn mọi đơn thì dùng appendRow: không đè đơn khách vừa gửi
+  const times = plan.times.slice();
+  const order = (rec) => (rec.time ? rec.time.getTime() : Infinity);
+  plan.add.slice().sort((a, b) => order(a) - order(b) || a.from - b.from).forEach((rec) => {
+    const next = rec.time ? times.findIndex((t) => t && t > rec.time) : -1;
+    const row = next >= 0 ? next + 2 : os.getLastRow() + 1;
+    if (next >= 0) os.insertRowBefore(row);
+    const formats = row <= os.getMaxRows() ? os.getRange(row, 1, 1, head.length).getNumberFormats()[0] : [];
+    const cells = head.map((name, c) => {
+      const value = rec.cells.hasOwnProperty(name) ? rec.cells[name] : name === ORDER_CHECK_COL ? rec.warn : '';
+      return customerValue_(value, formats[c]);
+    });
+    let at = row;
+    if (next >= 0) {
+      os.getRange(row, 1, 1, head.length).setValues([cells]);
+      times.splice(next, 0, rec.time);
+    } else {
+      while (cells.length && cells[cells.length - 1] === '') cells.pop();
+      os.appendRow(cells);
+      at = os.getLastRow();
+      times.push(rec.time);
+    }
+    dateOnly(at, rec.time);
+    if (rec.formula) setProfit(at);
+  });
+
+  if (os.getMaxRows() > 1) {
+    CUSTOMER_MONEY_COLS.filter((name) => plan.newCols.includes(name))
+      .forEach((name) => os.getRange(2, col(name), os.getMaxRows() - 1, 1).setNumberFormat('#,##0'));
+  }
+  // Dòng chèn vào có thể mang màu đỏ báo lỗi của ô bên cạnh ở cột "Mã tải code": tô lại cả cột như mỗi lần sửa
+  if (head.includes(ORDER_KEY_COL)) linkCodes_(os, 0, -1);
+  adminLog_('Google Sheet', `Gộp ${CUSTOMER_SHEET}`, ORDER_SHEET, '', '', customerPlanLines_(plan).join('\n'));
+}
+
+/** Chữ ghi qua safe_ để Sheet không tự đổi kiểu; ô định dạng "Văn bản thuần" thì Sheet không đổi, không cần dấu '. */
+function customerValue_(value, format) {
+  return typeof value === 'string' && format !== '@' ? safe_(value, 45000) : value;
+}
+
+/** Những gì dùng để nhận ra 2 dòng là cùng một đơn. `cell(tên cột)` trả giá trị ô. */
+function orderSign_(cell, tz) {
+  const time = timeOf_(cell('Thời gian'), tz);
+  const name = String(cell('Họ tên'));
+  return {
+    day: time ? Utilities.formatDate(time, tz, 'yyyyMMdd') : '',
+    phone: phoneKey_(cell('SĐT')),
+    name: name.includes('*') ? '' : matchText_(name), // Shopee che tên (VD "N*****A"): không đủ để nhận ra đơn
+    address: matchText_(cell('Địa chỉ')),
+    product: matchText_(cell('Sản phẩm')),
+    total: Number(cell('Tổng (₫)')) || 0,
+  };
+}
+
+/**
+ * Chắc là cùng một đơn: cùng ngày và cùng SĐT, cùng tên, hoặc cùng địa chỉ + sản phẩm (hay tổng tiền).
+ * Một bên chưa có ngày (VD đơn Shopee shop gõ tay): cần cùng địa chỉ + sản phẩm, hoặc SĐT, tên kèm địa chỉ hay tổng tiền.
+ */
+function sameOrder_(a, b) {
+  const eq = (key) => Boolean(a[key]) && a[key] === b[key];
+  const person = eq('phone') || eq('name');
+  const goods = eq('address') && (eq('product') || eq('total'));
+  if (a.day && b.day) return a.day === b.day && (person || goods);
+  return goods || (person && (eq('address') || eq('total')));
+}
+
+/** Có thể là một đơn nhưng chưa chắc (VD khách cũ mua lại): cùng SĐT, cùng địa chỉ, tên này nằm trong tên kia. Vẫn thêm mới và nhắc kiểm tra. */
+function maybeSameOrder_(a, b) {
+  const near = a.name.length >= 5 && b.name.length >= 5 && (a.name.includes(b.name) || b.name.includes(a.name));
+  return near || (Boolean(a.phone) && a.phone === b.phone) || (Boolean(a.address) && a.address === b.address);
+}
+
+/** Ô đang có và giá trị của "Customer Infor" có cùng nội dung không, dù viết khác (cùng ngày, cùng SĐT, khác dấu câu). */
+function sameContent_(name, a, b, tz) {
+  if (name === 'Thời gian') {
+    const [x, y] = [a, b].map((v) => timeOf_(v, tz));
+    if (x && y && Utilities.formatDate(x, tz, 'yyyyMMdd') === Utilities.formatDate(y, tz, 'yyyyMMdd')) return true;
+  }
+  if (name === 'SĐT' && phoneKey_(a) && phoneKey_(a) === phoneKey_(b)) return true;
+  return matchText_(a) === matchText_(b);
+}
+
+function timeOf_(value, tz) {
+  return value instanceof Date ? value : dateFrom_(String(value == null ? '' : value), tz);
+}
+
+/** Chữ để so khớp: bỏ dấu, hoa thường, dấu câu, khoảng trắng thừa ("Nguyễn Văn, A." → "nguyen van a"). */
+function matchText_(value) {
+  return String(value == null ? '' : value).normalize('NFD').replace(/\p{M}+/gu, '').replace(/[đĐ]/g, 'd').toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+/** 9 số cuối của SĐT: "0912345678", 912345678 và "(+84)912345678" là một. Không đủ số (VD "N/A") thì "". */
+function phoneKey_(value) {
+  const digits = String(value == null ? '' : value).replace(/\D/g, '');
+  return digits.length >= 9 ? digits.slice(-9) : '';
 }
 
 /* ---------- Dùng chung ---------- */
@@ -873,8 +1871,8 @@ function json_(obj) {
 }
 
 /** Ghi dữ liệu khách nhập dưới dạng chữ, tránh bị hiểu thành công thức (=, +, -, @) và giữ số 0 đầu SĐT. */
-function safe_(value) {
-  const s = String(value == null ? '' : value).slice(0, 2000);
+function safe_(value, max) {
+  const s = String(value == null ? '' : value).slice(0, max || 2000);
   return /^[=+\-@0-9]/.test(s) ? "'" + s : s;
 }
 
@@ -1106,6 +2104,179 @@ body { font-family: 'Be Vietnam Pro', Arial, sans-serif; color: #04080C; backgro
     ready = true;
     updateButtons();
   });
+})();
+</script>
+</body>
+</html>`;
+
+/* ---------- Cửa sổ "Tài khoản trang quản trị" (showAdminAccounts) ----------
+   __DATA__ được thay bằng địa chỉ trang quản trị và số ký tự tối thiểu của mật khẩu. Như CARD_PAGE_HTML: giữ phần
+   dưới không có dấu backtick, "${" hay dấu gạch ngược. Mật khẩu chỉ gửi thẳng tới saveAdminAccount, không lưu ở đâu khác. */
+const ADMIN_ACCOUNTS_HTML = `<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600&display=swap">
+<style>
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; padding: 2px 4px 12px; font: 14px/1.5 'Be Vietnam Pro', Arial, sans-serif; color: #04080C; }
+p { margin: 0; }
+.help { color: #4A5560; font-size: 13px; }
+.help b { color: #04080C; }
+h2 { margin: 18px 0 8px; font-size: 14px; }
+.list { list-style: none; margin: 0; padding: 0; border: 1px solid #D5DBE0; border-radius: 8px; }
+.list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 42px; padding: 6px 12px; border-top: 1px solid #E6EAED; }
+.list li:first-child { border-top: 0; }
+.list .empty { color: #5B6B78; }
+label { display: block; margin: 12px 0 4px; font-size: 13px; font-weight: 600; }
+input { width: 100%; padding: 9px 10px; border: 1px solid #A9B3BB; border-radius: 6px; font: inherit; }
+input:focus { outline: 2px solid #0B6E8A; outline-offset: 0; border-color: #0B6E8A; }
+.actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
+.btn { padding: 9px 22px; border: 0; border-radius: 8px; background: #04080C; color: #fff; font: 600 14px 'Be Vietnam Pro', Arial, sans-serif; cursor: pointer; }
+.btn:disabled { opacity: 0.5; cursor: progress; }
+.link { padding: 0; border: 0; background: none; color: #0B6E8A; font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
+.link.danger { color: #B42318; }
+.generated { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: #E9F6F9; font-size: 13px; }
+.generated code { font: 600 15px Consolas, monospace; letter-spacing: 0.04em; user-select: all; }
+.status { min-height: 21px; margin-top: 10px; color: #0B6E8A; font-size: 13px; }
+.status.is-error { color: #B42318; }
+</style>
+</head>
+<body>
+<p class="help">Đăng nhập trang quản trị tại <b id="page"></b>. Mật khẩu chỉ lưu dạng mã hoá trong script của Google Sheet này: không ai xem lại được, quên thì đặt mật khẩu mới ở đây.</p>
+
+<h2>Tài khoản hiện có</h2>
+<ul class="list" id="list"><li class="empty">Đang tải…</li></ul>
+
+<h2>Thêm tài khoản hoặc đổi mật khẩu</h2>
+<form id="form" novalidate>
+  <label for="name">Tên đăng nhập</label>
+  <input id="name" maxlength="30" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="VD: admin">
+  <label for="pass">Mật khẩu mới</label>
+  <input id="pass" type="password" maxlength="200" autocomplete="new-password">
+  <label for="pass2">Nhập lại mật khẩu</label>
+  <input id="pass2" type="password" maxlength="200" autocomplete="new-password">
+  <p class="generated" id="generated" hidden>Mật khẩu vừa tạo: <code id="generated-text"></code><br>Chép lại cẩn thận rồi mới bấm Lưu.</p>
+  <div class="actions">
+    <button type="button" class="link" id="gen">Tạo mật khẩu mạnh</button>
+    <button type="submit" class="btn" id="save">Lưu tài khoản</button>
+  </div>
+  <p class="status" id="status" role="status"></p>
+</form>
+<p class="help">Đổi mật khẩu: nhập tên đã có và mật khẩu mới. Mọi nơi đang đăng nhập bằng tài khoản đó sẽ bị đăng xuất.</p>
+
+<script type="application/json" id="data">__DATA__</script>
+<script>
+(function () {
+  var data = JSON.parse(document.getElementById('data').textContent);
+  var NAME_RE = /^[a-z0-9][a-z0-9._-]{2,29}$/;
+
+  function el(id) { return document.getElementById(id); }
+  function setStatus(text, isError) {
+    el('status').textContent = text;
+    el('status').className = 'status' + (isError ? ' is-error' : '');
+  }
+
+  function render(names) {
+    var list = el('list');
+    list.textContent = '';
+    if (!names.length) {
+      var empty = document.createElement('li');
+      empty.className = 'empty';
+      empty.textContent = 'Chưa có tài khoản nào: tạo tài khoản đầu tiên ở dưới.';
+      list.appendChild(empty);
+      return;
+    }
+    names.forEach(function (name) {
+      var li = document.createElement('li');
+      var b = document.createElement('b');
+      b.textContent = name;
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'link danger';
+      del.textContent = 'Xoá';
+      del.addEventListener('click', function () {
+        // Bấm 2 lần mới xoá, tránh lỡ tay
+        if (del.dataset.armed !== '1') {
+          del.dataset.armed = '1';
+          del.textContent = 'Bấm lần nữa để xoá';
+          setTimeout(function () { del.dataset.armed = ''; del.textContent = 'Xoá'; }, 4000);
+          return;
+        }
+        run('removeAdminAccount', [name], 'Đã xoá tài khoản ' + name + '.');
+      });
+      li.appendChild(b);
+      li.appendChild(del);
+      list.appendChild(li);
+    });
+  }
+
+  function run(fn, args, done, after) {
+    el('save').disabled = true;
+    setStatus('Đang lưu…');
+    var call = google.script.run
+      .withSuccessHandler(function (names) {
+        el('save').disabled = false;
+        render(names);
+        setStatus(done);
+        if (after) after();
+      })
+      .withFailureHandler(function (err) {
+        el('save').disabled = false;
+        setStatus(err.message, true);
+      });
+    call[fn].apply(call, args);
+  }
+
+  // 15 ký tự ngẫu nhiên (khoảng 87 bit), bỏ các chữ dễ nhầm 0/O, 1/l/I
+  function strongPassword() {
+    var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    var bytes = new Uint32Array(15);
+    crypto.getRandomValues(bytes);
+    var s = '';
+    for (var i = 0; i < bytes.length; i++) s += chars.charAt(bytes[i] % chars.length);
+    return s.slice(0, 5) + '-' + s.slice(5, 10) + '-' + s.slice(10);
+  }
+
+  el('page').textContent = data.page;
+  el('pass').placeholder = 'Ít nhất ' + data.min + ' ký tự';
+  el('gen').addEventListener('click', function () {
+    var p = strongPassword();
+    el('pass').value = p;
+    el('pass2').value = p;
+    el('generated-text').textContent = p;
+    el('generated').hidden = false;
+  });
+  el('form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var name = el('name').value.trim().toLowerCase();
+    if (!NAME_RE.test(name)) {
+      setStatus('Tên đăng nhập 3–30 ký tự: chữ không dấu, số, dấu chấm, gạch ngang, gạch dưới.', true);
+      el('name').focus();
+      return;
+    }
+    if (el('pass').value.length < data.min) {
+      setStatus('Mật khẩu cần ít nhất ' + data.min + ' ký tự.', true);
+      el('pass').focus();
+      return;
+    }
+    if (el('pass').value !== el('pass2').value) {
+      setStatus('Hai lần nhập mật khẩu chưa giống nhau.', true);
+      el('pass2').focus();
+      return;
+    }
+    run('saveAdminAccount', [name, el('pass').value], 'Đã lưu tài khoản ' + name + '. Đăng nhập tại ' + data.page, function () {
+      el('pass').value = '';
+      el('pass2').value = '';
+      el('generated').hidden = true;
+    });
+  });
+
+  google.script.run
+    .withSuccessHandler(render)
+    .withFailureHandler(function (err) { setStatus(err.message, true); })
+    .listAdminAccounts();
 })();
 </script>
 </body>
