@@ -232,6 +232,8 @@ Mở `smartcartech.vn/quan-tri.html`, đăng nhập, rồi xem và sửa dữ li
 **Làm được gì:**
 
 - Xem mọi trang tính trong Sheet: Đơn hàng, Tư vấn, In 3D, Mã tải code, các trang kế hoạch nhập từ Excel (xem *Đưa file kế hoạch Excel vào Google Sheet* bên dưới) và trang Nhật ký quản trị. Màu nền, màu chữ, chữ đậm, ô gộp hiện như trên Sheet.
+  - Danh sách trang tính nằm ở cột bên trái, cuộn lên xuống được. Nút ☰ ẩn cột này để bảng rộng hơn; trên điện thoại, nút ☰ mở danh sách.
+  - Ghi chú của từng trang gom ở nút *Lưu ý* cạnh tên trang.
 - Bấm số dòng hoặc một ô: cả dòng mở ở khung bên phải. Sửa rồi bấm **Lưu thay đổi**.
   - Ô thả xuống (VD *Trạng thái* ở trang In 3D) và ô tích (VD *Khoá* ở trang Mã tải code) hiện đúng như trên Sheet.
   - Ô công thức hiện công thức để sửa, kèm kết quả hiện tại.

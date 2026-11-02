@@ -8,6 +8,8 @@ import { $, $$, esc, icon, toast, loadData, trapFocus } from './core.js';
 
 const SESSION_KEY = 'sctech_admin_v1';
 const SHEET_KEY = 'sctech_admin_sheet';
+const SIDE_KEY = 'sctech_admin_side_hidden';
+const WIDE = window.matchMedia('(min-width: 1024px)'); // Giống style.css: từ cỡ này cột trang tính luôn nằm bên trái
 const MAX_STICKY_ROWS = 2; // Dòng tiêu đề (hoặc tiêu đề + tên cột) đứng yên khi cuộn; nhiều hơn thì chiếm hết màn hình điện thoại
 const HEX = /^#[0-9a-f]{6}$/i;
 
@@ -19,6 +21,7 @@ const app = {
   query: '',
   ticket: 0,      // lần tải gần nhất: kết quả của lần tải cũ (VD đã bấm sang trang khác) bị bỏ
   loadedAt: null,
+  notesOpen: false,
 };
 const els = {};
 let panel = null; // khung xem / sửa một dòng đang mở
@@ -181,7 +184,8 @@ async function logout() {
   closePanel();
   clearSession();
   app.doc = null;
-  els.work.hidden = true;
+  slideSide(false, false);
+  showWork(false);
   els.userBox.hidden = true;
   showLogin('Đã đăng xuất.', false, false);
   if (token) api('dang-xuat', { token });
@@ -192,6 +196,12 @@ function setStatus(text, isError = false) {
   els.status.textContent = text || '';
   els.status.classList.toggle('is-error', isError);
   els.status.hidden = !text;
+}
+
+/** Khung làm việc cao đúng một màn hình và có logo riêng trong cột trái: ẩn đầu trang của web. */
+function showWork(on) {
+  els.work.hidden = !on;
+  document.body.classList.toggle('is-working', on);
 }
 
 function bootError(text) {
@@ -227,12 +237,11 @@ async function loadSheet(name, { keepScroll = false } = {}) {
   prepare(out.sheet);
   rememberSheet(out.sheet.name);
   els.boot.hidden = true;
-  els.work.hidden = false;
+  showWork(true);
   showUser();
   renderTabs();
   renderTools();
   renderGrid();
-  fitGrid();
   if (scroll) {
     els.grid.scrollTop = scroll.top;
     els.grid.scrollLeft = scroll.left;
@@ -273,18 +282,53 @@ function headerRowOf(sh) {
   return 0;
 }
 
-/* ---------- Thanh trang tính, công cụ ---------- */
+/* ---------- Cột trang tính, công cụ ---------- */
 function renderTabs() {
   const current = app.doc.sheet.name;
-  els.tabs.innerHTML = app.doc.sheets.map((s) => `
-    <button type="button" class="pill-btn admin-tab${s.hidden ? ' is-hidden' : ''}" data-sheet="${esc(s.name)}" aria-pressed="${s.name === current}"${s.hidden ? ' title="Trang tính đang ẩn trên Google Sheet"' : ''}>${esc(s.name.trim() || '(không tên)')}</button>`).join('');
-  // Thanh trang tính cuộn ngang (điện thoại): trang đang mở bị khuất thì cuộn nó ra giữa
-  const active = $('[aria-pressed="true"]', els.tabs);
   const bar = els.tabs;
-  if (active && bar.scrollWidth > bar.clientWidth
-    && (active.offsetLeft < bar.scrollLeft || active.offsetLeft + active.offsetWidth > bar.scrollLeft + bar.clientWidth)) {
-    bar.scrollLeft = active.offsetLeft - (bar.clientWidth - active.offsetWidth) / 2;
+  const top = bar.scrollTop;
+  const focused = bar.contains(document.activeElement);
+  bar.innerHTML = app.doc.sheets.map((s) => `
+    <button type="button" class="admin-tab${s.hidden ? ' is-hidden' : ''}" data-sheet="${esc(s.name)}" aria-pressed="${s.name === current}"${s.hidden ? ' title="Trang tính đang ẩn trên Google Sheet"' : ''}>${esc(s.name.trim() || '(không tên)')}</button>`).join('');
+  // Vẽ lại làm danh sách nhảy về đầu: giữ chỗ đang cuộn, trang đang mở bị khuất thì cuộn tới
+  bar.scrollTop = top;
+  const active = $('[aria-pressed="true"]', bar);
+  if (!active) return;
+  if (active.offsetTop < bar.scrollTop) bar.scrollTop = active.offsetTop;
+  else if (active.offsetTop + active.offsetHeight > bar.scrollTop + bar.clientHeight) bar.scrollTop = active.offsetTop + active.offsetHeight - bar.clientHeight;
+  if (focused) active.focus({ preventScroll: true });
+}
+
+/** Nút ☰ cho trình đọc màn hình biết cột trang tính đang mở hay ẩn. */
+function syncMenu() {
+  const open = WIDE.matches ? !els.work.classList.contains('is-collapsed') : els.side.classList.contains('is-open');
+  els.menu.setAttribute('aria-expanded', String(open));
+  els.menu.setAttribute('aria-label', `${open ? 'Ẩn' : 'Hiện'} danh sách trang tính`);
+}
+
+/** Màn hình hẹp: mở, đóng khung trượt. `focus`: đưa con trỏ vào khung khi mở, trả về nút ☰ khi đóng. */
+function slideSide(open, focus = true) {
+  els.side.classList.toggle('is-open', open);
+  els.sideOverlay.classList.toggle('is-open', open);
+  syncMenu();
+  if (!focus) return;
+  if (open) ($('[aria-pressed="true"]', els.tabs) || els.sideClose).focus({ preventScroll: true });
+  else els.menu.focus({ preventScroll: true });
+}
+
+/** Nút ☰. Màn hình rộng: ẩn, hiện cột trái để lưới rộng hơn (nhớ cho lần sau). Màn hình hẹp: mở khung trượt. */
+function toggleSide() {
+  if (!WIDE.matches) {
+    slideSide(!els.side.classList.contains('is-open'));
+    return;
   }
+  const hide = !els.work.classList.contains('is-collapsed');
+  els.work.classList.toggle('is-collapsed', hide);
+  try {
+    if (hide) localStorage.setItem(SIDE_KEY, '1');
+    else localStorage.removeItem(SIDE_KEY);
+  } catch { /* private mode */ }
+  syncMenu();
 }
 
 function renderTools() {
@@ -299,10 +343,9 @@ function renderTools() {
 function renderInfo(shown, total) {
   const sh = app.doc.sheet;
   const time = app.loadedAt ? app.loadedAt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
-  const facts = [`<strong>${esc(sh.name)}</strong>`, `${total} dòng`, `${sh.cols} cột`, time && `tải lúc ${time}`].filter(Boolean);
   const q = app.query.trim();
+  const facts = [q ? `Đang lọc: ${shown}/${total} dòng có “${esc(q)}”` : `${total} dòng`, `${sh.cols} cột`, time && `tải lúc ${time}`].filter(Boolean);
   const notes = [];
-  if (q) notes.push(`Đang lọc: ${shown}/${total} dòng có “${esc(q)}”.`);
   if (sh.rules.tip) notes.push(esc(sh.rules.tip));
   else if (sh.rules.all) notes.push('Trang tính này chỉ xem trên web.');
   if (sh.rules.header) notes.push('Dòng 1 là tên cột: script dựa vào đó để ghi đơn, nên chỉ đổi tên cột trên Google Sheet.');
@@ -310,15 +353,14 @@ function renderInfo(shown, total) {
   if (sh.images) notes.push(`Có ${sh.images} hình ảnh đặt trên trang tính: xem trên Google Sheet.`);
   const shownRows = sh.cells.length - sh.headRows;
   if (sh.rows - sh.headRows > shownRows) notes.push(`Trang tính lớn: chỉ hiện ${shownRows} dòng cuối, dòng cũ hơn xem trên Google Sheet.`);
-  els.info.innerHTML = `<p class="admin-info__facts">${facts.join(' · ')}</p>${notes.map((n) => `
-    <p class="admin-info__note">${icon('info', 'icon--sm')}<span>${n}</span></p>`).join('')}`;
-}
-
-/** Lưới cao vừa phần màn hình còn lại: thanh công cụ đứng yên, chỉ lưới cuộn. */
-function fitGrid() {
-  if (els.work.hidden) return;
-  const top = els.grid.getBoundingClientRect().top + window.scrollY;
-  els.grid.style.maxHeight = `${Math.max(320, window.innerHeight - top - 12)}px`;
+  els.info.innerHTML = `
+    <p class="admin-info__name" title="${esc(sh.name)}">${esc(sh.name)}</p>
+    <div class="admin-info__meta">
+      <p class="admin-info__facts">${facts.join(' · ')}</p>
+      ${notes.length ? `<button type="button" class="admin-info__more" data-admin-notes-toggle aria-controls="admin-notes" aria-expanded="${app.notesOpen}">${icon('info', 'icon--sm')}Lưu ý (${notes.length})</button>` : ''}
+    </div>`;
+  els.notes.innerHTML = notes.map((n) => `<p class="admin-notes__item">${icon('info', 'icon--sm')}<span>${n}</span></p>`).join('');
+  els.notes.hidden = !app.notesOpen || !notes.length;
 }
 
 /* ---------- Lưới trang tính ---------- */
@@ -857,6 +899,11 @@ function bind() {
   els.add = $('[data-admin-add]');
   els.open = $('[data-admin-open]');
   els.info = $('[data-admin-info]');
+  els.notes = $('[data-admin-notes]');
+  els.side = $('[data-admin-side]');
+  els.sideOverlay = $('[data-admin-side-overlay]');
+  els.sideClose = $('[data-admin-side-close]');
+  els.menu = $('[data-admin-menu]');
   els.status = $('[data-admin-status]');
   els.grid = $('[data-admin-grid]');
   els.userBox = $('[data-admin-user]');
@@ -874,9 +921,29 @@ function bind() {
   $('[data-admin-logout]').addEventListener('click', logout);
   $('[data-admin-reload]').addEventListener('click', () => loadSheet(app.doc?.sheet.name, { keepScroll: true }));
   els.add.addEventListener('click', () => openPanel('add'));
+  try { els.work.classList.toggle('is-collapsed', Boolean(localStorage.getItem(SIDE_KEY))); } catch { /* private mode */ }
+  syncMenu();
+  els.menu.addEventListener('click', toggleSide);
+  els.sideClose.addEventListener('click', () => slideSide(false));
+  els.sideOverlay.addEventListener('click', () => slideSide(false));
+  els.side.addEventListener('keydown', (e) => {
+    if (!els.side.classList.contains('is-open')) return;
+    if (e.key === 'Escape') slideSide(false);
+    else trapFocus(els.side, e);
+  });
+  WIDE.addEventListener('change', () => slideSide(false, false));
+  els.info.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-admin-notes-toggle]');
+    if (!b) return;
+    app.notesOpen = !app.notesOpen;
+    b.setAttribute('aria-expanded', String(app.notesOpen));
+    els.notes.hidden = !app.notesOpen;
+  });
   els.tabs.addEventListener('click', (e) => {
     const b = e.target.closest('[data-sheet]');
-    if (!b || b.getAttribute('aria-pressed') === 'true') return;
+    if (!b) return;
+    if (els.side.classList.contains('is-open')) slideSide(false);
+    if (b.getAttribute('aria-pressed') === 'true') return;
     $$('[data-sheet]', els.tabs).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
     loadSheet(b.dataset.sheet);
   });
@@ -899,9 +966,7 @@ function bind() {
     if (tr) openPanel('edit', Number(tr.dataset.row), Number(td.dataset.col));
   });
   window.addEventListener('resize', () => {
-    if (!app.doc) return;
-    fitGrid();
-    stickHead();
+    if (app.doc) stickHead();
   });
 }
 

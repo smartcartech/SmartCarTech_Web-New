@@ -27,16 +27,6 @@
       <a class="logo" href="index.html" aria-label="SmartCarTech – Trang chủ">
         <img class="logo__img" src="assets/img/logo-smartcartech-nen-toi.webp" alt="" width="372" height="160">
       </a>
-      <div class="admin-user" data-admin-user hidden>
-        <span class="admin-user__name">
-          <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-shield"></use></svg>
-          <span data-admin-name></span>
-        </span>
-        <button type="button" class="btn btn--ghost btn--sm" data-admin-logout>
-          <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-logout"></use></svg>
-          <span class="hide-mobile">Đăng xuất</span><span class="sr-only show-mobile">Đăng xuất</span>
-        </button>
-      </div>
     </div>
   </header>
 
@@ -80,31 +70,62 @@
     <!-- ============ DỮ LIỆU GOOGLE SHEET ============ -->
     <section class="admin-work" data-admin-work hidden aria-labelledby="work-title">
       <h1 class="sr-only" id="work-title">Dữ liệu Google Sheet</h1>
-      <nav class="admin-tabs" data-admin-tabs aria-label="Trang tính"></nav>
-      <div class="admin-tools">
-        <label class="admin-search">
-          <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-search"></use></svg>
-          <span class="sr-only">Tìm trong trang tính đang mở</span>
-          <input class="field__input" type="search" data-admin-search placeholder="Tìm tên, SĐT, mã đơn…" autocomplete="off">
-        </label>
-        <div class="admin-tools__buttons">
-          <button type="button" class="btn btn--ghost btn--sm admin-tools__icon" data-admin-reload aria-label="Tải lại">
-            <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-refresh"></use></svg>
-            <span class="hide-mobile">Tải lại</span>
-          </button>
-          <a class="btn btn--ghost btn--sm admin-tools__icon" data-admin-open href="#" target="_blank" rel="noopener" aria-label="Mở trên Google Sheet">
-            <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-external"></use></svg>
-            <span class="hide-mobile">Google Sheet</span>
+      <aside class="admin-side" id="admin-side" data-admin-side aria-label="Danh sách trang tính">
+        <div class="admin-side__head">
+          <a class="logo" href="index.html" aria-label="SmartCarTech – Trang chủ">
+            <img class="logo__img" src="assets/img/logo-smartcartech-nen-toi.webp" alt="" width="372" height="160">
           </a>
-          <button type="button" class="btn btn--primary btn--sm" data-admin-add hidden>
-            <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-plus"></use></svg>
-            Thêm dòng
+          <button type="button" class="icon-btn admin-side__close" data-admin-side-close aria-label="Đóng danh sách trang tính">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-close"></use></svg>
           </button>
         </div>
+        <h2 class="admin-side__label" id="admin-tabs-title">Trang tính</h2>
+        <nav class="admin-tabs" data-admin-tabs aria-labelledby="admin-tabs-title"></nav>
+        <div class="admin-user" data-admin-user hidden>
+          <span class="admin-user__name">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-shield"></use></svg>
+            <span data-admin-name></span>
+          </span>
+          <button type="button" class="btn btn--ghost btn--sm" data-admin-logout>
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-logout"></use></svg>
+            Đăng xuất
+          </button>
+        </div>
+      </aside>
+      <div class="overlay admin-side__overlay" data-admin-side-overlay></div>
+
+      <div class="admin-main">
+        <div class="admin-tools">
+          <button type="button" class="btn btn--ghost btn--sm admin-tools__square admin-tools__menu" data-admin-menu aria-controls="admin-side" aria-expanded="false" aria-label="Hiện danh sách trang tính">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-menu"></use></svg>
+          </button>
+          <div class="admin-info" data-admin-info></div>
+          <label class="admin-search">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-search"></use></svg>
+            <span class="sr-only">Tìm trong trang tính đang mở</span>
+            <input class="field__input" type="search" data-admin-search placeholder="Tìm tên, SĐT, mã đơn…" autocomplete="off">
+          </label>
+          <div class="admin-tools__buttons">
+            <button type="button" class="btn btn--ghost btn--sm admin-tools__icon" data-admin-reload aria-label="Tải lại" title="Tải lại">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-refresh"></use></svg>
+              <span class="admin-tools__label">Tải lại</span>
+            </button>
+            <a class="btn btn--ghost btn--sm admin-tools__icon" data-admin-open href="#" target="_blank" rel="noopener" aria-label="Mở trên Google Sheet" title="Mở trên Google Sheet">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-external"></use></svg>
+              <span class="admin-tools__label">Google Sheet</span>
+            </a>
+            <button type="button" class="btn btn--primary btn--sm admin-tools__add" data-admin-add aria-label="Thêm dòng" title="Thêm dòng" hidden>
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-plus"></use></svg>
+              <span class="hide-mobile">Thêm dòng</span>
+            </button>
+          </div>
+        </div>
+        <div class="admin-notes" id="admin-notes" data-admin-notes hidden></div>
+        <div class="admin-gridbox">
+          <p class="admin-status" data-admin-status role="status" hidden></p>
+          <div class="admin-grid" data-admin-grid tabindex="0" aria-label="Nội dung trang tính. Bấm số dòng hoặc một ô để xem, sửa cả dòng."></div>
+        </div>
       </div>
-      <div class="admin-info" data-admin-info></div>
-      <p class="admin-status" data-admin-status role="status" hidden></p>
-      <div class="admin-grid" data-admin-grid tabindex="0" aria-label="Nội dung trang tính. Bấm số dòng hoặc một ô để xem, sửa cả dòng."></div>
     </section>
   </main>
 </body>
