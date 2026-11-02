@@ -75,11 +75,14 @@ const LEAD_HEADER = ['Thời gian', 'Họ tên', 'SĐT', 'Nội dung'];
 
 // Trang quản trị (quan-tri.html). Tạo tài khoản: menu "SmartCarTech" → "Tài khoản trang quản trị…"
 const ADMIN_LOG_SHEET = 'Nhật ký quản trị'; // Script ghi mọi lần đăng nhập, sửa, thêm, xoá dòng trên trang quản trị
+// Các trang này: dòng mới (đơn web, yêu cầu tư vấn, đơn in 3D, mã mới, nhật ký, dòng thêm trên trang quản trị) chèn ngay
+// dưới dòng tiêu đề, mới nhất ở trên cùng. Trang khác (VD các trang kế hoạch nhập từ Excel) thêm dòng ở cuối
+const NEWEST_FIRST = [ORDER_SHEET, LEAD_SHEET, PRINT_SHEET, CODE_SHEET, ADMIN_LOG_SHEET];
 const ADMIN_IDLE_HOURS = 3;    // Không thao tác quá bấy nhiêu giờ thì phải đăng nhập lại (tối đa 6)
 const ADMIN_MAX_HOURS = 12;    // Mỗi lần đăng nhập dùng được tối đa bấy nhiêu giờ
 const ADMIN_MAX_FAILS = 5;     // 1 tài khoản sai mật khẩu quá bấy nhiêu lần trong 15 phút thì tạm khoá 15 phút (cả web: gấp 6 lần)
 const ADMIN_MIN_PASSWORD = 10; // Mật khẩu ít nhất bấy nhiêu ký tự
-const ADMIN_MAX_CELLS = 40000; // Trang tính lớn hơn thì web chỉ hiện các dòng tiêu đề và các dòng cuối (mới nhất)
+const ADMIN_MAX_CELLS = 40000; // Trang tính lớn hơn thì web chỉ hiện các dòng tiêu đề và các dòng mới nhất (đầu hoặc cuối trang)
 
 /** Mở URL ứng dụng web trên trình duyệt để kiểm tra script đã chạy. */
 function doGet() {
@@ -165,7 +168,7 @@ function saveOrder_(data) {
   }
   if (overLimit_(phone)) return 'busy';
 
-  appendRow_(getSheet_(SpreadsheetApp.getActiveSpreadsheet(), ORDER_SHEET, ORDER_HEADER), {
+  addRow_(getSheet_(SpreadsheetApp.getActiveSpreadsheet(), ORDER_SHEET, ORDER_HEADER), {
     'Thời gian': new Date(),
     'Mã đơn': code,
     'Họ tên': name,
@@ -193,7 +196,7 @@ function saveLead_(data) {
   if (overLimit_(phone)) return 'busy';
 
   const sh = getSheet_(SpreadsheetApp.getActiveSpreadsheet(), LEAD_SHEET, LEAD_HEADER);
-  appendRow_(sh, { 'Thời gian': new Date(), 'Họ tên': name, 'SĐT': phone, 'Nội dung': message });
+  addRow_(sh, { 'Thời gian': new Date(), 'Họ tên': name, 'SĐT': phone, 'Nội dung': message });
   notify_(`Yêu cầu tư vấn – ${name}`, `${name} – ${phone}\n\n${message}`);
   return 'ok';
 }
@@ -216,13 +219,16 @@ function savePrint_(data) {
   if (overLimit_(phone)) return 'busy';
 
   const sh = getSheet_(SpreadsheetApp.getActiveSpreadsheet(), PRINT_SHEET, PRINT_HEADER);
-  appendRow_(sh, Object.assign({ 'Thời gian': new Date(), 'Mã': code, 'Họ tên': name, 'SĐT': phone }, row.cells,
-    { [PRINT_STATUS_COL]: PRINT_STATUSES[0] }));
-  const statusCol = colOf_(sh, PRINT_STATUS_COL, false);
-  if (statusCol) {
-    sh.getRange(sh.getLastRow(), statusCol).setDataValidation(
-      SpreadsheetApp.newDataValidation().requireValueInList(PRINT_STATUSES, true).setAllowInvalid(true).build());
-  }
+  // Ghi dòng và ô thả xuống trong cùng một khoá: đơn khác chèn lên trên giữa chừng thì ô thả xuống vẫn vào đúng dòng
+  withDocLock_(() => {
+    const added = addRow_(sh, Object.assign({ 'Thời gian': new Date(), 'Mã': code, 'Họ tên': name, 'SĐT': phone }, row.cells,
+      { [PRINT_STATUS_COL]: PRINT_STATUSES[0] }));
+    const statusCol = colOf_(sh, PRINT_STATUS_COL, false);
+    if (statusCol) {
+      sh.getRange(added, statusCol).setDataValidation(
+        SpreadsheetApp.newDataValidation().requireValueInList(PRINT_STATUSES, true).setAllowInvalid(true).build());
+    }
+  });
   notify_(`${row.title} #${code} – ${name}`, [`${name} – ${phone}`, ...row.email].join('\n'));
   return 'ok';
 }
@@ -497,6 +503,7 @@ function downloadCode_(data) {
     if (!row[first - 1]) sh.getRange(i + 1, first).setValue(now);
     sh.getRange(i + 1, latest).setValue(now);
     sh.getRange(i + 1, lastFile).setValue(name);
+    SpreadsheetApp.flush(); // Ghi xong lượt tải rồi mới nhả khoá: mã mới tạo chèn dòng trên cùng làm đổi số dòng
     return { ok: true, name: file.getName(), data: Utilities.base64Encode(file.getBlob().getBytes()) };
   } finally {
     lock.releaseLock();
@@ -607,11 +614,27 @@ function createCodes() {
     codes.push([code]);
   }
   const noteCol = colOf_(sh, 'Ghi chú', true);
-  const start = sh.getLastRow() + 1;
-  sh.getRange(start, cols.id, count, 1).setNumberFormat('@').setValues(codes); // giữ mã ở dạng chữ, VD "2345-6789" không bị đổi thành số
-  sh.getRange(start, noteCol, count, 1).setValue(note);
-  sh.getRange(start, cols.lock, count, 1).insertCheckboxes();
-  sh.getRange(start, cols.count, count, 1).setValue(0);
+  const width = Math.max(sh.getLastColumn(), noteCol);
+  const rows = codes.map(([code]) => {
+    const row = new Array(width).fill('');
+    row[cols.id - 1] = safe_(code); // "2345-6789" giữ dạng chữ, không bị đổi thành số
+    row[noteCol - 1] = note;
+    row[cols.count - 1] = 0;
+    return row;
+  });
+  // Mã mới ở trên cùng. Chèn dòng làm đổi số dòng các mã cũ: giữ cả khoá của script (tải code, ghi ngày in theo số dòng)
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  let start = 0;
+  try {
+    withDocLock_(() => {
+      start = insertTop_(sh, rows);
+      sh.getRange(start, cols.id, count, 1).setNumberFormat('@');
+      sh.getRange(start, cols.lock, count, 1).insertCheckboxes();
+    });
+  } finally {
+    lock.releaseLock();
+  }
   sh.activate();
   sh.setActiveRange(sh.getRange(start, cols.id, count, 1));
   ui.alert(`Đã tạo ${count} mã mới (dòng ${start}–${start + count - 1}). Các mã này đang được chọn sẵn: vào menu SmartCarTech → In thẻ cho các mã đang chọn… để in.`);
@@ -777,6 +800,7 @@ function markCardsPrinted(codes) {
       count++;
     });
     range.setValues(printed).setNumberFormat('dd/mm/yyyy');
+    SpreadsheetApp.flush();
     return count;
   } finally {
     lock.releaseLock();
@@ -934,19 +958,23 @@ function showCode_(key) {
   return `${key.slice(0, 4)}-${key.slice(4)}`;
 }
 
-/** Hai lần sửa liền nhau không ghi đè lên nhau. Không lấy được khoá (VD hết 10 giây chờ) thì vẫn chạy. */
+let docLockHeld_ = false; // Lần chạy này đang giữ khoá của Sheet: gọi lồng nhau thì không xin lại
+
+/**
+ * Hai việc cùng lúc không ghi đè, ghi nhầm dòng của nhau (VD đơn web mới chèn dòng trên cùng đúng lúc đang sửa trên web
+ * hay gán mã). Chờ khoá tối đa 15 giây; không lấy được thì báo lỗi, không chạy.
+ */
 function withDocLock_(fn) {
-  let lock = null;
-  try {
-    lock = LockService.getDocumentLock();
-    lock.waitLock(10000);
-  } catch (err) {
-    lock = null;
-  }
+  if (docLockHeld_) return fn();
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(15000);
+  docLockHeld_ = true;
   try {
     return fn();
   } finally {
-    if (lock) lock.releaseLock();
+    docLockHeld_ = false;
+    SpreadsheetApp.flush(); // Ghi xong hẳn rồi mới nhả khoá: việc chờ sau đọc đúng dữ liệu mới
+    lock.releaseLock();
   }
 }
 
@@ -1158,6 +1186,7 @@ function adminRules_(sh) {
     add: !rule.all && !rule.noAdd,
     del: !rule.all && !rule.noDelete,
     tip: rule.tip || '',
+    top: NEWEST_FIRST.includes(sh.getName()),
   };
 }
 
@@ -1181,7 +1210,8 @@ function sheetView_(sh) {
   if (!rows || !cols) return view;
   const head = Math.min(rows, Math.max(view.frozen, 1));
   const fit = Math.max(head + 1, Math.floor(ADMIN_MAX_CELLS / cols));
-  const parts = rows > fit ? [[1, head], [rows - (fit - head) + 1, rows]] : [[1, rows]];
+  // Trang mới nhất ở trên: các dòng đầu; trang khác: dòng tiêu đề và các dòng cuối
+  const parts = rows <= fit ? [[1, rows]] : view.rules.top ? [[1, fit]] : [[1, head], [rows - (fit - head) + 1, rows]];
   const kinds = [];
   parts.forEach(([from, to]) => {
     gridRows_(sh.getRange(from, 1, to - from + 1, cols), ctx).forEach((r, i) => {
@@ -1452,7 +1482,10 @@ function adminEdit_(data, user) {
   });
 }
 
-/** Thêm một dòng vào cuối trang tính (ô theo thứ tự cột). Ô tích, ô thả xuống lấy theo dòng cuối hiện có. */
+/**
+ * Thêm một dòng (ô theo thứ tự cột): trang trong NEWEST_FIRST ngay dưới dòng tiêu đề, trang khác ở cuối. Ô tích, ô thả
+ * xuống, định dạng lấy theo dòng dữ liệu kề bên (dòng đầu hoặc dòng cuối hiện có).
+ */
 function adminAppend_(data, user) {
   const sh = adminSheet_(data.sheet);
   if (!sh) return sheetGone_(data.sheet);
@@ -1468,8 +1501,10 @@ function adminAppend_(data, user) {
     const ctx = gridContext_(sh);
     const skip = Math.max(sh.getFrozenRows(), 1);
     const old = last > skip ? sh.getRange(skip + 1, 1, last - skip, width).getValues() : [];
-    // Định dạng của dòng sắp thêm (VD cả cột để "Văn bản thuần"); dòng cuối của trang thì Sheet tự thêm dòng mới
-    const formats = last < sh.getMaxRows() ? sh.getRange(last + 1, 1, 1, width).getNumberFormats()[0] : [];
+    // Định dạng của dòng sắp thêm (VD cả cột để "Văn bản thuần"): dòng chèn trên cùng giống dòng dữ liệu đầu tiên;
+    // dòng thêm ở cuối là dòng trống kế tiếp (dòng cuối của trang thì Sheet tự thêm dòng mới)
+    const at = rules.top && last > 1 ? 2 : last + 1;
+    const formats = at <= sh.getMaxRows() ? sh.getRange(at, 1, 1, width).getNumberFormats()[0] : [];
     const head = rules.header ? header_(sh) : [];
     const row = [];
     const text = [];
@@ -1486,11 +1521,16 @@ function adminAppend_(data, user) {
     }
     while (row.length && row[row.length - 1] === '') row.pop();
     if (!text.length) return { ok: false, error: 'Dòng mới còn trống: điền ít nhất một ô.' };
-    sh.appendRow(row);
-    const added = sh.getLastRow();
-    if (last > skip) {
-      const checks = tryGet_(() => sh.getRange(last, 1, 1, width).getDataValidations());
-      if (checks && checks[0].some(Boolean)) sh.getRange(added, 1, 1, width).setDataValidations(checks);
+    let added;
+    if (rules.top) {
+      added = insertTop_(sh, [row]);
+    } else {
+      sh.appendRow(row);
+      added = sh.getLastRow();
+      if (last > skip) {
+        const checks = tryGet_(() => sh.getRange(last, 1, 1, width).getDataValidations());
+        if (checks && checks[0].some(Boolean)) sh.getRange(added, 1, 1, width).setDataValidations(checks);
+      }
     }
     if (watchesCodes_(sh, 1, width)) linkCodes_(sh, added, added);
     syncProfit_(sh, added, added);
@@ -1531,7 +1571,7 @@ function adminDelete_(data, user) {
 function adminLog_(user, action, sheet, where, before, after) {
   try {
     const sh = getSheet_(SpreadsheetApp.getActiveSpreadsheet(), ADMIN_LOG_SHEET, ADMIN_LOG_HEADER);
-    appendRow_(sh, { 'Thời gian': new Date(), 'Tài khoản': user, 'Việc': action, 'Trang tính': sheet, 'Vị trí': where, 'Trước': before, 'Sau': after }, 45000);
+    addRow_(sh, { 'Thời gian': new Date(), 'Tài khoản': user, 'Việc': action, 'Trang tính': sheet, 'Vị trí': where, 'Trước': before, 'Sau': after }, 45000);
     return true;
   } catch (err) {
     console.error(err);
@@ -1972,11 +2012,12 @@ function getSheet_(ss, name, header) {
 }
 
 /**
- * Thêm 1 dòng theo tên cột ở dòng 1 (shop đổi thứ tự cột vẫn ghi đúng chỗ); cột chưa có thì thêm vào cuối.
+ * Thêm 1 dòng theo tên cột ở dòng 1 (shop đổi thứ tự cột vẫn ghi đúng chỗ); cột chưa có thì thêm vào cuối. Trang trong
+ * NEWEST_FIRST: dòng mới ngay dưới dòng tiêu đề; trang khác: cuối trang. Trả số dòng vừa ghi.
  * Chữ được ghi qua safe_(), max là số ký tự tối đa mỗi ô như ở safe_(). Không ghi vào các cột trống ở cuối dòng (VD cột
  * "Mã tải code" shop tự điền).
  */
-function appendRow_(sh, values, max) {
+function addRow_(sh, values, max) {
   const head = header_(sh);
   Object.keys(values).forEach((name) => {
     if (head.includes(name)) return;
@@ -1988,7 +2029,43 @@ function appendRow_(sh, values, max) {
     return typeof v === 'string' ? safe_(v, max) : v;
   });
   while (row.length && row[row.length - 1] === '') row.pop();
+  if (NEWEST_FIRST.includes(sh.getName())) return insertTop_(sh, [row]);
   sh.appendRow(row);
+  return sh.getLastRow();
+}
+
+/**
+ * Chèn các dòng `rows` (mỗi dòng: mảng ô theo thứ tự cột) ngay dưới dòng tiêu đề, giữ thứ tự; trả số dòng đầu tiên (2).
+ * Dòng chèn lấy định dạng số, ô tích, ô thả xuống của dòng dữ liệu ngay dưới nó, không mang màu, chữ đậm của dòng tiêu đề.
+ * Chèn dòng làm số dòng của mọi dòng bên dưới đổi: chạy trong khoá của Sheet để việc khác không ghi nhầm dòng.
+ */
+function insertTop_(sh, rows) {
+  return withDocLock_(() => {
+    if (sh.getLastRow() < 2) {
+      rows.forEach((row) => sh.appendRow(row));
+      return 2;
+    }
+    const width = Math.max(sh.getLastColumn(), ...rows.map((row) => row.length));
+    sh.insertRowsBefore(2, rows.length);
+    const below = sh.getRange(2 + rows.length, 1, 1, width);
+    const formats = below.getNumberFormats()[0];
+    const checks = tryGet_(() => below.getDataValidations()[0]);
+    const range = sh.getRange(2, 1, rows.length, width);
+    range.clearFormat().setNumberFormats(rows.map(() => formats));
+    if (checks) range.setDataValidations(rows.map(() => checks));
+    // Ô "Văn bản thuần" giữ nguyên dấu ' ở đầu: bỏ đi, ô đó vốn không đổi chữ thành số, ngày hay công thức
+    const values = rows.map((row) => Array.from({ length: width }, (_, c) => {
+      const v = c < row.length ? row[c] : '';
+      return formats[c] === '@' && typeof v === 'string' && v[0] === "'" ? v.slice(1) : v;
+    }));
+    try {
+      range.setValues(values);
+    } catch (err) {
+      sh.deleteRows(2, rows.length); // Không để lại dòng trống trên cùng
+      throw err;
+    }
+    return 2;
+  });
 }
 
 function json_(obj) {

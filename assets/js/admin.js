@@ -352,7 +352,10 @@ function renderInfo(shown, total) {
   if (sh.rules.cols.length) notes.push(`Cột ${sh.rules.cols.map(colName).join(', ')} do script tự điền: chỉ xem.`);
   if (sh.images) notes.push(`Có ${sh.images} hình ảnh đặt trên trang tính: xem trên Google Sheet.`);
   const shownRows = sh.cells.length - sh.headRows;
-  if (sh.rows - sh.headRows > shownRows) notes.push(`Trang tính lớn: chỉ hiện ${shownRows} dòng cuối, dòng cũ hơn xem trên Google Sheet.`);
+  if (sh.rows - sh.headRows > shownRows) {
+    notes.push(`Trang tính lớn: chỉ hiện ${shownRows} dòng ${sh.rules.top ? 'đầu (mới nhất)' : 'cuối'}, dòng cũ hơn xem trên Google Sheet.`);
+  }
+  if (sh.rules.top) notes.push('Dòng mới nhất ở trên cùng: đơn, yêu cầu, mã, dòng thêm trên web đều chèn ngay dưới dòng tiêu đề.');
   els.info.innerHTML = `
     <p class="admin-info__name" title="${esc(sh.name)}">${esc(sh.name)}</p>
     <div class="admin-info__meta">
@@ -458,6 +461,10 @@ function renderGrid() {
     html.push(rowHtml(sh, i, merges));
     prev = r;
   });
+  // Trang mới nhất ở trên, quá lớn: các dòng cũ hơn nằm sau dòng cuối đang hiện
+  if (!q && body.length && prev < sh.rows) {
+    html.push(`<tr class="sheet__gap"><td colspan="${sh.cols + 1}">… ${sh.rows - prev} dòng cũ hơn: xem trên Google Sheet</td></tr>`);
+  }
   if (!body.length) {
     html.push(`<tr class="sheet__gap"><td colspan="${sh.cols + 1}">${q ? 'Không có dòng nào khớp.' : 'Chưa có dòng dữ liệu nào.'}</td></tr>`);
   }
@@ -512,10 +519,10 @@ function coveredCols(sh, row) {
   return out;
 }
 
-/** Dòng mẫu khi thêm dòng: ô tích, ô thả xuống lấy theo dòng cuối hiện có (VD "Trạng thái" ở trang In 3D). */
+/** Dòng mẫu khi thêm dòng: ô tích, ô thả xuống lấy theo dòng sẽ nằm kề dòng mới (dòng dữ liệu đầu hoặc cuối hiện có). */
 function templateRow(sh) {
-  const i = sh.cells.length - 1;
-  return i >= sh.headRows && sh.rowNums[i] > (sh.headerRow || 1) ? sh.cells[i] : [];
+  const i = sh.rules.top ? sh.headRows : sh.cells.length - 1;
+  return i >= sh.headRows && i < sh.cells.length && sh.rowNums[i] > (sh.headerRow || 1) ? sh.cells[i] : [];
 }
 
 function nowText() {
@@ -642,7 +649,7 @@ function openPanel(mode, row = 0, focusCol = 0, { notice = '', typed = [] } = {}
     </div>
     <div class="drawer__body admin-panel__body">
       ${notice ? `<div class="admin-notice" role="alert"><p>${esc(notice)}</p>${typed.length ? `<p>Nội dung bạn vừa gõ:</p><ul>${typed.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}</div>` : ''}
-      ${mode === 'add' ? `<p class="admin-panel__intro">Dòng mới được thêm vào cuối trang tính. Ô để trống thì bỏ qua.</p>` : ''}
+      ${mode === 'add' ? `<p class="admin-panel__intro">Dòng mới được thêm vào ${sh.rules.top ? 'đầu trang tính, ngay dưới dòng tiêu đề' : 'cuối trang tính'}. Ô để trống thì bỏ qua.</p>` : ''}
       <div class="admin-fields${hasHeader || mode === 'add' ? '' : ' is-compact'}">${fields.map((f) => fieldHtml(sh, f)).join('')}</div>
       ${mode === 'edit' && !hasHeader && empties ? `<button type="button" class="link-arrow admin-panel__more" data-ap-empty aria-expanded="false">Hiện ${empties} ô trống</button>` : ''}
     </div>
