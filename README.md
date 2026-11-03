@@ -192,9 +192,10 @@ Mỗi hộp có một thẻ in **mã tải code** riêng, VD `K7M3-Q9XP`. Ở tr
 
    Cửa sổ kết quả cho biết:
    - script đọc được bảng giá chưa;
-   - email báo đơn gửi tới đâu, hôm nay còn gửi được bao nhiêu email;
+   - email báo đơn (và báo đăng nhập lạ vào trang quản trị) gửi tới đâu, hôm nay còn gửi được bao nhiêu email;
    - thư mục code và các file trong đó có đang ở chế độ **Bị hạn chế** không;
-   - các trang **Mã tải code**, **Tư vấn**, **Nhật ký quản trị** có đủ cột script cần không. Dòng ✗ cho biết thiếu cột nào và dòng 1 của trang đó đang ghi gì.
+   - các trang **Mã tải code**, **Tư vấn**, **Nhật ký quản trị** có đủ cột script cần không. Dòng ✗ cho biết thiếu cột nào và dòng 1 của trang đó đang ghi gì;
+   - trang quản trị có những tài khoản nào, tài khoản nào chưa bật mã 2 bước, và trang có đang tắt không (mục 6).
 
    Dòng nào có dấu ✗ thì sửa theo lời nhắc rồi chạy lại.
 8. **Tạo mã:** chọn menu **SmartCarTech → Tạo mã tải code…**, nhập số mã cần tạo và ghi chú (VD lô hàng). Mã mới nằm ở trang tính **Mã tải code**.
@@ -262,20 +263,44 @@ Mở `smartcartech.vn/quan-tri.html`, đăng nhập, rồi xem và sửa dữ li
 - Tạo tài khoản trong Google Sheet: menu **SmartCarTech → Tài khoản trang quản trị…**. Nhập tên đăng nhập (chữ không dấu) và mật khẩu ít nhất 10 ký tự, hoặc bấm *Tạo mật khẩu mạnh* rồi chép lại. Bấm **Lưu tài khoản**. Tạo được nhiều tài khoản, VD mỗi người một tài khoản.
 - Quên hoặc muốn đổi mật khẩu: nhập lại tên đó với mật khẩu mới. Mọi nơi đang đăng nhập bằng tài khoản đó bị đăng xuất. Xoá tài khoản: bấm *Xoá* 2 lần.
 - Mật khẩu chỉ lưu dạng mã hoá trong script (Script Properties), không nằm trong kho GitHub hay trên web: không ai xem lại được mật khẩu, kể cả chủ Sheet.
-- Sai mật khẩu 5 lần trong 15 phút thì tài khoản đó tạm khoá 15 phút. Cả web sai 30 lần thì mọi tài khoản tạm khoá 15 phút. Như vậy không ai dò được mật khẩu. Bị khoá mà cần gấp thì mở thẳng Google Sheet.
+- Sai mật khẩu hoặc mã 2 bước 5 lần trong 15 phút thì tài khoản đó tạm khoá 15 phút. Cả web sai 30 lần thì mọi tài khoản tạm khoá 15 phút. Như vậy không ai dò được mật khẩu. Bị khoá mà cần gấp thì mở thẳng Google Sheet.
 - Phiên đăng nhập chỉ giữ trong tab đang mở: đóng tab là phải đăng nhập lại. Không thao tác 3 giờ (`ADMIN_IDLE_HOURS`) hoặc dùng quá 12 giờ (`ADMIN_MAX_HOURS`) cũng phải đăng nhập lại. Đang sửa dở thì khung đăng nhập hiện đè lên: đăng nhập xong bấm Lưu lần nữa, nội dung đang sửa không mất.
-- Ai được chia sẻ quyền **sửa** Google Sheet thì cũng mở được Apps Script và menu tạo tài khoản: chỉ chia sẻ quyền sửa cho người tin cậy.
+- Ai được chia sẻ quyền **sửa** Google Sheet thì cũng mở được Apps Script và menu tạo tài khoản: chỉ chia sẻ quyền sửa cho người tin cậy. Tài khoản Google sở hữu Sheet nên bật xác minh 2 bước của Google.
+
+**Mã 2 bước (nên bật cho mọi tài khoản):** đăng nhập cần mật khẩu và mã 6 số trong ứng dụng xác minh trên điện thoại. Lộ mật khẩu thì người khác vẫn không vào được.
+
+1. Cài **Google Authenticator** (hoặc Microsoft Authenticator) trên điện thoại.
+2. Google Sheet → **SmartCarTech → Tài khoản trang quản trị…** → bấm **Bật mã 2 bước** ở tài khoản đó.
+3. Trong ứng dụng bấm **+** → **Quét mã QR**, quét mã trong cửa sổ. Không quét được thì chọn *Nhập khoá thiết lập* và gõ khoá hiện dưới mã QR.
+4. Nhập mã 6 số ứng dụng hiện cho SmartCarTech → **Xác nhận**. Cửa sổ ghi *Đã bật mã 2 bước*.
+
+- Từ đó, đăng nhập xong bước mật khẩu thì trang hỏi mã 6 số: gõ đủ 6 số là tự gửi. Có 5 phút để nhập mã, mã của 30 giây trước hoặc sau vẫn được nhận, mỗi mã chỉ dùng được 1 lần.
+- Bật xong, mọi nơi đang đăng nhập bằng tài khoản đó bị đăng xuất. Đổi mật khẩu vẫn giữ mã 2 bước.
+- Đổi điện thoại: bấm **Cài lại mã 2 bước**, quét bằng điện thoại mới. Điện thoại cũ vẫn dùng được cho tới lúc xác nhận xong.
+- Mất điện thoại: bấm **Tắt mã 2 bước** (2 lần), đăng nhập chỉ bằng mật khẩu, rồi bật lại trên điện thoại mới. Chỉ người mở được Google Sheet mới làm được việc này.
+- Mã đúng mà vẫn báo sai: đặt giờ của điện thoại về chế độ tự động.
+- Khoá bí mật chỉ hiện 1 lần trong cửa sổ lúc cài, lưu cùng tài khoản trong Script Properties. Mã QR vẽ ngay trong cửa sổ, khoá không gửi đi đâu.
+
+**Email báo** (cần điền `NOTIFY_EMAIL`, cùng email nhận báo đơn):
+
+- Tài khoản nhập đúng mật khẩu trên một trình duyệt chưa từng đăng nhập xong. Tài khoản có mã 2 bước được báo ngay sau bước mật khẩu, trước khi nhập mã: email ghi rõ người đó còn phải có điện thoại của bạn. Mỗi máy, mỗi trình duyệt bạn dùng sẽ báo 1 lần đầu, là bình thường. Tab ẩn danh hay xoá dữ liệu trình duyệt thì tính là trình duyệt mới. Đổi mật khẩu thì script quên hết các trình duyệt đã biết.
+- Tài khoản bị khoá vì sai 5 lần, hoặc cả web bị khoá vì sai 30 lần. Có lần nhập đúng mật khẩu mà sai mã 2 bước thì email nói mật khẩu đã lộ: đặt mật khẩu mới ngay.
+- Cùng một việc chỉ báo 1 lần trong 6 giờ, tối đa 5 email báo mỗi giờ. Hạn mức email trong ngày còn 20 thì thôi báo, để dành cho email báo đơn.
+- Email ghi giờ, tài khoản và tên trình duyệt (do trình duyệt tự báo, có thể bị giả). Script không biết địa chỉ IP. Trình duyệt được nhận ra nhờ một mã ngẫu nhiên nó tự giữ; script chỉ lưu mã băm của mã đó.
+- Nhật ký quản trị ghi tên trình duyệt ở cột *Vị trí* của mỗi lần đăng nhập, kèm "(trình duyệt mới)", và mọi lần nhập sai mã 2 bước.
+
+**Tắt trang quản trị** khi không dùng, hay khi nghi có người lạ: menu **SmartCarTech → Bật hoặc tắt trang quản trị…**. Khi tắt, không ai đăng nhập được và người đang đăng nhập bị đăng xuất ở lần bấm tiếp theo, trang hiện lý do. Web bán hàng, Google Sheet và menu vẫn chạy bình thường. Bật lại cũng ở menu đó; mọi người phải đăng nhập lại.
 
 **Cài đặt (làm một lần, theo đúng thứ tự):**
 
 1. Dự phòng: mở Google Sheet → **Tệp → Lịch sử phiên bản → Đặt tên cho phiên bản hiện tại**, VD "Trước trang quản trị".
 2. Dán bản `google-apps-script.gs` mới vào Apps Script, điền lại `NOTIFY_EMAIL` và `CODE_FOLDER_ID`, bấm **Lưu**.
 3. Tải lại Sheet → **SmartCarTech → Kiểm tra cài đặt…** (Google hỏi cấp quyền thì làm như mục 5, bước 7). Dòng cuối báo chưa có tài khoản trang quản trị là đúng.
-4. **SmartCarTech → Tài khoản trang quản trị…** → tạo tài khoản. Chạy lại *Kiểm tra cài đặt…*: dòng cuối có ✓ và tên tài khoản.
+4. **SmartCarTech → Tài khoản trang quản trị…** → tạo tài khoản, rồi bật mã 2 bước cho tài khoản đó. Chạy lại *Kiểm tra cài đặt…*: có dòng ✓ với tên tài khoản, và dòng nêu tài khoản nào chưa bật mã 2 bước.
 5. Triển khai phiên bản mới (mục 5, *Sửa script sau này*). URL giữ nguyên, không phải sửa `products.json`.
 6. Đưa web lên, rồi mở `smartcartech.vn/quan-tri.html` và đăng nhập.
 
-Web lên trước khi triển khai script mới thì trang quản trị báo "chưa có bản mới"; các phần khác của web vẫn chạy bình thường.
+Web lên trước khi triển khai script mới thì trang quản trị báo "chưa có bản mới"; các phần khác của web vẫn chạy bình thường. Thứ tự giữa script và web không quan trọng với mã 2 bước: trang cũ gặp tài khoản đã bật mã thì nhắc tải lại trang.
 
 ### Trang Tổng quan và khách truy cập
 
@@ -362,6 +387,6 @@ Cột sau này mới thêm vào Customer Infor cũng theo quy tắc đó: cùng 
   - Trang Sản phẩm và Hướng dẫn tự đổi title theo dòng xe đang chọn.
   - Có dữ liệu cấu trúc Product và FAQ (JSON-LD).
   - Trang Đặt hàng đặt `noindex` để không hiện trên Google. Trang quản trị đặt `noindex, nofollow` và không có trong `sitemap.xml`.
-- **Trang quản trị:** `quan-tri.html` có Content-Security-Policy, chỉ cho chạy script của chính web và chỉ gửi dữ liệu tới Google Apps Script. Trang không mở được khi bị trang khác nhúng vào khung. Mọi quyền đọc, ghi nằm ở script: không có mã phiên còn hạn thì script không trả dữ liệu, dù ai cũng mở được file HTML.
+- **Trang quản trị:** `quan-tri.html` có Content-Security-Policy, chỉ cho chạy script của chính web và chỉ gửi dữ liệu tới Google Apps Script. Trang không mở được khi bị trang khác nhúng vào khung. Mọi quyền đọc, ghi nằm ở script: không có mã phiên còn hạn thì script không trả dữ liệu, dù ai cũng mở được file HTML. Mã 2 bước theo chuẩn TOTP (RFC 6238: HMAC-SHA1, 6 số, 30 giây), cùng cách tính với Google Authenticator.
 - **Ảnh:** định dạng WebP, `loading="lazy"` (trừ ảnh đầu trang) và có `alt` đầy đủ.
 - **Trình duyệt hỗ trợ:** Chrome, Edge, Safari, Firefox bản từ 2023 trở lên.

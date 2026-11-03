@@ -3,6 +3,7 @@
    rồi xem, sửa, thêm, xoá dòng của mọi trang tính trong Sheet của shop, kể cả các trang kế hoạch nhập từ Excel.
    google-apps-script.gs kiểm tra phiên đăng nhập trước mỗi việc, và chỉ ghi khi dòng chưa bị đổi ở nơi khác
    (web gửi kèm mã của dòng lúc tải). Web giữ mã phiên trong tab đang mở (sessionStorage): đóng tab là đăng xuất.
+   Tài khoản đã bật mã 2 bước: đúng mật khẩu thì script trả vé (`ticket`), web hỏi thêm mã 6 số trong ứng dụng xác minh.
 */
 import { $, $$, esc, icon, toast, loadData, trapFocus, NO_COUNT_KEY } from './core.js';
 import { renderDashboard, redrawDashboard } from './dashboard.js';
@@ -10,6 +11,7 @@ import { renderDashboard, redrawDashboard } from './dashboard.js';
 const SESSION_KEY = 'sctech_admin_v1';
 const SHEET_KEY = 'sctech_admin_sheet';
 const SIDE_KEY = 'sctech_admin_side_hidden';
+const DEVICE_KEY = 'sctech_admin_trinh_duyet'; // mã ngẫu nhiên của trình duyệt này: script chỉ báo email khi gặp trình duyệt lạ
 const WIDE = window.matchMedia('(min-width: 1024px)'); // Giống style.css: từ cỡ này cột trang tính luôn nằm bên trái
 const MAX_STICKY_ROWS = 2; // Dòng tiêu đề (hoặc tiêu đề + tên cột) đứng yên khi cuộn; nhiều hơn thì chiếm hết màn hình điện thoại
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -23,6 +25,8 @@ const app = {
   ticket: 0,      // lần tải gần nhất: kết quả của lần tải cũ (VD đã bấm sang trang khác) bị bỏ
   loadedAt: null,
   notesOpen: false,
+  step2: null,    // đang chờ mã 2 bước: { ticket, user }
+  codeBusy: false,
 };
 const els = {};
 let panel = null; // khung xem / sửa một dòng đang mở
@@ -74,6 +78,20 @@ function rememberSheet(name) {
   try { localStorage.setItem(SHEET_KEY, name); } catch { /* private mode */ }
 }
 
+/** Mã ngẫu nhiên trình duyệt này tự giữ, gửi kèm khi đăng nhập (script chỉ lưu mã băm). Không lưu được thì gửi chuỗi rỗng. */
+function deviceKey() {
+  try {
+    let key = localStorage.getItem(DEVICE_KEY) || '';
+    if (!/^[\w-]{20,64}$/.test(key)) {
+      key = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(24)))).replace(/\+/g, '-').replace(/\//g, '_');
+      localStorage.setItem(DEVICE_KEY, key);
+    }
+    return key;
+  } catch {
+    return '';
+  }
+}
+
 /**
  * Gửi một việc tới Google Apps Script. Không ném lỗi: luôn trả { ok, error?, … }.
  * Phiên hết hạn (`login`) thì hiện khung đăng nhập lại, nội dung đang sửa vẫn giữ nguyên.
@@ -123,6 +141,9 @@ function showLogin(message = '', again = false, isError = true) {
   els.boot.hidden = true;
   els.login.hidden = false;
   els.login.classList.toggle('is-modal', again && !els.work.hidden);
+  app.step2 = null;
+  els.codeForm.hidden = true;
+  els.loginForm.hidden = false;
   loginMessage(message, isError);
   const form = els.loginForm;
   if (!form.elements.user.value && app.user) form.elements.user.value = app.user;
@@ -149,16 +170,88 @@ async function onLogin(e) {
   button.setAttribute('aria-busy', 'true');
   button.textContent = 'Đang đăng nhập…';
   loginMessage('');
-  const out = await api('dang-nhap', { user, pass });
+  const out = await api('dang-nhap', { user, pass, may: deviceKey(), ua: navigator.userAgent });
   button.disabled = false;
   button.removeAttribute('aria-busy');
   button.textContent = 'Đăng nhập';
+  if (out.needCode) {
+    form.elements.pass.value = '';
+    showCode(out);
+    return;
+  }
   if (!out.ok) {
     loginMessage(out.error || 'Chưa đăng nhập được. Thử lại sau ít phút.');
     form.elements.pass.select();
     return;
   }
   form.elements.pass.value = '';
+  loggedIn(out);
+}
+
+/* Bước 2: mã 6 số trong ứng dụng xác minh. Đủ 6 số là tự gửi; sai thì nhập lại, vé hết hạn thì về bước 1 */
+function showCode(out) {
+  app.step2 = { ticket: out.ticket, user: out.user };
+  els.loginForm.hidden = true;
+  els.codeForm.hidden = false;
+  $('[data-code-user]').textContent = out.user;
+  codeMessage('');
+  els.codeForm.elements.code.value = '';
+  els.codeForm.elements.code.focus();
+}
+
+function codeMessage(text) {
+  const msg = $('[data-code-msg]');
+  msg.textContent = text || '';
+  msg.classList.toggle('is-error', Boolean(text));
+  msg.hidden = !text;
+}
+
+function backToPassword(message = '') {
+  app.step2 = null;
+  els.codeForm.hidden = true;
+  els.loginForm.hidden = false;
+  loginMessage(message);
+  els.loginForm.elements.pass.focus();
+}
+
+async function onCode(e) {
+  e.preventDefault();
+  if (!app.step2 || app.codeBusy) return;
+  const input = els.codeForm.elements.code;
+  const code = input.value.replace(/\D/g, '');
+  if (code.length !== 6) {
+    codeMessage('Nhập đủ 6 số đang hiện trong ứng dụng xác minh.');
+    input.focus();
+    return;
+  }
+  const button = $('[data-code-submit]');
+  app.codeBusy = true;
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  button.textContent = 'Đang kiểm tra…';
+  codeMessage('');
+  const out = await api('ma-2-buoc', { ticket: app.step2.ticket, code });
+  app.codeBusy = false;
+  button.disabled = false;
+  button.removeAttribute('aria-busy');
+  button.textContent = 'Xác nhận';
+  if (out.ok) {
+    input.value = '';
+    app.step2 = null;
+    loggedIn(out);
+    return;
+  }
+  if (out.login) return; // api() đã hiện lại bước 1 với lý do (VD trang quản trị vừa bị tắt)
+  if (out.restart) {
+    backToPassword(out.error);
+    return;
+  }
+  codeMessage(out.error || 'Chưa kiểm tra được mã. Thử lại sau ít phút.');
+  input.select();
+}
+
+/** Đã đăng nhập (sau bước 1, hoặc bước 2 nếu có mã 2 bước): giữ phiên, mở trang tính hoặc quay lại việc đang làm. */
+function loggedIn(out) {
   app.token = out.token;
   app.user = out.user;
   saveSession();
@@ -911,6 +1004,7 @@ function bind() {
   els.boot = $('[data-admin-boot]');
   els.login = $('[data-admin-login]');
   els.loginForm = $('[data-login-form]');
+  els.codeForm = $('[data-code-form]');
   els.work = $('[data-admin-work]');
   els.tabs = $('[data-admin-tabs]');
   els.search = $('[data-admin-search]');
@@ -930,6 +1024,11 @@ function bind() {
   els.userName = $('[data-admin-name]');
 
   els.loginForm.addEventListener('submit', onLogin);
+  els.codeForm.addEventListener('submit', onCode);
+  els.codeForm.elements.code.addEventListener('input', (e) => {
+    if (e.target.value.replace(/\D/g, '').length === 6) els.codeForm.requestSubmit();
+  });
+  $('[data-code-back]').addEventListener('click', () => backToPassword());
   $('[data-pass-toggle]').addEventListener('click', (e) => {
     const btn = e.currentTarget;
     const show = btn.getAttribute('aria-pressed') !== 'true';

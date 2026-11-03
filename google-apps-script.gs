@@ -20,6 +20,9 @@
  *    "Tài khoản trang quản trị…", rồi xem, sửa, thêm, xoá dòng của mọi trang tính ngay trên web (kể cả các trang
  *    kế hoạch nhập từ Excel). Dòng tiêu đề và các cột script tự điền chỉ sửa được trên Sheet. Mọi lần đăng nhập, sửa,
  *    thêm, xoá được ghi ở trang tính "Nhật ký quản trị"; dòng bị xoá được lưu đủ nội dung để chép lại.
+ *    Nên bật mã 2 bước cho từng tài khoản (ứng dụng xác minh trên điện thoại, cũng ở menu đó). Đăng nhập từ trình duyệt
+ *    lạ, hay bị khoá vì nhập sai nhiều lần, thì có email báo tới NOTIFY_EMAIL. Tắt hẳn trang quản trị khi không dùng:
+ *    menu "SmartCarTech" → "Bật hoặc tắt trang quản trị…".
  * 4. Trang tính "Tổng quan": lợi nhuận, doanh thu, số đơn theo nền tảng, khách truy cập theo tháng, năm, có biểu đồ; xem
  *    được cả trên trang quản trị. Khách truy cập do web đếm ẩn danh (không cookie, không lưu IP), lưu ở trang "Lượt truy cập".
  *
@@ -581,6 +584,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Cập nhật trang Tổng quan', 'updateDashboard')
     .addItem('Tài khoản trang quản trị…', 'showAdminAccounts')
+    .addItem('Bật hoặc tắt trang quản trị…', 'toggleAdminPage')
     .addItem('Kiểm tra cài đặt…', 'checkSetup');
   try {
     // Chỉ hiện khi còn trang "Customer Infor": gộp xong, xoá trang đó thì mục này tự mất
@@ -684,15 +688,12 @@ function checkSetup() {
     lines.push(`✗ Chưa đọc được bảng giá ${SITE_URL}/products.json: ${why}. Đơn vẫn được lưu, nhưng cột "${ORDER_CHECK_COL}" sẽ báo chưa đối chiếu được giá.`);
   }
   lines.push(NOTIFY_EMAIL
-    ? `✓ Email báo đơn gửi tới ${NOTIFY_EMAIL}. Hôm nay còn gửi được ${MailApp.getRemainingDailyQuota()} email.`
-    : '✗ Chưa điền NOTIFY_EMAIL: shop sẽ không nhận email khi có đơn mới.');
+    ? `✓ Email báo đơn và báo đăng nhập lạ vào trang quản trị gửi tới ${NOTIFY_EMAIL}. Hôm nay còn gửi được ${MailApp.getRemainingDailyQuota()} email.`
+    : '✗ Chưa điền NOTIFY_EMAIL: shop sẽ không nhận email khi có đơn mới, hay khi trang quản trị có đăng nhập lạ.');
   lines.push(codeFolderStatus_());
   lines.push(...columnLines_());
   lines.push(visitStatus_());
-  const admins = Object.keys(adminAccounts_()).sort();
-  lines.push(admins.length
-    ? `✓ Trang quản trị ${SITE_URL}/quan-tri.html: ${admins.length} tài khoản (${admins.join(', ')}).`
-    : '✗ Chưa có tài khoản trang quản trị: menu SmartCarTech → Tài khoản trang quản trị… để tạo.');
+  lines.push(...adminStatus_());
   const ui = SpreadsheetApp.getUi();
   ui.alert('Kiểm tra cài đặt', lines.join('\n\n'), ui.ButtonSet.OK);
 }
@@ -1045,12 +1046,22 @@ function syncProfit_(sh, from, to) {
 
 /* ---------- Trang quản trị (quan-tri.html): admin xem, sửa Google Sheet ngay trên web ---------- */
 
-const ADMIN_ACCOUNTS_KEY = 'quan-tri:tai-khoan'; // Script Properties: { tên: { salt, hash, ver } }, không lưu mật khẩu
+const ADMIN_ACCOUNTS_KEY = 'quan-tri:tai-khoan'; // Script Properties: { tên: { salt, hash, ver, totp? } }, không lưu mật khẩu
+const ADMIN_OFF_KEY = 'quan-tri:tat';             // Có giá trị (giờ tắt) = trang quản trị đang tắt: menu "Bật hoặc tắt trang quản trị…"
+const ADMIN_CUTOFF_KEY = 'quan-tri:dang-xuat-luc'; // Phiên đăng nhập từ trước giờ này (lần tắt gần nhất) không dùng được nữa
+const ADMIN_DEVICES_KEY = 'quan-tri:trinh-duyet:'; // + tên tài khoản: mã băm các trình duyệt đã đăng nhập xong, để chỉ báo email khi gặp trình duyệt lạ
+const ADMIN_MAX_DEVICES = 30;  // Mỗi tài khoản nhớ bấy nhiêu trình duyệt mới nhất
+const ADMIN_CODE_MINUTES = 5;  // Nhập đúng mật khẩu xong có bấy nhiêu phút để nhập mã 2 bước
+const ADMIN_ALERT_HOURS = 6;   // Cùng một việc (VD cùng tài khoản bị khoá) chỉ báo email 1 lần trong bấy nhiêu giờ (tối đa 6)
+const ADMIN_ALERTS_PER_HOUR = 5;  // Email báo của trang quản trị mỗi giờ, tính chung mọi loại
+const ADMIN_ALERT_RESERVE = 20;   // Hạn mức email trong ngày còn từng này thì thôi báo: để dành cho email báo đơn
 const ADMIN_HASH_ROUNDS = 1000;
 const ADMIN_LOG_HEADER = ['Thời gian', 'Tài khoản', 'Việc', 'Trang tính', 'Vị trí', 'Trước', 'Sau'];
 const ADMIN_BAD = 'Yêu cầu không hợp lệ. Tải lại trang rồi thử lại.';
 const ADMIN_CONFLICT = 'Dòng này vừa thay đổi ở nơi khác (VD vừa sửa trên Google Sheet, có đơn mới hoặc vừa xoá dòng) ' +
   'nên chưa lưu. Đã tải lại dữ liệu mới nhất: kiểm tra rồi làm lại.';
+const ADMIN_LOCKED = 'Đăng nhập sai quá nhiều lần. Vui lòng thử lại sau 15 phút.';
+const ADMIN_OFF_TEXT = 'Trang quản trị đang tắt. Bật lại trong Google Sheet: menu SmartCarTech → "Bật hoặc tắt trang quản trị…".';
 
 /**
  * Trang tính script tự ghi: dòng 1 là tiêu đề, script tìm cột theo tên nên chỉ đổi trên Sheet. Trang "Mã tải code":
@@ -1079,9 +1090,11 @@ const ADMIN_RULES = {
 };
 const ADMIN_ACTIONS = { doc: adminRead_, sua: adminEdit_, them: adminAppend_, xoa: adminDelete_ };
 
-/** Mọi yêu cầu từ trang quản trị. Trừ đăng nhập, việc nào cũng cần mã phiên còn hạn. */
+/** Mọi yêu cầu từ trang quản trị. Trừ 2 bước đăng nhập, việc nào cũng cần mã phiên còn hạn. Trang đang tắt thì từ chối hết. */
 function adminApi_(data) {
+  if (PropertiesService.getScriptProperties().getProperty(ADMIN_OFF_KEY)) return { ok: false, login: true, off: true, error: ADMIN_OFF_TEXT };
   if (data.action === 'dang-nhap') return adminLogin_(data);
+  if (data.action === 'ma-2-buoc') return adminCode_(data);
   const session = adminSession_(data.token);
   if (!session) return { ok: false, login: true, error: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' };
   if (data.action === 'dang-xuat') {
@@ -1093,8 +1106,9 @@ function adminApi_(data) {
 }
 
 /**
- * Đúng tên và mật khẩu thì trả mã phiên. Sai quá ADMIN_MAX_FAILS lần trong 15 phút thì tạm khoá tài khoản đó, cả web
- * sai quá 6 lần số đó thì tạm khoá mọi tài khoản: không ai dò được mật khẩu, kể cả khi thử nhiều tên.
+ * Bước 1: tên và mật khẩu. Tài khoản chưa bật mã 2 bước: đúng là vào luôn (trả mã phiên). Đã bật: trả vé `ticket` dùng
+ * ADMIN_CODE_MINUTES phút để nhập mã 6 số (adminCode_). Sai quá ADMIN_MAX_FAILS lần trong 15 phút (mật khẩu hay mã) thì
+ * tạm khoá tài khoản đó, cả web sai quá 6 lần số đó thì tạm khoá mọi tài khoản: không ai dò được, kể cả khi thử nhiều tên.
  */
 function adminLogin_(data) {
   const name = String(data.user == null ? '' : data.user).trim().toLowerCase().slice(0, 40);
@@ -1103,26 +1117,213 @@ function adminLogin_(data) {
   if (!Object.keys(accounts).length) {
     return { ok: false, error: 'Chưa có tài khoản quản trị. Mở Google Sheet của shop → menu SmartCarTech → "Tài khoản trang quản trị…" để tạo.' };
   }
-  if (count_(`qt:sai:${name}`, 900) >= ADMIN_MAX_FAILS || count_('qt:sai', 900) >= ADMIN_MAX_FAILS * 6) {
-    return { ok: false, error: 'Đăng nhập sai quá nhiều lần. Vui lòng thử lại sau 15 phút.' };
-  }
+  if (adminLocked_(name)) return { ok: false, error: ADMIN_LOCKED };
   const account = accounts.hasOwnProperty(name) ? accounts[name] : null;
   // Tên không có thật vẫn tính mã băm: thời gian trả lời như nhau, không dò được tên nào có thật
   const hash = passwordHash_(password, account ? account.salt : 'AAAAAAAAAAAAAAAAAAAAAA==');
   if (!account || !sameText_(hash, account.hash)) {
-    bump_(`qt:sai:${name}`, 900);
-    bump_('qt:sai', 900);
+    adminFailed_(name, Boolean(account), false);
     return { ok: false, error: 'Sai tên đăng nhập hoặc mật khẩu.' };
   }
+  const device = adminDevice_(data, name);
+  if (!account.totp) return adminStart_(name, account, device, false);
+  // Đúng mật khẩu trên trình duyệt lạ: báo ngay, kể cả khi người đó không có mã để đi tiếp
+  if (!device.known) adminNewDevice_(name, account, device, true);
+  const ticket = randomKey_();
+  const step = { user: name, ver: account.ver, device, until: Date.now() + ADMIN_CODE_MINUTES * 60000, tries: 0 };
+  CacheService.getScriptCache().put(`qt:buoc-2:${ticket}`, JSON.stringify(step), ADMIN_CODE_MINUTES * 60);
+  // ok: false để bản trang cũ (chưa có ô nhập mã) hiện câu nhắc tải lại trang
+  return { ok: false, needCode: true, ticket, user: name, error: 'Tài khoản này cần mã 2 bước: tải lại trang (Ctrl + F5) để có ô nhập mã.' };
+}
+
+/** Bước 2: mã 6 số trong ứng dụng xác minh. Mỗi vé nhập sai tối đa ADMIN_MAX_FAILS lần; mỗi mã chỉ dùng được 1 lần. */
+function adminCode_(data) {
+  const cache = CacheService.getScriptCache();
+  const ticket = typeof data.ticket === 'string' && /^[\w-]{43}$/.test(data.ticket) ? data.ticket : '';
+  const key = `qt:buoc-2:${ticket}`;
+  let step = null;
+  try {
+    step = ticket ? JSON.parse(cache.get(key) || 'null') : null;
+  } catch (err) {
+    step = null;
+  }
+  // Vé tự hết hạn trong CacheService (lưu lại sau mỗi lần sai chỉ với thời gian còn lại, không gia hạn thêm)
+  if (!step) return { ok: false, restart: true, error: `Đã quá ${ADMIN_CODE_MINUTES} phút kể từ lúc nhập mật khẩu. Vui lòng đăng nhập lại.` };
+  const user = step.user;
+  if (adminLocked_(user)) {
+    cache.remove(key);
+    return { ok: false, restart: true, error: ADMIN_LOCKED };
+  }
+  const accounts = adminAccounts_();
+  const account = accounts.hasOwnProperty(user) ? accounts[user] : null;
+  if (!account || account.ver !== step.ver || !account.totp) {
+    cache.remove(key);
+    return { ok: false, restart: true, error: 'Tài khoản vừa được đổi trên Google Sheet. Vui lòng đăng nhập lại.' };
+  }
+  const code = String(data.code == null ? '' : data.code).replace(/\s/g, '');
+  const at = /^\d{6}$/.test(code) ? totpMatch_(account.totp, code) : -1;
+  const usedKey = `qt:ma-da-dung:${user}`;
+  // Mã đã dùng (VD ai đó nhìn thấy mã lúc bạn gõ) không dùng lại được, kể cả trong 30 giây mã còn hiện
+  const reused = at >= 0 && at <= (Number(cache.get(usedKey)) || 0);
+  if (at < 0 || reused) {
+    adminFailed_(user, true, true);
+    adminLog_(user, reused ? 'Mã 2 bước đã dùng rồi' : 'Sai mã 2 bước', '', step.device.label, '', '');
+    step.tries += 1;
+    if (adminLocked_(user)) {
+      cache.remove(key);
+      return { ok: false, restart: true, error: ADMIN_LOCKED };
+    }
+    if (step.tries >= ADMIN_MAX_FAILS) {
+      cache.remove(key);
+      return { ok: false, restart: true, error: 'Nhập sai mã quá nhiều lần. Vui lòng đăng nhập lại.' };
+    }
+    cache.put(key, JSON.stringify(step), Math.max(1, Math.ceil((step.until - Date.now()) / 1000)));
+    return {
+      ok: false,
+      error: reused ? 'Mã này vừa được dùng. Chờ ứng dụng hiện mã mới rồi nhập.' : 'Mã chưa đúng. Nhập mã 6 số đang hiện trong ứng dụng xác minh (30 giây đổi một lần).',
+    };
+  }
+  cache.put(usedKey, String(at), 4 * TOTP_STEP);
+  cache.remove(key);
+  return adminStart_(user, account, step.device, true);
+}
+
+/** Đăng nhập xong: tạo phiên, ghi nhật ký. Trình duyệt lạ: báo email (nếu bước 1 chưa báo), rồi nhớ trình duyệt này. */
+function adminStart_(name, account, device, alerted) {
   const token = randomKey_();
   CacheService.getScriptCache().put(`qt:phien:${token}`, JSON.stringify({ user: name, ver: account.ver, since: Date.now() }), adminIdle_());
-  adminLog_(name, 'Đăng nhập', '', '', '', '');
+  if (!device.known) {
+    if (!alerted) adminNewDevice_(name, account, device, false);
+    adminRemember_(name, device.id);
+  }
+  adminLog_(name, 'Đăng nhập', '', device.known ? device.label : `${device.label} (trình duyệt mới)`, '', '');
   return { ok: true, token, user: name };
 }
 
+function adminLocked_(name) {
+  return count_(`qt:sai:${name}`, 900) >= ADMIN_MAX_FAILS || count_('qt:sai', 900) >= ADMIN_MAX_FAILS * 6;
+}
+
+/** Đếm 1 lần sai: mật khẩu, hoặc mã 2 bước (`code`). Lần sai làm tài khoản (có thật) hay cả web bị khoá thì báo email. */
+function adminFailed_(name, real, code) {
+  const mine = bump_(`qt:sai:${name}`, 900);
+  const all = bump_('qt:sai', 900);
+  const codes = code ? bump_(`qt:sai-ma:${name}`, 900) : count_(`qt:sai-ma:${name}`, 900);
+  const again = `Trong ${ADMIN_ALERT_HOURS} giờ tới không báo lại việc này.`;
+  if (real && mine === ADMIN_MAX_FAILS) {
+    adminAlert_(`khoa:${name}`, `SmartCarTech: tài khoản quản trị "${name}" bị tạm khoá`, [
+      `Tài khoản "${name}" nhập sai ${ADMIN_MAX_FAILS} lần trong 15 phút nên bị khoá đăng nhập 15 phút (lúc ${adminNow_()}).`,
+      codes
+        ? `Trong đó ${codes} lần nhập đúng mật khẩu nhưng sai mã 2 bước. Nếu không phải bạn thì mật khẩu đã bị lộ: mở Google Sheet → menu SmartCarTech → "Tài khoản trang quản trị…" → đặt mật khẩu mới ngay.`
+        : 'Nếu không phải bạn: có người đang thử mật khẩu. Nên dùng mật khẩu dài và bật mã 2 bước (menu SmartCarTech → "Tài khoản trang quản trị…").',
+      again,
+    ]);
+  }
+  if (all === ADMIN_MAX_FAILS * 6) {
+    adminAlert_('khoa-web', 'SmartCarTech: trang quản trị bị tạm khoá vì có nhiều lần đăng nhập sai', [
+      `Cả web có ${ADMIN_MAX_FAILS * 6} lần đăng nhập sai trong 15 phút nên mọi tài khoản bị khoá đăng nhập 15 phút (lúc ${adminNow_()}). Có thể có người đang dò mật khẩu.`,
+      'Trong lúc khoá không ai vào được, Google Sheet vẫn dùng bình thường. Muốn chặn hẳn: menu SmartCarTech → "Bật hoặc tắt trang quản trị…".',
+      again,
+    ]);
+  }
+}
+
 /**
- * Phiên còn hạn: tài khoản còn, chưa đổi mật khẩu, chưa quá ADMIN_MAX_HOURS kể từ lúc đăng nhập.
- * Mỗi lần dùng được gia hạn thêm ADMIN_IDLE_HOURS.
+ * Trình duyệt đang đăng nhập. Trang gửi kèm một mã ngẫu nhiên trình duyệt tự giữ (`may`) và chuỗi tự giới thiệu (`ua`).
+ * Script chỉ lưu mã băm của `may`; `ua` ai cũng giả được nên chỉ dùng để ghi tên trình duyệt, không quyết định gì.
+ */
+function adminDevice_(data, name) {
+  const raw = typeof data.may === 'string' && /^[\w-]{20,64}$/.test(data.may) ? data.may : '';
+  const id = raw ? Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, raw)).slice(0, 22) : '';
+  return { id, known: Boolean(id) && adminDevices_(name).hasOwnProperty(id), label: browserName_(data.ua) };
+}
+
+/** { mã băm trình duyệt: lúc đăng nhập xong lần đầu } của một tài khoản. */
+function adminDevices_(name) {
+  try {
+    const list = JSON.parse(PropertiesService.getScriptProperties().getProperty(ADMIN_DEVICES_KEY + name) || '{}');
+    return list && typeof list === 'object' ? list : {};
+  } catch (err) {
+    return {};
+  }
+}
+
+/** Nhớ trình duyệt vừa đăng nhập xong: lần sau không báo email nữa. Giữ ADMIN_MAX_DEVICES trình duyệt mới nhất. */
+function adminRemember_(name, id) {
+  if (!id) return;
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return; // bận thì thôi: lần sau trình duyệt này bị báo thêm 1 lần, không hại gì
+  try {
+    const list = adminDevices_(name);
+    list[id] = Date.now();
+    const keep = Object.keys(list).sort((a, b) => list[b] - list[a]).slice(0, ADMIN_MAX_DEVICES);
+    PropertiesService.getScriptProperties().setProperty(ADMIN_DEVICES_KEY + name, JSON.stringify(Object.fromEntries(keep.map((k) => [k, list[k]]))));
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** "Chrome trên Windows", "Safari trên iPhone"…: đọc từ chuỗi trình duyệt tự giới thiệu. */
+function browserName_(ua) {
+  const s = String(ua == null ? '' : ua).slice(0, 500);
+  const browser = [
+    [/Edg(e|A|iOS)?\//, 'Edge'], [/coc_coc_browser/i, 'Cốc Cốc'], [/OPR\/|Opera/, 'Opera'], [/SamsungBrowser/, 'Samsung Internet'],
+    [/Zalo/i, 'Zalo'], [/FBAN|FBAV/, 'Facebook'], [/Firefox\/|FxiOS/, 'Firefox'], [/Chrome\/|CriOS/, 'Chrome'], [/Safari\//, 'Safari'],
+  ].find(([re]) => re.test(s));
+  const os = [
+    [/iPhone/, 'iPhone'], [/iPad/, 'iPad'], [/Android/, 'Android'], [/Windows/, 'Windows'], [/Mac OS X|Macintosh/, 'Mac'],
+    [/CrOS/, 'Chromebook'], [/Linux/, 'Linux'],
+  ].find(([re]) => re.test(s));
+  if (!browser && !os) return 'Trình duyệt không rõ';
+  return (browser ? browser[1] : 'Trình duyệt') + (os ? ` trên ${os[1]}` : '');
+}
+
+/**
+ * Email báo tài khoản vừa nhập đúng mật khẩu (`needCode`: còn phải nhập mã 2 bước) trên một trình duyệt lạ. Khoá báo
+ * gồm cả `ver`: đổi mật khẩu thì trình duyệt nào cũng được báo lại, kể cả trình duyệt vừa báo trong vài giờ trước.
+ */
+function adminNewDevice_(name, account, device, needCode) {
+  adminAlert_(`moi:${name}:${account.ver}:${device.id || 'khong-ro'}`, `SmartCarTech: tài khoản quản trị "${name}" đăng nhập trên trình duyệt lạ`, [
+    needCode
+      ? `Tài khoản "${name}" vừa được nhập đúng mật khẩu trên một trình duyệt chưa từng đăng nhập trang quản trị. Tài khoản này đã bật mã 2 bước: người đó còn phải nhập mã trên điện thoại của bạn mới vào được.`
+      : `Tài khoản "${name}" vừa đăng nhập trang quản trị trên một trình duyệt chưa từng dùng. Tài khoản này chưa bật mã 2 bước: nên bật ở menu SmartCarTech → "Tài khoản trang quản trị…".`,
+    '',
+    `Lúc: ${adminNow_()}`,
+    `Trình duyệt: ${device.label} (do trình duyệt tự báo)`,
+    '',
+    'Nếu là bạn: không cần làm gì. Đăng nhập xong thì trình duyệt này không bị báo nữa.',
+    `Nếu không phải bạn: mở Google Sheet → menu SmartCarTech → "Tài khoản trang quản trị…" → đặt mật khẩu mới cho "${name}" (mọi nơi đang đăng nhập bằng tài khoản này bị đăng xuất). Muốn chặn hẳn ngay: menu SmartCarTech → "Bật hoặc tắt trang quản trị…".`,
+  ]);
+}
+
+/**
+ * Email báo của trang quản trị, tới NOTIFY_EMAIL. Mỗi việc (`key`) báo 1 lần trong ADMIN_ALERT_HOURS giờ, tối đa
+ * ADMIN_ALERTS_PER_HOUR email mỗi giờ, và chừa ADMIN_ALERT_RESERVE email trong ngày cho email báo đơn: bị dò mật khẩu
+ * dồn dập cũng không làm hết hạn mức. Gửi lỗi thì bỏ qua: đăng nhập vẫn chạy bình thường.
+ */
+function adminAlert_(key, subject, lines) {
+  if (!NOTIFY_EMAIL) return false;
+  const cache = CacheService.getScriptCache();
+  if (cache.get(`qt:bao:${key}`)) return false;
+  cache.put(`qt:bao:${key}`, '1', Math.min(21600, ADMIN_ALERT_HOURS * 3600));
+  if (bump_('qt:bao', 3600) > ADMIN_ALERTS_PER_HOUR) return false;
+  try {
+    if (MailApp.getRemainingDailyQuota() <= ADMIN_ALERT_RESERVE) return false;
+    MailApp.sendEmail(NOTIFY_EMAIL, subject, lines.concat(['', `Email tự động từ Google Sheet của shop (trang quản trị ${SITE_URL}/quan-tri.html).`]).join('\n'));
+    return true;
+  } catch (err) {
+    console.error(err);
+    return false;
+  }
+}
+
+function adminNow_() {
+  return Utilities.formatDate(new Date(), SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'dd/MM/yyyy HH:mm');
+}
+
+/**
+ * Phiên còn hạn: tài khoản còn, chưa đổi mật khẩu hay bật mã 2 bước, chưa quá ADMIN_MAX_HOURS kể từ lúc đăng nhập, và
+ * không có trước lần tắt trang quản trị gần nhất. Mỗi lần dùng được gia hạn thêm ADMIN_IDLE_HOURS.
  */
 function adminSession_(token) {
   if (typeof token !== 'string' || !/^[\w-]{40,64}$/.test(token)) return null;
@@ -1137,7 +1338,8 @@ function adminSession_(token) {
   if (!session) return null;
   const accounts = adminAccounts_();
   const account = accounts.hasOwnProperty(session.user) ? accounts[session.user] : null;
-  if (!account || account.ver !== session.ver || Date.now() - session.since > ADMIN_MAX_HOURS * 3600000) {
+  const cutoff = Number(PropertiesService.getScriptProperties().getProperty(ADMIN_CUTOFF_KEY)) || 0;
+  if (!account || account.ver !== session.ver || session.since <= cutoff || Date.now() - session.since > ADMIN_MAX_HOURS * 3600000) {
     cache.remove(key);
     return null;
   }
@@ -1184,6 +1386,81 @@ function sameText_(a, b) {
 function randomKey_() {
   const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.getUuid() + Utilities.getUuid());
   return Utilities.base64EncodeWebSafe(bytes).replace(/=+$/, '');
+}
+
+/* Mã 2 bước (TOTP, RFC 6238): ứng dụng xác minh trên điện thoại (VD Google Authenticator) và script cùng tính mã 6 số
+   từ khoá bí mật và giờ hiện tại, 30 giây đổi một lần. Khoá chỉ hiện 1 lần lúc cài, lưu cùng tài khoản trong Script
+   Properties (chỉ người sửa được script mới đọc được). Nhận cả mã của 30 giây trước và sau: giờ điện thoại lệch
+   một chút vẫn đăng nhập được. */
+const TOTP_STEP = 30;
+const TOTP_ISSUER = 'SmartCarTech';
+const BASE32_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+/** Khoá mới: 160 bit ngẫu nhiên, viết bằng 32 chữ base32 (dạng các ứng dụng xác minh đọc được). */
+function newTotpKey_() {
+  return base32_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.getUuid() + Utilities.getUuid()).slice(0, 20));
+}
+
+/** Byte[] → base32 (RFC 4648), không có dấu = ở cuối. */
+function base32_(bytes) {
+  let out = '';
+  let value = 0;
+  let bits = 0;
+  bytes.forEach((b) => {
+    value = ((value << 8) | (b & 255)) & 0xfff;
+    bits += 8;
+    while (bits >= 5) {
+      out += BASE32_CHARS[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  });
+  if (bits) out += BASE32_CHARS[(value << (5 - bits)) & 31];
+  return out;
+}
+
+/** base32 → Byte[] của Apps Script (số từ -128 đến 127). Bỏ qua khoảng trắng, dấu = và chữ thường. */
+function unbase32_(text) {
+  const out = [];
+  let value = 0;
+  let bits = 0;
+  String(text).toUpperCase().replace(/[\s=]/g, '').split('').forEach((ch) => {
+    const i = BASE32_CHARS.indexOf(ch);
+    if (i < 0) throw new Error(`Khoá mã 2 bước có ký tự lạ: ${ch}`);
+    value = ((value << 5) | i) & 0xfff;
+    bits += 5;
+    if (bits >= 8) {
+      const b = (value >>> (bits - 8)) & 255;
+      out.push(b > 127 ? b - 256 : b);
+      bits -= 8;
+    }
+  });
+  return out;
+}
+
+/** Mã 6 số của khoá `key` ở khoảng 30 giây thứ `step` (đếm từ năm 1970). */
+function totpCode_(key, step) {
+  const msg = new Array(8).fill(0);
+  let n = step;
+  for (let i = 7; i >= 0 && n > 0; i--) {
+    const b = n % 256;
+    msg[i] = b > 127 ? b - 256 : b;
+    n = Math.floor(n / 256);
+  }
+  const h = Utilities.computeHmacSignature(Utilities.MacAlgorithm.HMAC_SHA_1, msg, unbase32_(key)).map((b) => b & 255);
+  const off = h[h.length - 1] & 15;
+  const bin = ((h[off] & 127) << 24) | (h[off + 1] << 16) | (h[off + 2] << 8) | h[off + 3];
+  return String(bin % 1000000).padStart(6, '0');
+}
+
+/** Mã khớp khoảng 30 giây nào (bây giờ, ngay trước hoặc ngay sau): trả số thứ tự khoảng đó, không khớp thì -1. */
+function totpMatch_(key, code) {
+  const now = Math.floor(Date.now() / 1000 / TOTP_STEP);
+  return [now, now - 1, now + 1].find((step) => sameText_(totpCode_(key, step), code)) ?? -1;
+}
+
+/** Đường dẫn otpauth:// trong mã QR: ứng dụng xác minh đọc tên shop, tên tài khoản và khoá từ đây. */
+function totpUri_(name, key) {
+  return `otpauth://totp/${encodeURIComponent(`${TOTP_ISSUER}:${name}`)}?secret=${key}&issuer=${encodeURIComponent(TOTP_ISSUER)}`;
 }
 
 /**
@@ -1648,19 +1925,23 @@ function tryGet_(fn) {
   }
 }
 
-/** Menu "Tài khoản trang quản trị…": tạo tài khoản, đổi mật khẩu, xoá tài khoản đăng nhập quan-tri.html. */
+/** Menu "Tài khoản trang quản trị…": tạo tài khoản, đổi mật khẩu, bật mã 2 bước, xoá tài khoản đăng nhập quan-tri.html. */
 function showAdminAccounts() {
   const json = JSON.stringify({ page: `${SITE_URL}/quan-tri.html`, min: ADMIN_MIN_PASSWORD }).replace(/</g, '\\u003c');
-  const page = HtmlService.createHtmlOutput(ADMIN_ACCOUNTS_HTML.replace('__DATA__', () => json)).setWidth(460).setHeight(620);
+  const page = HtmlService.createHtmlOutput(ADMIN_ACCOUNTS_HTML.replace('__DATA__', () => json)).setWidth(480).setHeight(680);
   SpreadsheetApp.getUi().showModalDialog(page, 'Tài khoản trang quản trị');
 }
 
-/** Cửa sổ tài khoản gọi: tên các tài khoản (không có mật khẩu). */
+/** Cửa sổ tài khoản gọi: các tài khoản và đã bật mã 2 bước chưa (không có mật khẩu hay khoá). */
 function listAdminAccounts() {
-  return Object.keys(adminAccounts_()).sort();
+  const accounts = adminAccounts_();
+  return Object.keys(accounts).sort().map((name) => ({ name, totp: Boolean(accounts[name].totp) }));
 }
 
-/** Tạo tài khoản, hoặc đổi mật khẩu nếu tên đã có: mọi nơi đang đăng nhập bằng tài khoản đó bị đăng xuất. */
+/**
+ * Tạo tài khoản, hoặc đổi mật khẩu nếu tên đã có: mọi nơi đang đăng nhập bằng tài khoản đó bị đăng xuất. Mã 2 bước
+ * vẫn giữ. Đổi mật khẩu (VD vì nghi bị lộ) cũng quên các trình duyệt đã biết: lần sau trình duyệt nào cũng báo email.
+ */
 function saveAdminAccount(name, password) {
   const user = String(name == null ? '' : name).trim().toLowerCase();
   const pass = String(password == null ? '' : password);
@@ -1671,11 +1952,13 @@ function saveAdminAccount(name, password) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
+    const props = PropertiesService.getScriptProperties();
     const accounts = adminAccounts_();
     const changed = accounts.hasOwnProperty(user);
     const salt = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.getUuid()).slice(0, 16));
-    accounts[user] = { salt, hash: passwordHash_(pass, salt), ver: randomKey_().slice(0, 12) };
-    PropertiesService.getScriptProperties().setProperty(ADMIN_ACCOUNTS_KEY, JSON.stringify(accounts));
+    accounts[user] = Object.assign({}, changed ? accounts[user] : {}, { salt, hash: passwordHash_(pass, salt), ver: randomKey_().slice(0, 12) });
+    props.setProperty(ADMIN_ACCOUNTS_KEY, JSON.stringify(accounts));
+    props.deleteProperty(ADMIN_DEVICES_KEY + user);
     adminLog_('Google Sheet', changed ? 'Đổi mật khẩu' : 'Tạo tài khoản', '', user, '', '');
   } finally {
     lock.releaseLock();
@@ -1692,13 +1975,120 @@ function removeAdminAccount(name) {
     const accounts = adminAccounts_();
     if (accounts.hasOwnProperty(user)) {
       delete accounts[user];
-      PropertiesService.getScriptProperties().setProperty(ADMIN_ACCOUNTS_KEY, JSON.stringify(accounts));
+      const props = PropertiesService.getScriptProperties();
+      props.setProperty(ADMIN_ACCOUNTS_KEY, JSON.stringify(accounts));
+      props.deleteProperty(ADMIN_DEVICES_KEY + user);
+      CacheService.getScriptCache().remove(`qt:cai-ma:${user}`);
       adminLog_('Google Sheet', 'Xoá tài khoản', '', user, '', '');
     }
   } finally {
     lock.releaseLock();
   }
   return listAdminAccounts();
+}
+
+/**
+ * Cửa sổ tài khoản, nút "Bật mã 2 bước": tạo khoá mới để hiện mã QR. Khoá chỉ có hiệu lực khi nhập đúng mã ứng dụng hiện
+ * ra (confirmAdminTotp); trước đó tài khoản vẫn đăng nhập như cũ, kể cả khi đang cài lại cho điện thoại mới.
+ */
+function startAdminTotp(name) {
+  const user = String(name == null ? '' : name);
+  if (!adminAccounts_().hasOwnProperty(user)) throw new Error('Không có tài khoản này nữa: đóng cửa sổ rồi mở lại.');
+  const key = newTotpKey_();
+  CacheService.getScriptCache().put(`qt:cai-ma:${user}`, key, 900);
+  return { name: user, key, uri: totpUri_(user, key) };
+}
+
+/** Mã 6 số ứng dụng hiện ra đúng thì bật mã 2 bước. Mọi nơi đang đăng nhập bằng tài khoản này bị đăng xuất. */
+function confirmAdminTotp(name, code) {
+  const user = String(name == null ? '' : name);
+  const cache = CacheService.getScriptCache();
+  const key = cache.get(`qt:cai-ma:${user}`);
+  if (!key) throw new Error('Đã quá 15 phút: bấm "Huỷ" rồi bấm lại "Bật mã 2 bước" để có mã QR mới.');
+  const typed = String(code == null ? '' : code).replace(/\s/g, '');
+  const at = /^\d{6}$/.test(typed) ? totpMatch_(key, typed) : -1;
+  if (at < 0) {
+    throw new Error('Mã chưa đúng. Nhập mã 6 số ứng dụng đang hiện cho SmartCarTech. Mã đúng mà vẫn báo sai: đặt giờ của điện thoại về chế độ tự động.');
+  }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const accounts = adminAccounts_();
+    if (!accounts.hasOwnProperty(user)) throw new Error('Tài khoản này vừa bị xoá.');
+    const again = Boolean(accounts[user].totp);
+    accounts[user].totp = key;
+    accounts[user].ver = randomKey_().slice(0, 12);
+    PropertiesService.getScriptProperties().setProperty(ADMIN_ACCOUNTS_KEY, JSON.stringify(accounts));
+    cache.remove(`qt:cai-ma:${user}`);
+    cache.put(`qt:ma-da-dung:${user}`, String(at), 4 * TOTP_STEP); // mã vừa nhập ở đây không dùng để đăng nhập được
+    adminLog_('Google Sheet', again ? 'Cài lại mã 2 bước' : 'Bật mã 2 bước', '', user, '', '');
+  } finally {
+    lock.releaseLock();
+  }
+  return listAdminAccounts();
+}
+
+/** Tắt mã 2 bước (VD mất điện thoại): đăng nhập lại chỉ cần mật khẩu, bật lại được ngay trên điện thoại mới. */
+function removeAdminTotp(name) {
+  const user = String(name == null ? '' : name);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const accounts = adminAccounts_();
+    if (accounts.hasOwnProperty(user) && accounts[user].totp) {
+      delete accounts[user].totp;
+      PropertiesService.getScriptProperties().setProperty(ADMIN_ACCOUNTS_KEY, JSON.stringify(accounts));
+      adminLog_('Google Sheet', 'Tắt mã 2 bước', '', user, '', '');
+    }
+  } finally {
+    lock.releaseLock();
+  }
+  return listAdminAccounts();
+}
+
+/**
+ * Menu "Bật hoặc tắt trang quản trị…". Tắt: script từ chối mọi việc của trang quản trị, kể cả đăng nhập, và mọi phiên đang
+ * mở bị đăng xuất (bật lại cũng phải đăng nhập lại). Web bán hàng và Google Sheet vẫn chạy bình thường.
+ */
+function toggleAdminPage() {
+  const ui = SpreadsheetApp.getUi();
+  const props = PropertiesService.getScriptProperties();
+  const off = Number(props.getProperty(ADMIN_OFF_KEY)) || 0;
+  const page = `${SITE_URL}/quan-tri.html`;
+  if (off) {
+    const since = Utilities.formatDate(new Date(off), SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'dd/MM/yyyy HH:mm');
+    if (ui.alert('Trang quản trị đang tắt', `Tắt từ ${since}. Bật lại để đăng nhập được ở ${page}?`, ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
+    props.deleteProperty(ADMIN_OFF_KEY);
+    adminLog_('Google Sheet', 'Bật trang quản trị', '', '', '', '');
+    ui.alert('Đã bật trang quản trị', `Đăng nhập lại ở ${page}.`, ui.ButtonSet.OK);
+    return;
+  }
+  const ask = `Khi tắt, không ai đăng nhập được ${page}; người đang đăng nhập bị đăng xuất ngay ở lần bấm tiếp theo. ` +
+    'Web bán hàng và Google Sheet vẫn dùng bình thường. Bật lại: cũng ở menu này.';
+  if (ui.alert('Tắt trang quản trị?', ask, ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
+  const now = String(Date.now());
+  props.setProperty(ADMIN_OFF_KEY, now);
+  props.setProperty(ADMIN_CUTOFF_KEY, now);
+  adminLog_('Google Sheet', 'Tắt trang quản trị', '', '', '', '');
+  ui.alert('Đã tắt trang quản trị', 'Mọi người đã bị đăng xuất. Muốn bật lại: vào lại menu này.', ui.ButtonSet.OK);
+}
+
+/** Các dòng về trang quản trị trong "Kiểm tra cài đặt": tài khoản, mã 2 bước, đang tắt hay bật. */
+function adminStatus_() {
+  const accounts = adminAccounts_();
+  const names = Object.keys(accounts).sort();
+  if (!names.length) return ['✗ Chưa có tài khoản trang quản trị: menu SmartCarTech → Tài khoản trang quản trị… để tạo.'];
+  const plain = names.filter((name) => !accounts[name].totp);
+  const lines = [
+    `✓ Trang quản trị ${SITE_URL}/quan-tri.html: ${names.length} tài khoản (${names.join(', ')}).`,
+    plain.length
+      ? `• Chưa bật mã 2 bước: ${plain.join(', ')}. Nên bật: menu SmartCarTech → Tài khoản trang quản trị… → "Bật mã 2 bước".`
+      : '✓ Mọi tài khoản trang quản trị đã bật mã 2 bước.',
+  ];
+  if (PropertiesService.getScriptProperties().getProperty(ADMIN_OFF_KEY)) {
+    lines.push('• Trang quản trị đang TẮT: không ai đăng nhập được. Bật lại ở menu SmartCarTech → "Bật hoặc tắt trang quản trị…".');
+  }
+  return lines;
 }
 
 /* ---------- Gộp trang "Customer Infor" (nhập từ file kế hoạch Excel) vào "Đơn hàng" ---------- */
@@ -2826,7 +3216,9 @@ body { font-family: 'Be Vietnam Pro', Arial, sans-serif; color: #04080C; backgro
 
 /* ---------- Cửa sổ "Tài khoản trang quản trị" (showAdminAccounts) ----------
    __DATA__ được thay bằng địa chỉ trang quản trị và số ký tự tối thiểu của mật khẩu. Như CARD_PAGE_HTML: giữ phần
-   dưới không có dấu backtick, "${" hay dấu gạch ngược. Mật khẩu chỉ gửi thẳng tới saveAdminAccount, không lưu ở đâu khác. */
+   dưới không có dấu backtick, "${" hay dấu gạch ngược. Mật khẩu chỉ gửi thẳng tới saveAdminAccount, không lưu ở đâu khác.
+   Mã QR để bật mã 2 bước được vẽ ngay trong cửa sổ, bằng đúng thư viện (có SRI) của CARD_PAGE_HTML: khoá không gửi đi
+   đâu, và biến khỏi trang khi đóng phần cài. */
 const ADMIN_ACCOUNTS_HTML = `<!doctype html>
 <html lang="vi">
 <head>
@@ -2841,9 +3233,13 @@ p { margin: 0; }
 .help b { color: #04080C; }
 h2 { margin: 18px 0 8px; font-size: 14px; }
 .list { list-style: none; margin: 0; padding: 0; border: 1px solid #D5DBE0; border-radius: 8px; }
-.list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 42px; padding: 6px 12px; border-top: 1px solid #E6EAED; }
+.list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; min-height: 42px; padding: 6px 12px; border-top: 1px solid #E6EAED; }
 .list li:first-child { border-top: 0; }
 .list .empty { color: #5B6B78; }
+.acct { display: flex; flex-direction: column; min-width: 0; }
+.acct small { font-size: 12px; color: #8A4B00; }
+.acct small.is-on { color: #1D6B3A; }
+.tools { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 label { display: block; margin: 12px 0 4px; font-size: 13px; font-weight: 600; }
 input { width: 100%; padding: 9px 10px; border: 1px solid #A9B3BB; border-radius: 6px; font: inherit; }
 input:focus { outline: 2px solid #0B6E8A; outline-offset: 0; border-color: #0B6E8A; }
@@ -2856,6 +3252,14 @@ input:focus { outline: 2px solid #0B6E8A; outline-offset: 0; border-color: #0B6E
 .generated code { font: 600 15px Consolas, monospace; letter-spacing: 0.04em; user-select: all; }
 .status { min-height: 21px; margin-top: 10px; color: #0B6E8A; font-size: 13px; }
 .status.is-error { color: #B42318; }
+.totp { margin-top: 18px; padding: 2px 14px 14px; border: 1px solid #D5DBE0; border-radius: 8px; }
+.steps { margin: 0 0 6px; padding-left: 20px; font-size: 13px; }
+.steps li { margin: 3px 0; }
+.qr { width: 196px; height: 196px; margin: 8px auto; }
+.qr svg { display: block; width: 100%; height: 100%; }
+.key-line { margin: 4px 0 2px; text-align: center; }
+.key { font: 600 14px Consolas, monospace; letter-spacing: 0.04em; user-select: all; }
+#totp-code { font: 600 20px Consolas, monospace; letter-spacing: 0.25em; text-align: center; }
 </style>
 </head>
 <body>
@@ -2864,6 +3268,30 @@ input:focus { outline: 2px solid #0B6E8A; outline-offset: 0; border-color: #0B6E
 <h2>Tài khoản hiện có</h2>
 <ul class="list" id="list"><li class="empty">Đang tải…</li></ul>
 
+<section class="totp" id="totp" hidden aria-labelledby="totp-title">
+  <h2 id="totp-title">Mã 2 bước cho <span id="totp-name"></span></h2>
+  <ol class="steps">
+    <li>Trên điện thoại, cài ứng dụng <b>Google Authenticator</b> (hoặc Microsoft Authenticator).</li>
+    <li>Trong ứng dụng bấm <b>+</b> → <b>Quét mã QR</b> (Scan a QR code), quét mã dưới đây.</li>
+    <li>Nhập mã 6 số ứng dụng hiện cho SmartCarTech, rồi bấm <b>Xác nhận</b>.</li>
+  </ol>
+  <div class="qr" id="totp-qr" role="img" aria-label="Mã QR để thêm tài khoản vào ứng dụng xác minh"></div>
+  <p class="help" id="totp-noqr" hidden>Không tải được thư viện vẽ mã QR (kiểm tra mạng): dùng cách nhập khoá bên dưới.</p>
+  <p class="help">Không quét được: trong ứng dụng chọn <b>Nhập khoá thiết lập</b> (Enter a setup key), tên tuỳ ý, loại <b>theo thời gian</b>, khoá:</p>
+  <p class="key-line"><span class="key" id="totp-key"></span></p>
+  <form id="totp-form" novalidate>
+    <label for="totp-code">Mã 6 số trong ứng dụng</label>
+    <input id="totp-code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123 456">
+    <div class="actions">
+      <button type="button" class="link" id="totp-cancel">Huỷ</button>
+      <button type="submit" class="btn" id="totp-ok">Xác nhận</button>
+    </div>
+    <p class="status" id="totp-status" role="status"></p>
+  </form>
+  <p class="help">Bật xong, mọi nơi đang đăng nhập bằng tài khoản này bị đăng xuất; lần sau đăng nhập cần mật khẩu và mã 6 số. Mất điện thoại: mở cửa sổ này, bấm <b>Tắt mã 2 bước</b> rồi bật lại trên điện thoại mới.</p>
+</section>
+
+<div id="add">
 <h2>Thêm tài khoản hoặc đổi mật khẩu</h2>
 <form id="form" novalidate>
   <label for="name">Tên đăng nhập</label>
@@ -2880,60 +3308,95 @@ input:focus { outline: 2px solid #0B6E8A; outline-offset: 0; border-color: #0B6E
   <p class="status" id="status" role="status"></p>
 </form>
 <p class="help">Đổi mật khẩu: nhập tên đã có và mật khẩu mới. Mọi nơi đang đăng nhập bằng tài khoản đó sẽ bị đăng xuất.</p>
+</div>
 
 <script type="application/json" id="data">__DATA__</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" integrity="sha512-ZDSPMa/JM1D+7kdg2x3BsruQ6T/JpJo3jWDWkCZsP+5yVyp1KfESqLI+7RqB5k24F7p2cV7i2YHh/890y6P6Sw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 (function () {
   var data = JSON.parse(document.getElementById('data').textContent);
   var NAME_RE = /^[a-z0-9][a-z0-9._-]{2,29}$/;
+  var setup = null; // { name, key, uri }: đang bật mã 2 bước cho tài khoản này
 
   function el(id) { return document.getElementById(id); }
-  function setStatus(text, isError) {
-    el('status').textContent = text;
-    el('status').className = 'status' + (isError ? ' is-error' : '');
+  function show(node, text, isError) {
+    node.textContent = text;
+    node.className = 'status' + (isError ? ' is-error' : '');
+  }
+  function setStatus(text, isError) { show(el('status'), text, isError); }
+
+  function button(text, act, name, danger) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'link' + (danger ? ' danger' : '');
+    b.textContent = text;
+    b.dataset.act = act;
+    b.dataset.name = name;
+    return b;
   }
 
-  function render(names) {
+  // Bấm 2 lần mới làm, tránh lỡ tay
+  function twice(b, ask, go) {
+    var idle = b.textContent;
+    b.addEventListener('click', function () {
+      if (b.dataset.armed !== '1') {
+        b.dataset.armed = '1';
+        b.textContent = ask;
+        setTimeout(function () { b.dataset.armed = ''; b.textContent = idle; }, 4000);
+        return;
+      }
+      go();
+    });
+  }
+
+  function render(accounts) {
     var list = el('list');
     list.textContent = '';
-    if (!names.length) {
+    if (!accounts.length) {
       var empty = document.createElement('li');
       empty.className = 'empty';
       empty.textContent = 'Chưa có tài khoản nào: tạo tài khoản đầu tiên ở dưới.';
       list.appendChild(empty);
       return;
     }
-    names.forEach(function (name) {
+    accounts.forEach(function (a) {
       var li = document.createElement('li');
+      var info = document.createElement('div');
+      info.className = 'acct';
       var b = document.createElement('b');
-      b.textContent = name;
-      var del = document.createElement('button');
-      del.type = 'button';
-      del.className = 'link danger';
-      del.textContent = 'Xoá';
-      del.addEventListener('click', function () {
-        // Bấm 2 lần mới xoá, tránh lỡ tay
-        if (del.dataset.armed !== '1') {
-          del.dataset.armed = '1';
-          del.textContent = 'Bấm lần nữa để xoá';
-          setTimeout(function () { del.dataset.armed = ''; del.textContent = 'Xoá'; }, 4000);
-          return;
-        }
-        run('removeAdminAccount', [name], 'Đã xoá tài khoản ' + name + '.');
-      });
-      li.appendChild(b);
-      li.appendChild(del);
+      b.textContent = a.name;
+      var state = document.createElement('small');
+      state.className = a.totp ? 'is-on' : '';
+      state.textContent = a.totp ? 'Đã bật mã 2 bước' : 'Chưa bật mã 2 bước';
+      info.appendChild(b);
+      info.appendChild(state);
+      var tools = document.createElement('div');
+      tools.className = 'tools';
+      var on = button(a.totp ? 'Cài lại mã 2 bước' : 'Bật mã 2 bước', 'totp', a.name);
+      on.addEventListener('click', function () { startTotp(a.name); });
+      tools.appendChild(on);
+      if (a.totp) {
+        var off = button('Tắt mã 2 bước', 'totp-off', a.name, true);
+        twice(off, 'Bấm lần nữa để tắt', function () { run('removeAdminTotp', [a.name], 'Đã tắt mã 2 bước của ' + a.name + '.'); });
+        tools.appendChild(off);
+      }
+      var del = button('Xoá', 'del', a.name, true);
+      twice(del, 'Bấm lần nữa để xoá', function () { run('removeAdminAccount', [a.name], 'Đã xoá tài khoản ' + a.name + '.'); });
+      tools.appendChild(del);
+      li.appendChild(info);
+      li.appendChild(tools);
       list.appendChild(li);
     });
   }
 
   function run(fn, args, done, after) {
+    closeTotp();
     el('save').disabled = true;
     setStatus('Đang lưu…');
     var call = google.script.run
-      .withSuccessHandler(function (names) {
+      .withSuccessHandler(function (accounts) {
         el('save').disabled = false;
-        render(names);
+        render(accounts);
         setStatus(done);
         if (after) after();
       })
@@ -2943,6 +3406,82 @@ input:focus { outline: 2px solid #0B6E8A; outline-offset: 0; border-color: #0B6E
       });
     call[fn].apply(call, args);
   }
+
+  /* ---------- Mã 2 bước ---------- */
+  function drawQr(text) {
+    var box = el('totp-qr');
+    var ok = typeof qrcode === 'function';
+    box.textContent = '';
+    if (ok) {
+      var qr = qrcode(0, 'M');
+      qr.addData(text);
+      qr.make();
+      box.innerHTML = qr.createSvgTag({ cellSize: 1, margin: 4, scalable: true });
+    }
+    box.hidden = !ok;
+    el('totp-noqr').hidden = ok;
+  }
+
+  function startTotp(name) {
+    closeTotp();
+    setStatus('Đang tạo mã QR…');
+    google.script.run
+      .withSuccessHandler(function (s) {
+        setup = s;
+        setStatus('');
+        el('totp-name').textContent = s.name;
+        el('totp-key').textContent = s.key.replace(/(....)/g, '$1 ').trim();
+        drawQr(s.uri);
+        el('totp-code').value = '';
+        show(el('totp-status'), '');
+        el('add').hidden = true;
+        el('totp').hidden = false;
+        el('totp').scrollIntoView();
+        el('totp-code').focus();
+      })
+      .withFailureHandler(function (err) { setStatus(err.message, true); })
+      .startAdminTotp(name);
+  }
+
+  // Đóng phần cài: khoá và mã QR biến khỏi trang
+  function closeTotp() {
+    setup = null;
+    el('totp').hidden = true;
+    el('add').hidden = false;
+    el('totp-qr').textContent = '';
+    el('totp-key').textContent = '';
+  }
+
+  el('totp-cancel').addEventListener('click', function () {
+    closeTotp();
+    setStatus('');
+  });
+  el('totp-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!setup) return;
+    var code = el('totp-code').value.replace(/[^0-9]/g, '');
+    if (code.length !== 6) {
+      show(el('totp-status'), 'Nhập đủ 6 số ứng dụng đang hiện.', true);
+      el('totp-code').focus();
+      return;
+    }
+    var name = setup.name;
+    el('totp-ok').disabled = true;
+    show(el('totp-status'), 'Đang kiểm tra…');
+    google.script.run
+      .withSuccessHandler(function (accounts) {
+        el('totp-ok').disabled = false;
+        closeTotp();
+        render(accounts);
+        setStatus('Đã bật mã 2 bước cho ' + name + '. Lần sau đăng nhập cần mật khẩu và mã 6 số trên điện thoại.');
+      })
+      .withFailureHandler(function (err) {
+        el('totp-ok').disabled = false;
+        show(el('totp-status'), err.message, true);
+        el('totp-code').select();
+      })
+      .confirmAdminTotp(name, code);
+  });
 
   // 15 ký tự ngẫu nhiên (khoảng 87 bit), bỏ các chữ dễ nhầm 0/O, 1/l/I
   function strongPassword() {

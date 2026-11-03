@@ -2617,6 +2617,9 @@ a.contact-item:hover .contact-item__value { color: var(--c-accent); }
 .admin-pass { position: relative; }
 .admin-pass .field__input { padding-right: 56px; }
 .admin-pass__toggle { position: absolute; top: 4px; right: 4px; color: var(--c-muted); }
+.admin-login__step { font-size: 15px; line-height: 1.55; color: var(--c-text-2); }
+.admin-login__step strong { color: var(--c-text); font-weight: 600; }
+.admin-code { font-size: 24px; font-weight: 600; letter-spacing: 0.3em; text-align: center; font-variant-numeric: tabular-nums; }
 @media (min-width: 768px) {
   .admin-login { padding-top: 40px; }
   .admin-login__card { padding: 32px; }
