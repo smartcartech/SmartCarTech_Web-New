@@ -218,7 +218,7 @@ Mỗi hộp có một thẻ in **mã tải code** riêng, VD `K7M3-Q9XP`. Ở tr
 - **Tra ngược:** mã bị tải nhiều bất thường thì xem cột Mã đơn, Khách hàng của mã đó để biết của khách nào.
 - **Mã bị lộ:** tích ô **Khoá**. **Khách hết lượt tải:** sửa Số lần tải của mã đó về 0.
 - **Thay file code:** xoá file cũ trong thư mục Drive rồi tải file mới cùng tên lên.
-- **Mới nhất ở trên cùng:** ở các trang Đơn hàng, Tư vấn, In 3D, Mã tải code, Nhật ký quản trị, dòng mới (đơn web, yêu cầu tư vấn, đơn in 3D, mã vừa tạo, nhật ký, dòng thêm trên trang quản trị) được chèn ngay dưới dòng tiêu đề. Các trang kế hoạch nhập từ Excel vẫn thêm dòng ở cuối. Dòng chèn lấy định dạng số, ô tích, ô thả xuống của dòng ngay dưới, không lấy màu nền.
+- **Mới nhất ở trên cùng:** ở các trang Đơn hàng, Tư vấn, In 3D, Mã tải code, Nhật ký quản trị, dòng mới (đơn web, yêu cầu tư vấn, đơn in 3D, mã vừa tạo, nhật ký, dòng thêm trên trang quản trị) được chèn ngay dưới dòng tiêu đề. Trang **Task Tracking** của shop cũng vậy khi thêm dòng trên trang quản trị (tên trang ở `ADMIN_NEWEST_FIRST` trong script: đổi tên trang thì sửa ở đó). Các trang kế hoạch khác vẫn thêm dòng ở cuối. Dòng chèn lấy định dạng số, ô tích, ô thả xuống của dòng ngay dưới, không lấy màu nền.
   - Dữ liệu đã có thì tự sắp xếp một lần: bấm ô A1, nhấn Ctrl+A để chọn cả bảng (kể cả dòng tiêu đề), **Dữ liệu → Sắp xếp dải ô → Tùy chọn sắp xếp dải ô nâng cao**, tích *Dữ liệu có hàng tiêu đề*, chọn cột *Thời gian*, **Z → A**. Xong thì xem lại vài ô Lợi nhuận; sai thì lấy lại ở Tệp → Lịch sử phiên bản. Trang Mã tải code không có cột ngày: thêm tạm một cột đánh số 1, 2, 3… theo thứ tự hiện tại, sắp xếp cột đó Z → A rồi xoá cột tạm.
   - Số dòng ghi trong Nhật ký quản trị (VD "Dòng 5") là vị trí lúc sửa: sau đó có dòng mới chèn lên trên thì dòng đó đã dời xuống.
 - **Sắp xếp lại cột:** ở các trang Đơn hàng, Tư vấn, In 3D, Mã tải code và Nhật ký quản trị, kéo tiêu đề cột để đổi chỗ, hoặc chèn thêm cột của shop, đều được: script tìm cột theo tên ở dòng 1. Dòng 1 phải luôn là tên cột, và đừng đổi tên các cột script dùng:
@@ -242,8 +242,9 @@ Mở `smartcartech.vn/quan-tri.html`, đăng nhập, rồi xem và sửa dữ li
 - Bấm số dòng hoặc một ô: cả dòng mở ở khung bên phải. Sửa rồi bấm **Lưu thay đổi**.
   - Ô thả xuống (VD *Trạng thái* ở trang In 3D) và ô tích (VD *Khoá* ở trang Mã tải code) hiện đúng như trên Sheet.
   - *Nền tảng* ở trang Đơn hàng chọn trong ô thả xuống: Shopee, Tiktok (`ORDER_PLATFORMS` trong script). *Loại* ở trang In 3D cũng vậy: bảng tên, giá đỡ, in theo file. Ô nào đã có ô thả xuống riêng trên Sheet thì dùng danh sách của Sheet.
+  - *Sản phẩm* ở trang Đơn hàng: chọn một sản phẩm đang bán trên web (đọc từ `products.json`) và số lượng (ô *SL*). Ô được ghi đúng như đơn web, VD "SC Tech Pro – Bộ đầy đủ linh kiện × 2". Chữ cũ gõ tay (VD đơn gộp từ Excel) được giữ nguyên, hiện là "(ngoài danh sách)". Đơn nhiều sản phẩm khác nhau thì sửa ô đó trên Google Sheet, mỗi sản phẩm một dòng trong ô như đơn web.
   - Ô script tự tính, tự ghi chỉ xem, có dòng nhỏ ghi lý do (xem *Dữ liệu được giữ an toàn*).
-- **Thêm dòng**: VD đơn Shopee, đơn Zalo. Ở Đơn hàng, Tư vấn, In 3D: dòng mới nằm trên cùng, ngay dưới dòng tiêu đề; trang khác: cuối trang tính. Ô thả xuống, ô tích lấy theo dòng kề bên.
+- **Thêm dòng**: VD đơn Shopee, đơn Zalo. Ở Đơn hàng, Tư vấn, In 3D, Task Tracking: dòng mới nằm trên cùng, ngay dưới dòng tiêu đề (trang có dòng cố định thì dưới các dòng cố định; có dòng tên bảng ở trên thì dưới dòng tên cột); trang khác: cuối trang tính. Ô thả xuống, ô tích lấy theo dòng kề bên.
 - **Xoá dòng**: nút ở cuối khung, bấm thêm một lần để xác nhận.
 - Ô tìm kiếm lọc các dòng có chữ đó, không cần gõ dấu: gõ "binh" tìm được "Bình".
 - Ghi đúng kiểu như khi gõ trên Sheet: SĐT giữ số 0 ở đầu, mã đơn dài giữ dạng chữ, ô số nhận "2.980.000", ô ngày nhận "31/10/2026 14:30".

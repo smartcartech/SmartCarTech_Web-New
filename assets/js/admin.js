@@ -672,8 +672,10 @@ function buildFields(sh, mode, row, i) {
       const list = typeof own === 'number' ? sh.lists[own] : null;
       original = / · Thời gian$/.test(label) && sh.kinds[c - 1] === 'd' ? nowText() : list && list.length ? list[0] : '';
     }
+    const list = typeof v === 'number' ? sh.lists[v] || [] : null;
     fields.push({
-      col: c, cell, label, v, locked: Boolean(why), why, kind: sh.kinds[c - 1] || '',
+      col: c, cell, label, v, list, locked: Boolean(why), why, kind: sh.kinds[c - 1] || '',
+      qty: Boolean(list) && Boolean(sh.rules.qty?.includes(c)),
       original: v === 'c' ? original === 'TRUE' : original,
       empty: mode === 'edit' && !editOf(cell) && !(cell && cell.n),
     });
@@ -690,14 +692,17 @@ function controlHtml(sh, f) {
   if (f.v === 'c') {
     return `<label class="check admin-field__check"><input type="checkbox" id="${id}" data-col="${f.col}"> <span>Đã tích</span></label>`;
   }
-  const list = typeof f.v === 'number' ? sh.lists[f.v] || [] : null;
+  const list = f.list;
   if (list) {
-    const extra = f.original && !list.includes(f.original) ? [f.original] : [];
-    return `<select class="field__input" id="${id}" data-col="${f.col}">
+    // Giá trị đang có ngoài danh sách được thêm bằng JS lúc mở khung (openPanel): giữ đúng từng ký tự, kể cả xuống dòng
+    const select = `<select class="field__input" id="${id}" data-col="${f.col}"${f.qty ? ' data-product' : ''}>
       <option value="">(để trống)</option>
       ${list.map((o) => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}
-      ${extra.map((o) => `<option value="${esc(o)}">${esc(o)} (ngoài danh sách)</option>`).join('')}
     </select>`;
+    if (!f.qty) return select;
+    return `<div class="admin-product">${select}
+      <label class="admin-product__qty"><span>SL</span><input class="field__input" type="number" inputmode="numeric" min="1" max="99" step="1" data-qty="${f.col}" aria-label="Số lượng"></label>
+    </div>`;
   }
   // Ô công thức luôn chỉ xem (lockOf): ô sửa được là chữ, số hoặc ngày
   const hint = f.kind === 'd' || f.cell?.t === 'd' ? 'dd/mm/yyyy hh:mm' : '';
@@ -725,11 +730,37 @@ function inputOf(f) {
 function changes() {
   if (!panel) return [];
   return panel.fields.map((f) => {
-    const input = inputOf(f);
-    if (!input || f.locked) return null;
-    const value = input.type === 'checkbox' ? input.checked : input.value;
-    return value === f.original ? null : { col: f.col, value };
+    const value = fieldValue(f);
+    return value === null || value === f.original ? null : { col: f.col, value };
   }).filter(Boolean);
+}
+
+/* Ô chọn sản phẩm kèm số lượng (VD "Sản phẩm" ở Đơn hàng): ghi "tên × số lượng" như đơn web (saveOrder_ trong script) */
+const QTY_RE = /^(.+) × (\d{1,2})$/;
+
+/** Sản phẩm đang ghi trong ô, nếu đúng dạng "tên trong danh sách × số lượng": { name, qty }. */
+function productOf(f) {
+  const m = f.qty && QTY_RE.exec(String(f.original || ''));
+  return m && f.list.includes(m[1]) ? { name: m[1], qty: Number(m[2]) } : null;
+}
+
+/** Số lượng chỉ dùng được khi đã chọn một sản phẩm trong danh sách. */
+function syncQty(select) {
+  const qty = $(`[data-qty="${select.dataset.col}"]`, panel.el);
+  const f = panel.fields.find((x) => x.col === Number(select.dataset.col));
+  if (qty && f) qty.disabled = !f.list.includes(select.value);
+}
+
+/** Giá trị sẽ ghi của một ô trong khung (ô tích: true/false); ô chỉ xem: null. */
+function fieldValue(f) {
+  const input = inputOf(f);
+  if (!input || f.locked) return null;
+  if (input.type === 'checkbox') return input.checked;
+  if (f.qty && f.list.includes(input.value)) {
+    const n = Math.round(Number($(`[data-qty="${f.col}"]`, panel.el)?.value));
+    return `${input.value} × ${Number.isFinite(n) ? Math.min(99, Math.max(1, n)) : 1}`;
+  }
+  return input.value;
 }
 
 function autosize(ta) {
@@ -800,15 +831,28 @@ function openPanel(mode, row = 0, focusCol = 0, { notice = '', typed = [] } = {}
   fields.forEach((f) => {
     const input = inputOf(f);
     if (!input) return;
-    if (input.type === 'checkbox') input.checked = f.original === true;
-    else input.value = f.original;
+    if (input.type === 'checkbox') {
+      input.checked = f.original === true;
+    } else if (f.list) {
+      const picked = productOf(f);
+      const value = picked ? picked.name : f.original;
+      if (value && !f.list.includes(value)) input.add(new Option(`${value} (ngoài danh sách)`, value));
+      input.value = value;
+      if (f.qty) $(`[data-qty="${f.col}"]`, el).value = picked ? picked.qty : 1;
+    } else {
+      input.value = f.original;
+    }
   });
+  panel.fields.forEach((f) => { if (f.qty && !f.locked) syncQty(inputOf(f)); });
   if (!hasHeader && mode === 'edit') {
     $$('[data-empty]', el).forEach((box) => { if (Number(box.dataset.field) !== focusCol) box.hidden = true; });
   }
   $$('textarea', el).forEach(autosize);
   $(`tr[data-row="${row}"]`, els.grid)?.classList.add('is-active');
 
+  el.addEventListener('change', (e) => {
+    if (e.target.matches('[data-product]')) syncQty(e.target);
+  });
   el.addEventListener('input', (e) => {
     if (e.target.tagName === 'TEXTAREA') autosize(e.target);
     const error = $('[data-ap-error]', el);
@@ -955,11 +999,7 @@ async function save() {
   const { mode, row } = panel;
   if (mode === 'add') {
     // Khi thêm dòng, khung có đủ mọi cột theo thứ tự: values[c - 1] là ô của cột c
-    const values = panel.fields.map((f) => {
-      const input = inputOf(f);
-      if (!input || f.locked) return '';
-      return input.type === 'checkbox' ? input.checked : input.value;
-    });
+    const values = panel.fields.map((f) => fieldValue(f) ?? '');
     const typed = panel.fields.map((f, k) => ({ col: f.col, value: values[k], preset: values[k] === f.original }))
       .filter((x) => x.value !== '' && x.value !== false);
     if (!typed.some((x) => !x.preset)) {

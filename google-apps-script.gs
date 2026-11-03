@@ -89,6 +89,9 @@ const ADMIN_LOG_SHEET = 'Nhật ký quản trị'; // Script ghi mọi lần đ�
 // Các trang này: dòng mới (đơn web, yêu cầu tư vấn, đơn in 3D, mã mới, nhật ký, dòng thêm trên trang quản trị) chèn ngay
 // dưới dòng tiêu đề, mới nhất ở trên cùng. Trang khác (VD các trang kế hoạch nhập từ Excel) thêm dòng ở cuối
 const NEWEST_FIRST = [ORDER_SHEET, LEAD_SHEET, PRINT_SHEET, CODE_SHEET, ADMIN_LOG_SHEET, VISIT_SHEET];
+// Trang shop tự tạo: thêm dòng trên trang quản trị thì dòng mới cũng nằm trên cùng, ngay dưới dòng tiêu đề.
+// Tên không phân biệt hoa thường, dấu, dấu cách thừa; đổi tên trang thì sửa tên ở đây
+const ADMIN_NEWEST_FIRST = ['Task Tracking'];
 const ADMIN_IDLE_HOURS = 3;    // Không thao tác quá bấy nhiêu giờ thì phải đăng nhập lại (tối đa 6)
 const ADMIN_MAX_HOURS = 12;    // Mỗi lần đăng nhập dùng được tối đa bấy nhiêu giờ
 const ADMIN_MAX_FAILS = 5;     // 1 tài khoản sai mật khẩu quá bấy nhiêu lần trong 15 phút thì tạm khoá 15 phút (cả web: gấp 6 lần)
@@ -180,7 +183,7 @@ function saveOrder_(data) {
       ? kits.get(`${item.line_id}:${item.kit_id}`) || kits.get(`${item.line}|${item.kit}`)
       : { line: clean_(item.line, 100), kit: clean_(item.kit, 100), price: Number(item.price) || 0 };
     if (!kit || !kit.line || !kit.kit) return 'invalid';
-    products.push(`${kit.line} – ${kit.kit} × ${qty}`);
+    products.push(`${productName_(kit.line, kit.kit)} × ${qty}`);
     total += kit.price * qty;
   }
   const sentTotal = Number(data.total) || 0;
@@ -417,6 +420,21 @@ function siteData_() {
     }
   }
   return data;
+}
+
+/** Tên sản phẩm ở cột "Sản phẩm" của đơn: "SC Tech Pro – Bộ đầy đủ linh kiện" (đơn ghi thêm " × số lượng"). */
+function productName_(line, kit) {
+  return `${line} – ${kit}`;
+}
+
+/** Các sản phẩm đang bán theo products.json, cho ô thả xuống "Sản phẩm" trên trang quản trị. Không đọc được thì []. */
+function productNames_() {
+  try {
+    return siteData_().lines.flatMap((l) => l.kits.map((k) => productName_(l.name, k.name)));
+  } catch (err) {
+    console.warn(err);
+    return [];
+  }
 }
 
 /**
@@ -1071,7 +1089,9 @@ const ADMIN_OFF_TEXT = 'Trang quản trị đang tắt. Bật lại trong Google
  * Ô script tự tính, tự ghi chỉ xem trên trang quản trị (trên Google Sheet vẫn sửa được khi thật cần):
  * - readOnly: { cột: lý do } khoá ở mọi dòng, VD Lợi nhuận.
  * - web: các cột khoá ở dòng do web tạo (webRow_), VD Nền tảng của đơn website. Ô công thức ở trang nào cũng khoá.
- * - choices: { cột: lựa chọn } hiện ô thả xuống khi ô đó chưa có ô thả xuống riêng trên Sheet.
+ * - choices: { cột: lựa chọn } hiện ô thả xuống khi ô đó chưa có ô thả xuống riêng trên Sheet. Lựa chọn là hàm thì chỉ
+ *   gọi khi gửi trang tính cho web (VD tên sản phẩm đọc từ products.json).
+ * - qty: các cột chọn sản phẩm kèm số lượng, ghi "tên × số lượng" như đơn web (saveOrder_).
  */
 const ADMIN_AUTO_DOWNLOAD = 'Script tự ghi khi khách tải code.';
 const ADMIN_AUTO_LINK = 'Script tự điền khi gõ mã này vào một đơn ở trang Đơn hàng.';
@@ -1081,7 +1101,8 @@ const ADMIN_RULES = {
     header: true,
     readOnly: { [ORDER_PROFIT_COL]: `Tự tính: ${ORDER_REVENUE_COL} trừ ${ORDER_COST_COL}.` },
     web: { why: 'Web tự ghi cho đơn đặt trên website.', cols: ['Thời gian', 'Mã đơn', ORDER_PLATFORM_COL, 'Sản phẩm', 'Tổng (₫)', ORDER_CHECK_COL] },
-    choices: { [ORDER_PLATFORM_COL]: ORDER_PLATFORMS },
+    choices: { [ORDER_PLATFORM_COL]: ORDER_PLATFORMS, 'Sản phẩm': () => productNames_() },
+    qty: ['Sản phẩm'],
   },
   [LEAD_SHEET]: { header: true },
   [PRINT_SHEET]: {
@@ -1531,8 +1552,11 @@ function sheetGone_(name) {
   return { ok: false, conflict: true, error: `Không còn trang tính "${String(name).slice(0, 100)}" (có thể vừa đổi tên hoặc xoá trên Google Sheet).` };
 }
 
-/** Luật của trang tính cho trang quản trị, cột tìm theo tên ở dòng 1 (cột không có thì bỏ qua). */
-function adminRules_(sh) {
+/**
+ * Luật của trang tính cho trang quản trị, cột tìm theo tên ở dòng 1 (cột không có thì bỏ qua). `lists`: tính cả các lựa
+ * chọn cần đọc products.json (chỉ khi gửi trang tính cho web; lúc sửa, thêm dòng không cần).
+ */
+function adminRules_(sh, lists) {
   const rule = ADMIN_RULES.hasOwnProperty(sh.getName()) ? ADMIN_RULES[sh.getName()] : {};
   const head = rule.readOnly || rule.web || rule.choices ? header_(sh).map(matchText_) : [];
   const at = (name) => head.indexOf(matchText_(name)) + 1;
@@ -1546,7 +1570,8 @@ function adminRules_(sh) {
   });
   const choices = {};
   Object.entries(rule.choices || {}).forEach(([name, list]) => {
-    if (at(name)) choices[at(name)] = list;
+    if (typeof list === 'function') list = lists ? list() : [];
+    if (at(name) && list.length) choices[at(name)] = list;
   });
   return {
     all: Boolean(rule.all),
@@ -1556,11 +1581,35 @@ function adminRules_(sh) {
     web: rule.web ? rule.web.cols.map(at).filter(Boolean) : [],
     webWhy: rule.web ? rule.web.why : '',
     choices,
+    qty: (rule.qty || []).map(at).filter((col) => col && choices[col]),
     add: !rule.all && !rule.noAdd,
     del: !rule.all && !rule.noDelete,
     tip: rule.tip || '',
-    top: NEWEST_FIRST.includes(sh.getName()),
+    top: NEWEST_FIRST.includes(sh.getName()) || ADMIN_NEWEST_FIRST.some((name) => matchText_(name) === matchText_(sh.getName())),
   };
+}
+
+/**
+ * Dòng tiêu đề cột, giống headerRowOf trong admin.js: trang script tự ghi là dòng 1; trang khác là các dòng cố định
+ * (nếu có), hoặc dòng 1 hay 2 nếu có ít nhất 2 ô, toàn chữ, không gộp ô. Không có dòng tiêu đề thì 0.
+ */
+function headRow_(sh, rules) {
+  if (rules.header) return 1;
+  const last = sh.getLastRow();
+  const frozen = sh.getFrozenRows();
+  if (frozen) return Math.min(frozen, last);
+  const cols = sh.getLastColumn();
+  if (!last || !cols) return 0;
+  const n = Math.min(2, last);
+  const values = sh.getRange(1, 1, n, cols).getValues();
+  const merges = tryGet_(() => sh.getRange(1, 1, n, cols).getMergedRanges()) || [];
+  for (let r = 1; r <= n; r++) {
+    const filled = values[r - 1].filter((v) => v !== '' && v != null);
+    const merged = merges.some((m) => m.getRow() <= r && r < m.getRow() + m.getNumRows());
+    if (filled.length >= 2 && filled.every((v) => typeof v === 'string') && !merged) return r;
+    if (filled.length > 1) break;
+  }
+  return 0;
 }
 
 function editable_(rules, row, col) {
@@ -1604,7 +1653,7 @@ function sheetView_(sh) {
   const rows = sh.getLastRow();
   const cols = sh.getLastColumn();
   const view = {
-    name: sh.getName(), id: sh.getSheetId(), rows, cols, frozen: sh.getFrozenRows(), rules: adminRules_(sh),
+    name: sh.getName(), id: sh.getSheetId(), rows, cols, frozen: sh.getFrozenRows(), rules: adminRules_(sh, true),
     dec: ctx.dec, images: tryGet_(() => sh.getImages().length) || 0, formulas: false,
     widths: [], kinds: [], merges: [], lists: [], rowNums: [], hashes: [], cells: [], webRows: [],
   };
@@ -1911,9 +1960,10 @@ function adminAppend_(data, user) {
     const ctx = gridContext_(sh);
     const skip = Math.max(sh.getFrozenRows(), 1);
     const old = last > skip ? sh.getRange(skip + 1, 1, last - skip, width).getValues() : [];
-    // Định dạng của dòng sắp thêm (VD cả cột để "Văn bản thuần"): dòng chèn trên cùng giống dòng dữ liệu đầu tiên;
-    // dòng thêm ở cuối là dòng trống kế tiếp (dòng cuối của trang thì Sheet tự thêm dòng mới)
-    const at = rules.top && last > 1 ? 2 : last + 1;
+    // Định dạng của dòng sắp thêm (VD cả cột để "Văn bản thuần"): dòng chèn trên cùng (ngay dưới dòng tiêu đề) giống dòng
+    // dữ liệu đầu tiên; dòng thêm ở cuối là dòng trống kế tiếp (dòng cuối của trang thì Sheet tự thêm dòng mới)
+    const after = rules.top ? headRow_(sh, rules) : 0;
+    const at = rules.top && last > after ? after + 1 : last + 1;
     const formats = at <= sh.getMaxRows() ? sh.getRange(at, 1, 1, width).getNumberFormats()[0] : [];
     const head = rules.header ? header_(sh) : [];
     const row = [];
@@ -1936,7 +1986,7 @@ function adminAppend_(data, user) {
     if (!text.length) return { ok: false, error: 'Dòng mới còn trống: điền ít nhất một ô.' };
     let added;
     if (rules.top) {
-      added = insertTop_(sh, [row]);
+      added = insertTop_(sh, [row], after);
     } else {
       sh.appendRow(row);
       added = sh.getLastRow();
@@ -3022,22 +3072,24 @@ function addRow_(sh, values, max) {
 }
 
 /**
- * Chèn các dòng `rows` (mỗi dòng: mảng ô theo thứ tự cột) ngay dưới dòng tiêu đề, giữ thứ tự; trả số dòng đầu tiên (2).
- * Dòng chèn lấy định dạng số, ô tích, ô thả xuống của dòng dữ liệu ngay dưới nó, không mang màu, chữ đậm của dòng tiêu đề.
- * Chèn dòng làm số dòng của mọi dòng bên dưới đổi: chạy trong khoá của Sheet để việc khác không ghi nhầm dòng.
+ * Chèn các dòng `rows` (mỗi dòng: mảng ô theo thứ tự cột) ngay dưới dòng tiêu đề (dòng `after`, mặc định dòng 1), giữ
+ * thứ tự; trả số dòng đầu tiên. Dòng chèn lấy định dạng số, ô tích, ô thả xuống của dòng dữ liệu ngay dưới nó, không mang
+ * màu, chữ đậm của dòng tiêu đề. Chèn dòng làm số dòng của mọi dòng bên dưới đổi: chạy trong khoá của Sheet để việc
+ * khác không ghi nhầm dòng.
  */
-function insertTop_(sh, rows) {
+function insertTop_(sh, rows, after = 1) {
   return withDocLock_(() => {
-    if (sh.getLastRow() < 2) {
+    const first = after + 1;
+    if (sh.getLastRow() < first) {
       rows.forEach((row) => sh.appendRow(row));
-      return 2;
+      return sh.getLastRow() - rows.length + 1;
     }
     const width = Math.max(sh.getLastColumn(), ...rows.map((row) => row.length));
-    sh.insertRowsBefore(2, rows.length);
-    const below = sh.getRange(2 + rows.length, 1, 1, width);
+    sh.insertRowsBefore(first, rows.length);
+    const below = sh.getRange(first + rows.length, 1, 1, width);
     const formats = below.getNumberFormats()[0];
     const checks = tryGet_(() => below.getDataValidations()[0]);
-    const range = sh.getRange(2, 1, rows.length, width);
+    const range = sh.getRange(first, 1, rows.length, width);
     range.clearFormat().setNumberFormats(rows.map(() => formats));
     if (checks) range.setDataValidations(rows.map(() => checks));
     // Ô "Văn bản thuần" giữ nguyên dấu ' ở đầu: bỏ đi, ô đó vốn không đổi chữ thành số, ngày hay công thức
@@ -3048,10 +3100,10 @@ function insertTop_(sh, rows) {
     try {
       range.setValues(values);
     } catch (err) {
-      sh.deleteRows(2, rows.length); // Không để lại dòng trống trên cùng
+      sh.deleteRows(first, rows.length); // Không để lại dòng trống trên cùng
       throw err;
     }
-    return 2;
+    return first;
   });
 }
 
