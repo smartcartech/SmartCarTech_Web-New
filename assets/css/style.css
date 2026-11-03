@@ -2830,7 +2830,6 @@ a.contact-item:hover .contact-item__value { color: var(--c-accent); }
 .admin-field { display: flex; flex-direction: column; gap: 6px; }
 .admin-field .field__label { font-size: 13px; }
 textarea.admin-field__input { min-height: 46px; max-height: 45vh; padding: 11px 14px; overflow-y: auto; font-size: 15px; line-height: 1.5; resize: vertical; }
-.admin-field__input.is-formula { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 14px; }
 .admin-field select.field__input { min-height: 46px; font-size: 15px; }
 .admin-field__value { padding: 11px 14px; border: 1px dashed var(--c-line); border-radius: var(--r-btn); font-size: 15px; line-height: 1.5; color: var(--c-text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
 .admin-field__check { align-items: center; min-height: 32px; }

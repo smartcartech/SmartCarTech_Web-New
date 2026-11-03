@@ -62,6 +62,7 @@ const ORDER_KEY_COL = 'Mã tải code'; // Cột ở trang "Đơn hàng": shop g
 const ORDER_CHECK_COL = 'Kiểm tra';  // Script ghi khi tổng web gửi khác giá đúng, hoặc chưa đối chiếu được giá
 const ORDER_PLATFORM_COL = 'Nền tảng'; // Đơn từ web ghi WEB_PLATFORM; đơn gộp từ "Customer Infor" ghi Shopee, Tiktok…
 const WEB_PLATFORM = 'Website';
+const ORDER_PLATFORMS = ['Shopee', 'Tiktok']; // Ô thả xuống "Nền tảng" khi shop tự thêm, sửa đơn trên trang quản trị
 const ORDER_REVENUE_COL = 'Doanh thu sau điều chỉnh'; // Shop tự điền 2 cột này; đủ 2 số thì ORDER_PROFIT_COL tự tính (syncProfit_)
 const ORDER_COST_COL = 'Chi phí';
 const ORDER_PROFIT_COL = 'Lợi nhuận';
@@ -72,6 +73,7 @@ const PRINT_SHEET = 'In 3D';
 const PRINT_STATUS_COL = 'Trạng thái'; // Shop chọn ở ô thả xuống; đơn, yêu cầu mới ghi "Mới"
 const PRINT_STATUSES = ['Mới', 'Đã liên hệ', 'Đã chốt', 'Đang in', 'Đã giao', 'Huỷ'];
 const PRINT_HEADER = ['Thời gian', 'Mã', 'Loại', 'Họ tên', 'SĐT', 'Địa chỉ', 'Nội dung', 'Số lượng', 'Tạm tính (₫)', ORDER_CHECK_COL, 'Ghi chú', PRINT_STATUS_COL];
+const PRINT_KINDS = ['Bảng tên để bàn', 'Giá đỡ điện thoại', 'In theo file']; // Cột "Loại", giống plateRow_, standRow_, fileRow_
 // Chữ in trên bảng tên: chữ cái (có dấu tiếng Việt), số, dấu câu thường dùng. Giống assets/js/print3d.js
 const PLATE_TEXT_RE = /^[\p{Script=Latin}\p{M}\p{Nd} .,:;!?&'"’‘“”()\/+\-–—#@*]*$/u;
 
@@ -1066,13 +1068,37 @@ const ADMIN_OFF_TEXT = 'Trang quản trị đang tắt. Bật lại trong Google
 /**
  * Trang tính script tự ghi: dòng 1 là tiêu đề, script tìm cột theo tên nên chỉ đổi trên Sheet. Trang "Mã tải code":
  * mã đã in trên thẻ nên không thêm, xoá dòng trên web; "Mã đơn", "Khách hàng" do script điền. Nhật ký chỉ xem.
+ * Ô script tự tính, tự ghi chỉ xem trên trang quản trị (trên Google Sheet vẫn sửa được khi thật cần):
+ * - readOnly: { cột: lý do } khoá ở mọi dòng, VD Lợi nhuận.
+ * - web: các cột khoá ở dòng do web tạo (webRow_), VD Nền tảng của đơn website. Ô công thức ở trang nào cũng khoá.
+ * - choices: { cột: lựa chọn } hiện ô thả xuống khi ô đó chưa có ô thả xuống riêng trên Sheet.
  */
+const ADMIN_AUTO_DOWNLOAD = 'Script tự ghi khi khách tải code.';
+const ADMIN_AUTO_LINK = 'Script tự điền khi gõ mã này vào một đơn ở trang Đơn hàng.';
+const ADMIN_FORMULA = 'Ô công thức, tự tính: muốn đổi công thức thì sửa trên Google Sheet.';
 const ADMIN_RULES = {
-  [ORDER_SHEET]: { header: true },
+  [ORDER_SHEET]: {
+    header: true,
+    readOnly: { [ORDER_PROFIT_COL]: `Tự tính: ${ORDER_REVENUE_COL} trừ ${ORDER_COST_COL}.` },
+    web: { why: 'Web tự ghi cho đơn đặt trên website.', cols: ['Thời gian', 'Mã đơn', ORDER_PLATFORM_COL, 'Sản phẩm', 'Tổng (₫)', ORDER_CHECK_COL] },
+    choices: { [ORDER_PLATFORM_COL]: ORDER_PLATFORMS },
+  },
   [LEAD_SHEET]: { header: true },
-  [PRINT_SHEET]: { header: true },
+  [PRINT_SHEET]: {
+    header: true,
+    // Nội dung, Số lượng, Tạm tính vẫn sửa được: shop chốt lại với khách, yêu cầu in theo file chờ shop báo giá
+    web: { why: 'Web tự ghi cho yêu cầu đặt trên website.', cols: ['Thời gian', 'Mã', 'Loại', ORDER_CHECK_COL] },
+    choices: { 'Loại': PRINT_KINDS },
+  },
   [CODE_SHEET]: {
-    header: true, readOnly: [CODE_ID_COL, CODE_ID_OLD_COL, 'Mã đơn', 'Khách hàng'], noAdd: true, noDelete: true,
+    header: true, noAdd: true, noDelete: true,
+    // "Số lần tải" vẫn sửa được: khách hết lượt tải thì shop đặt lại về 0
+    readOnly: {
+      [CODE_ID_COL]: 'Mã đã in trên thẻ nên không đổi.', [CODE_ID_OLD_COL]: 'Mã đã in trên thẻ nên không đổi.',
+      'Mã đơn': ADMIN_AUTO_LINK, 'Khách hàng': ADMIN_AUTO_LINK,
+      'Tải lần đầu': ADMIN_AUTO_DOWNLOAD, 'Tải gần nhất': ADMIN_AUTO_DOWNLOAD, 'File tải gần nhất': ADMIN_AUTO_DOWNLOAD,
+      [PRINTED_COL]: 'Script tự ghi ngày in thẻ.',
+    },
     tip: 'Tạo mã mới, in thẻ: mở Google Sheet → menu SmartCarTech. Mã đã in trên thẻ không xoá ở đây: muốn ngừng một mã thì tích ô Khoá.',
   },
   [DASHBOARD_SHEET]: {
@@ -1505,13 +1531,31 @@ function sheetGone_(name) {
   return { ok: false, conflict: true, error: `Không còn trang tính "${String(name).slice(0, 100)}" (có thể vừa đổi tên hoặc xoá trên Google Sheet).` };
 }
 
+/** Luật của trang tính cho trang quản trị, cột tìm theo tên ở dòng 1 (cột không có thì bỏ qua). */
 function adminRules_(sh) {
   const rule = ADMIN_RULES.hasOwnProperty(sh.getName()) ? ADMIN_RULES[sh.getName()] : {};
-  const head = rule.readOnly ? header_(sh).map(matchText_) : [];
+  const head = rule.readOnly || rule.web || rule.choices ? header_(sh).map(matchText_) : [];
+  const at = (name) => head.indexOf(matchText_(name)) + 1;
+  const cols = [];
+  const why = {};
+  Object.entries(rule.readOnly || {}).forEach(([name, reason]) => {
+    const col = at(name);
+    if (!col) return;
+    cols.push(col);
+    why[col] = reason;
+  });
+  const choices = {};
+  Object.entries(rule.choices || {}).forEach(([name, list]) => {
+    if (at(name)) choices[at(name)] = list;
+  });
   return {
     all: Boolean(rule.all),
     header: Boolean(rule.header),
-    cols: (rule.readOnly || []).map((name) => head.indexOf(matchText_(name)) + 1).filter(Boolean),
+    cols,
+    why,
+    web: rule.web ? rule.web.cols.map(at).filter(Boolean) : [],
+    webWhy: rule.web ? rule.web.why : '',
+    choices,
     add: !rule.all && !rule.noAdd,
     del: !rule.all && !rule.noDelete,
     tip: rule.tip || '',
@@ -1521,6 +1565,34 @@ function adminRules_(sh) {
 
 function editable_(rules, row, col) {
   return !rules.all && !(rules.header && row === 1) && !rules.cols.includes(col);
+}
+
+/**
+ * Dòng do web tạo: đơn đặt trên website (Nền tảng "Website", hoặc trống mà mã đơn dạng SC…) hay yêu cầu ở trang In 3D
+ * (mã IN…). `values`: các ô của dòng (giá trị hoặc chữ hiện), `names`: dòng 1 đã qua matchText_.
+ */
+function webRow_(sh, values, names) {
+  const cell = (name) => {
+    const i = names.indexOf(matchText_(name));
+    return i < 0 || values[i] == null ? '' : values[i];
+  };
+  if (sh.getName() === ORDER_SHEET) return platformOf_(cell(ORDER_PLATFORM_COL), String(cell('Mã đơn')).trim()) === WEB_PLATFORM;
+  if (sh.getName() === PRINT_SHEET) return /^IN\d{6}-\d{4}$/.test(String(cell('Mã')).trim());
+  return false;
+}
+
+/** Ô `col` của dòng `row` không sửa được trên trang quản trị: trả lý do, sửa được thì trả chuỗi rỗng. */
+function adminLock_(rules, row, col, web, formula) {
+  if (rules.header && row === 1) return 'chỉ sửa được trên Google Sheet.';
+  if (!editable_(rules, row, col)) return rules.why[col] || 'chỉ sửa được trên Google Sheet.';
+  if (web && rules.web.includes(col)) return rules.webWhy;
+  return formula ? ADMIN_FORMULA : '';
+}
+
+/** Câu báo khi trang quản trị gửi sửa một ô bị khoá, VD "Ô Q5 (Lợi nhuận): Tự tính: …". */
+function lockText_(sh, row, col, reason) {
+  const where = `Ô ${colName_(col)}${row}`;
+  return /^chỉ /.test(reason) ? `${where} ${reason}` : `${where} (${header_(sh)[col - 1] || colName_(col)}): ${reason}`;
 }
 
 /**
@@ -1534,13 +1606,14 @@ function sheetView_(sh) {
   const view = {
     name: sh.getName(), id: sh.getSheetId(), rows, cols, frozen: sh.getFrozenRows(), rules: adminRules_(sh),
     dec: ctx.dec, images: tryGet_(() => sh.getImages().length) || 0, formulas: false,
-    widths: [], kinds: [], merges: [], lists: [], rowNums: [], hashes: [], cells: [],
+    widths: [], kinds: [], merges: [], lists: [], rowNums: [], hashes: [], cells: [], webRows: [],
   };
   if (!rows || !cols) return view;
   const head = Math.min(rows, Math.max(view.frozen, 1));
   const fit = Math.max(head + 1, Math.floor(ADMIN_MAX_CELLS / cols));
   // Trang mới nhất ở trên: các dòng đầu; trang khác: dòng tiêu đề và các dòng cuối
   const parts = rows <= fit ? [[1, rows]] : view.rules.top ? [[1, fit]] : [[1, head], [rows - (fit - head) + 1, rows]];
+  const names = view.rules.web.length ? header_(sh).map(matchText_) : null;
   const kinds = [];
   parts.forEach(([from, to]) => {
     gridRows_(sh.getRange(from, 1, to - from + 1, cols), ctx).forEach((r, i) => {
@@ -1548,6 +1621,7 @@ function sheetView_(sh) {
       view.hashes.push(r.hash);
       view.cells.push(r.cells);
       if (from + i > head) kinds.push(r.kinds);
+      if (names && from + i > 1 && webRow_(sh, shownOf_(r.cells), names)) view.webRows.push(from + i);
     });
   });
   view.kinds = Array.from({ length: cols }, (_, c) => majorityKind_(kinds.map((k) => k[c])));
@@ -1557,6 +1631,11 @@ function sheetView_(sh) {
   view.lists = ctx.lists;
   view.formulas = ctx.formulas;
   return view;
+}
+
+/** Chữ hiện của các ô một dòng (gridRows_), ô trống là "". */
+function shownOf_(cells) {
+  return cells.map((cell) => (cell && cell.d) || '');
 }
 
 /** Múi giờ, dấu thập phân theo vùng của Sheet (VD vi_VN: 1,5) và các danh sách thả xuống đã gặp khi đọc. */
@@ -1784,13 +1863,14 @@ function adminEdit_(data, user) {
     const ctx = gridContext_(sh);
     const formulas = range.getFormulas()[0];
     const shown = range.getDisplayValues()[0];
+    const names = rules.web.length ? header_(sh).map(matchText_) : null;
+    const web = Boolean(names) && webRow_(sh, values, names);
     const changes = [];
     for (const item of items) {
       const col = Number(item && item.col);
       if (!Number.isInteger(col) || col < 1 || col > width) return { ok: false, error: ADMIN_BAD };
-      if (!editable_(rules, row, col) || cellKind_(values[col - 1]) === 'o') {
-        return { ok: false, error: `Ô ${colName_(col)}${row} chỉ sửa được trên Google Sheet.` };
-      }
+      const lock = cellKind_(values[col - 1]) === 'o' ? 'chỉ sửa được trên Google Sheet.' : adminLock_(rules, row, col, web, formulas[col - 1]);
+      if (lock) return { ok: false, error: lockText_(sh, row, col, lock) };
       const cell = sh.getRange(row, col);
       const kind = cellKind_(values[col - 1]) || columnKind_(sh, col);
       const next = cellInput_(item.value, kind, cell.getNumberFormat(), ctx);
@@ -1805,7 +1885,8 @@ function adminEdit_(data, user) {
       adminLog_(user, 'Sửa ô', sh.getName(), `${colName_(ch.col)}${row}`, ch.before, cell ? (cell.f ? cell.e : cell.d) || '' : '');
     });
     return {
-      ok: true, saved: changes.length, row: { hash: fresh.hash, cells: fresh.cells, lists: ctx.lists },
+      ok: true, saved: changes.length,
+      row: { hash: fresh.hash, cells: fresh.cells, lists: ctx.lists, web: Boolean(names) && webRow_(sh, shownOf_(fresh.cells), names) },
       reload: Boolean(linked), message: linked && linked.issue ? linked.issue : '',
     };
   });
@@ -1843,7 +1924,10 @@ function adminAppend_(data, user) {
         row.push('');
         continue;
       }
-      if (!editable_(rules, last + 1, c + 1)) return { ok: false, error: `Cột ${colName_(c + 1)} chỉ sửa được trên Google Sheet.` };
+      if (!editable_(rules, last + 1, c + 1)) {
+        const why = rules.why[c + 1];
+        return { ok: false, error: why ? `Cột ${colName_(c + 1)} (${head[c] || header_(sh)[c]}): ${why}` : `Cột ${colName_(c + 1)} chỉ sửa được trên Google Sheet.` };
+      }
       const next = cellInput_(value, majorityKind_(old.map((r) => cellKind_(r[c]))), formats[c] || '', ctx);
       row.push(next.formula !== undefined ? next.formula : next.value);
       text.push(`${head[c] || colName_(c + 1)}: ${typeof value === 'boolean' ? (value ? 'đã tích' : 'chưa tích') : value}`);

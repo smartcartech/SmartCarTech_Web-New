@@ -241,7 +241,8 @@ Mở `smartcartech.vn/quan-tri.html`, đăng nhập, rồi xem và sửa dữ li
   - Ghi chú của từng trang gom ở nút *Lưu ý* cạnh tên trang.
 - Bấm số dòng hoặc một ô: cả dòng mở ở khung bên phải. Sửa rồi bấm **Lưu thay đổi**.
   - Ô thả xuống (VD *Trạng thái* ở trang In 3D) và ô tích (VD *Khoá* ở trang Mã tải code) hiện đúng như trên Sheet.
-  - Ô công thức hiện công thức để sửa, kèm kết quả hiện tại.
+  - *Nền tảng* ở trang Đơn hàng chọn trong ô thả xuống: Shopee, Tiktok (`ORDER_PLATFORMS` trong script). *Loại* ở trang In 3D cũng vậy: bảng tên, giá đỡ, in theo file. Ô nào đã có ô thả xuống riêng trên Sheet thì dùng danh sách của Sheet.
+  - Ô script tự tính, tự ghi chỉ xem, có dòng nhỏ ghi lý do (xem *Dữ liệu được giữ an toàn*).
 - **Thêm dòng**: VD đơn Shopee, đơn Zalo. Ở Đơn hàng, Tư vấn, In 3D: dòng mới nằm trên cùng, ngay dưới dòng tiêu đề; trang khác: cuối trang tính. Ô thả xuống, ô tích lấy theo dòng kề bên.
 - **Xoá dòng**: nút ở cuối khung, bấm thêm một lần để xác nhận.
 - Ô tìm kiếm lọc các dòng có chữ đó, không cần gõ dấu: gõ "binh" tìm được "Bình".
@@ -252,6 +253,12 @@ Mở `smartcartech.vn/quan-tri.html`, đăng nhập, rồi xem và sửa dữ li
 - Mỗi lần lưu, script kiểm tra dòng đó có bị đổi ở nơi khác từ lúc mở không: VD vừa sửa trên Google Sheet, có đơn mới, hay vừa xoá một dòng phía trên. Nếu có, web không ghi gì, tải lại dữ liệu mới, rồi hiện lại nội dung bạn vừa gõ để làm lại.
 - Dòng 1 (tên cột) của các trang Đơn hàng, Tư vấn, In 3D, Mã tải code chỉ sửa được trên Sheet, vì script tìm cột theo tên để ghi đơn.
 - Trang Mã tải code không thêm, xoá dòng trên web được, vì mã đã in trên thẻ. Cột Mã tải code, Mã đơn, Khách hàng chỉ xem. Tạo mã, in thẻ vẫn làm ở menu SmartCarTech. Muốn ngừng một mã: tích ô Khoá.
+- Ô script tự tính, tự ghi chỉ xem trên trang quản trị (trên Google Sheet vẫn sửa được khi thật cần):
+  - **Lợi nhuận** ở trang Đơn hàng, mọi dòng: script tự tính bằng Doanh thu sau điều chỉnh trừ Chi phí. Muốn lợi nhuận đổi thì sửa 2 cột đó.
+  - **Đơn đặt trên website** (Nền tảng là Website, hoặc trống mà mã đơn dạng SC…): Thời gian, Mã đơn, Nền tảng, Sản phẩm, Tổng (₫), Kiểm tra. Họ tên, SĐT, Địa chỉ, Ghi chú (khách gõ, có thể sai) và các cột shop tự điền vẫn sửa được. Đơn shop tự thêm (Shopee, Tiktok) thì sửa được hết, trừ Lợi nhuận.
+  - **Yêu cầu đặt ở trang In 3D** (mã dạng IN…): Thời gian, Mã, Loại, Kiểm tra. Nội dung, Số lượng, Tạm tính vẫn sửa được, vì shop chốt lại với khách và báo giá in theo file.
+  - Trang **Mã tải code**: Tải lần đầu, Tải gần nhất, File tải gần nhất, Đã in. *Số lần tải* vẫn sửa được để đặt lại về 0 khi khách hết lượt.
+  - **Ô công thức** ở mọi trang: hiện kết quả và công thức; đổi công thức thì sửa trên Google Sheet.
 - Sửa cột Mã tải code (hoặc Mã đơn, Họ tên, SĐT) ở trang Đơn hàng trên web thì script gán mã y như khi gõ trên Sheet.
 - Mọi lần đăng nhập, sửa ô, thêm, xoá dòng được ghi ở trang tính **Nhật ký quản trị** (script tự tạo; trên web chỉ xem). Dòng bị xoá được lưu đủ nội dung ở cột *Trước*: lỡ tay xoá thì chép lại từ đây. Script không ghi được nhật ký thì cũng không xoá dòng.
 - Google Sheet cũng giữ mọi thay đổi ở **Tệp → Lịch sử phiên bản**.
@@ -375,7 +382,7 @@ Cột sau này mới thêm vào Customer Infor cũng theo quy tắc đó: cùng 
 
 - Đơn web có sẵn và đơn web mới ghi Nền tảng là `Website`. Đơn mới tự ghi cần triển khai phiên bản mới của script (mục 5, *Sửa script sau này*).
 - Các cột tiền của đơn mới để trống, shop tự điền, trên trang quản trị hay trên Sheet đều được. Điền đủ Doanh thu và Chi phí thì Lợi nhuận tự tính.
-- Xoá 1 trong 2 số đó thì Lợi nhuận trống lại. Ô Lợi nhuận shop tự gõ số hoặc công thức khác thì được giữ nguyên.
+- Xoá 1 trong 2 số đó thì Lợi nhuận trống lại. Ô Lợi nhuận shop tự gõ số hoặc công thức khác trên Google Sheet thì được giữ nguyên. Trên trang quản trị ô Lợi nhuận chỉ xem.
 - Tự tính khi sửa trên Sheet chạy ngay sau khi Lưu script; khi sửa trên trang quản trị thì cần triển khai phiên bản mới.
 
 ## 7. Ghi chú kỹ thuật

@@ -50,6 +50,29 @@ function canEdit(sh, row, col) {
   return !sh.rules.all && !(sh.rules.header && row === 1) && !sh.rules.cols.includes(col);
 }
 
+/**
+ * Vì sao ô chỉ xem (chuỗi rỗng: sửa được), giống adminLock_ trong google-apps-script.gs: ô script tự tính (VD Lợi nhuận),
+ * ô web tự ghi ở đơn đặt trên website, ô công thức.
+ */
+function lockOf(sh, row, col, cell) {
+  if (cell?.t === 'o') return '[Hình ảnh trong ô: xem trên Google Sheet]';
+  if (sh.rules.header && row === 1) return 'Chỉ sửa trên Google Sheet.';
+  if (!canEdit(sh, row, col)) return sh.rules.why?.[col] || 'Chỉ sửa trên Google Sheet.';
+  if (sh.webRows.has(row) && sh.rules.web?.includes(col)) return sh.rules.webWhy;
+  return cell?.f ? `Ô công thức ${cell.e}, tự tính: muốn đổi công thức thì sửa trên Google Sheet.` : '';
+}
+
+/** Số thứ tự của `list` trong các danh sách thả xuống của trang tính (thêm vào nếu chưa có). */
+function listIndex(sh, list) {
+  const key = JSON.stringify(list);
+  let at = sh.lists.findIndex((l) => JSON.stringify(l) === key);
+  if (at < 0) {
+    at = sh.lists.length;
+    sh.lists.push(list);
+  }
+  return at;
+}
+
 /* ---------- Phiên đăng nhập ---------- */
 function saveSession() {
   try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token: app.token, user: app.user })); } catch { /* private mode */ }
@@ -358,6 +381,9 @@ function prepare(sh) {
   sh.index = new Map(sh.rowNums.map((r, i) => [r, i]));
   sh.text = sh.cells.map(rowText);
   sh.headerRow = headerRowOf(sh);
+  sh.webRows = new Set(sh.webRows || []);
+  // Lựa chọn của script (VD Nền tảng: Shopee, Tiktok) cho ô chưa có ô thả xuống riêng trên Sheet
+  sh.choice = Object.fromEntries(Object.entries(sh.rules.choices || {}).map(([col, list]) => [col, listIndex(sh, list)]));
   // Các dòng đầu đứng yên khi cuộn: tới dòng tiêu đề cột, nếu các dòng đó đều đang hiện
   let head = sh.headerRow && sh.headerRow <= MAX_STICKY_ROWS ? sh.headerRow : 0;
   while (head && sh.rowNums[head - 1] !== head) head--;
@@ -591,19 +617,12 @@ function stickHead() {
 function mergeRow(sh, rowNum, fresh) {
   const i = sh.index.get(rowNum);
   if (i === undefined || !fresh) return;
-  const remap = (v) => {
-    if (typeof v !== 'number') return v;
-    const key = JSON.stringify(fresh.lists[v]);
-    let at = sh.lists.findIndex((l) => JSON.stringify(l) === key);
-    if (at < 0) {
-      at = sh.lists.length;
-      sh.lists.push(fresh.lists[v]);
-    }
-    return at;
-  };
+  const remap = (v) => (typeof v === 'number' ? listIndex(sh, fresh.lists[v]) : v);
   sh.cells[i] = fresh.cells.slice(0, sh.cols).map((c) => (c && c.v !== undefined ? { ...c, v: remap(c.v) } : c));
   sh.hashes[i] = fresh.hash;
   sh.text[i] = rowText(sh.cells[i]);
+  if (fresh.web) sh.webRows.add(rowNum);
+  else sh.webRows.delete(rowNum);
 }
 
 /* ---------- Khung xem, sửa, thêm một dòng ---------- */
@@ -644,15 +663,17 @@ function buildFields(sh, mode, row, i) {
     if (covered.has(c)) continue;
     const cell = cells[c - 1] || null;
     const label = labelOf(sh, c);
-    const v = mode === 'add' ? template[c - 1]?.v : cell?.v;
-    const locked = cell?.t === 'o' || !canEdit(sh, mode === 'add' ? sh.rows + 1 : row, c);
+    const own = mode === 'add' ? template[c - 1]?.v : cell?.v;
+    const v = own ?? sh.choice[c];
+    const why = lockOf(sh, mode === 'add' ? sh.rows + 1 : row, c, cell);
     let original = editOf(cell);
     if (mode === 'add') {
-      const list = typeof v === 'number' ? sh.lists[v] : null;
+      // Ô thả xuống của Sheet lấy lựa chọn đầu (VD Trạng thái "Mới"); lựa chọn của script để trống cho shop tự chọn
+      const list = typeof own === 'number' ? sh.lists[own] : null;
       original = / · Thời gian$/.test(label) && sh.kinds[c - 1] === 'd' ? nowText() : list && list.length ? list[0] : '';
     }
     fields.push({
-      col: c, cell, label, v, locked, kind: sh.kinds[c - 1] || '',
+      col: c, cell, label, v, locked: Boolean(why), why, kind: sh.kinds[c - 1] || '',
       original: v === 'c' ? original === 'TRUE' : original,
       empty: mode === 'edit' && !editOf(cell) && !(cell && cell.n),
     });
@@ -678,16 +699,15 @@ function controlHtml(sh, f) {
       ${extra.map((o) => `<option value="${esc(o)}">${esc(o)} (ngoài danh sách)</option>`).join('')}
     </select>`;
   }
-  const formula = f.cell?.f;
-  const hint = formula ? 'Công thức' : f.kind === 'd' || f.cell?.t === 'd' ? 'dd/mm/yyyy hh:mm' : '';
-  const numeric = !formula && (f.cell?.t === 'n' || (!f.cell && f.kind === 'n'));
-  return `<textarea class="field__input admin-field__input${formula ? ' is-formula' : ''}" id="${id}" data-col="${f.col}" rows="1"${numeric ? ' inputmode="decimal"' : ''}${hint ? ` placeholder="${esc(hint)}"` : ''} spellcheck="false"></textarea>`;
+  // Ô công thức luôn chỉ xem (lockOf): ô sửa được là chữ, số hoặc ngày
+  const hint = f.kind === 'd' || f.cell?.t === 'd' ? 'dd/mm/yyyy hh:mm' : '';
+  const numeric = f.cell?.t === 'n' || (!f.cell && f.kind === 'n');
+  return `<textarea class="field__input admin-field__input" id="${id}" data-col="${f.col}" rows="1"${numeric ? ' inputmode="decimal"' : ''}${hint ? ` placeholder="${esc(hint)}"` : ''} spellcheck="false"></textarea>`;
 }
 
 function fieldHtml(sh, f) {
   const hints = [];
-  if (f.locked && f.cell?.t !== 'o') hints.push(`${icon('lock', 'icon--sm')}<span>Chỉ sửa trên Google Sheet.</span>`);
-  if (f.cell?.f) hints.push(`<span>Kết quả hiện tại: ${esc(f.cell.d || '(trống)')}</span>`);
+  if (f.locked && f.cell?.t !== 'o') hints.push(`${icon('lock', 'icon--sm')}<span>${esc(f.why)}</span>`);
   if (f.cell?.n) hints.push(`<span>Ghi chú: ${esc(f.cell.n)}</span>`);
   return `
     <div class="admin-field" data-field="${f.col}"${f.empty ? ' data-empty' : ''}>
