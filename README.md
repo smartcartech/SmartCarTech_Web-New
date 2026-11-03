@@ -234,6 +234,7 @@ Mở `smartcartech.vn/quan-tri.html`, đăng nhập, rồi xem và sửa dữ li
 
 **Làm được gì:**
 
+- Trang đầu tiên là **Tổng quan**: lợi nhuận, số đơn, khách truy cập có biểu đồ (xem *Trang Tổng quan và khách truy cập* bên dưới).
 - Xem mọi trang tính trong Sheet: Đơn hàng, Tư vấn, In 3D, Mã tải code, các trang kế hoạch nhập từ Excel (xem *Đưa file kế hoạch Excel vào Google Sheet* bên dưới) và trang Nhật ký quản trị. Màu nền, màu chữ, chữ đậm, ô gộp hiện như trên Sheet.
   - Danh sách trang tính nằm ở cột bên trái, cuộn lên xuống được. Nút ☰ ẩn cột này để bảng rộng hơn; trên điện thoại, nút ☰ mở danh sách.
   - Ghi chú của từng trang gom ở nút *Lưu ý* cạnh tên trang.
@@ -275,6 +276,31 @@ Mở `smartcartech.vn/quan-tri.html`, đăng nhập, rồi xem và sửa dữ li
 6. Đưa web lên, rồi mở `smartcartech.vn/quan-tri.html` và đăng nhập.
 
 Web lên trước khi triển khai script mới thì trang quản trị báo "chưa có bản mới"; các phần khác của web vẫn chạy bình thường.
+
+### Trang Tổng quan và khách truy cập
+
+Trang tính **Tổng quan** (trang đầu tiên của Sheet, script tự tạo) gom số liệu kinh doanh, có biểu đồ. Trên trang quản trị, mở trang này thì thấy thẻ số, biểu đồ vẽ riêng cho web (xem được trên điện thoại) và bảng.
+
+- **Tháng này, tính tới hôm nay** so với cùng kỳ tháng trước (từ ngày 1 tới cùng ngày): lợi nhuận, doanh thu, số đơn, khách truy cập, tỷ lệ đặt hàng.
+- **Biểu đồ**: doanh thu và lợi nhuận 12 tháng gần nhất; số đơn theo nền tảng (Website, Shopee, TikTok, Khác, In 3D); khách truy cập 30 ngày gần nhất. Trên web: rê chuột, chạm hoặc dùng phím ← → trên biểu đồ để xem số từng tháng, từng ngày.
+- **Việc cần làm**: đơn In 3D đang chờ (Mới, Đã liên hệ, Đã chốt, Đang in), đơn chưa có lợi nhuận, mã tải code chưa in, thẻ đã in chưa gán đơn. Trên web, bấm vào một việc để mở trang tính đó.
+- **Bảng** theo tháng (12 tháng) và theo năm: số đơn từng nền tảng, doanh thu, lợi nhuận, % lợi nhuận, khách truy cập, tỷ lệ đặt hàng, yêu cầu tư vấn, yêu cầu in theo file.
+
+**Cách tính:**
+
+- Số đơn: trang Đơn hàng theo cột **Nền tảng** (ô trống mà mã đơn dạng `SC…` là đơn web; tên khác Website, Shopee, TikTok vào nhóm Khác), cộng đơn In 3D đặt trên web (bảng tên, giá đỡ; không tính đơn *Huỷ*). Yêu cầu in theo file là yêu cầu báo giá, đếm riêng. Đơn chưa có *Thời gian* không được tính, cuối trang có ghi số đơn đó.
+- Doanh thu: cột **Doanh thu sau điều chỉnh**; đơn chưa điền thì lấy **Tổng (₫)**. Lợi nhuận: cột **Lợi nhuận**, chỉ có ở đơn đã điền đủ Doanh thu và Chi phí; % lợi nhuận tính trên các đơn đó. Muốn số đúng thì điền Doanh thu sau điều chỉnh và Chi phí cho mọi đơn.
+- Khách truy cập: số trình duyệt ghé web, mỗi trình duyệt tính 1 lần trong ngày, trong tháng, trong năm. Tỷ lệ đặt hàng: đơn đặt trên web (bộ xe + In 3D) từ ngày bắt đầu đếm, chia cho khách truy cập.
+
+**Số liệu cập nhật khi nào:** mỗi lần mở trang Tổng quan trên trang quản trị (hoặc bấm *Tải lại*), mỗi lần mở Google Sheet (nếu lần trước đã quá 10 phút, `DASH_REFRESH_MINUTES`), hoặc menu **SmartCarTech → Cập nhật trang Tổng quan**. Trang do script ghi lại mỗi lần cập nhật: đừng sửa tay. Biểu đồ trong Google Sheet có thể kéo đổi chỗ, đổi cỡ; xoá đi thì lần cập nhật sau tự vẽ lại. Sheet đã có trang tên "Tổng quan" do shop tự tạo thì script không đụng tới.
+
+**Đếm khách truy cập (ẩn danh):**
+
+- Mỗi lần mở một trang công khai trên `smartcartech.vn`, trình duyệt báo về script 1 lượt xem, kèm cho biết đây có phải lần đầu trình duyệt đó ghé trong ngày, tháng, năm không. Không dùng cookie, không gửi IP, tên hay mã riêng nào. Trình duyệt chỉ nhớ ngày nó được đếm gần nhất (`sctech_seen` trong bộ nhớ trình duyệt). Chính sách bảo mật đã ghi điều này.
+- Không đếm: máy đã từng mở trang quản trị (máy của shop), các công cụ tự động (bot), bản web chạy thử trên máy.
+- Số đếm trong ngày nằm ở Script Properties (đếm không cần ghi Sheet nên không làm chậm đơn hàng). Mỗi lần cập nhật Tổng quan, các ngày đã qua được chuyển sang trang tính **Lượt truy cập** (mỗi ngày 1 dòng, mới nhất ở trên; trên web chỉ xem).
+- Số liệu gần đúng: 2 lượt xem đúng cùng lúc có thể chỉ đếm 1; xoá dữ liệu trình duyệt hoặc dùng tab ẩn danh thì được đếm như khách mới. Quá 10.000 lượt xem một ngày (`VISIT_MAX_PER_DAY`, VD bị spam) thì ngừng đếm tới hôm sau.
+- Chỉ đếm từ lúc đưa bản web này lên, không có số liệu cũ. Kiểm tra: mở web bằng tab ẩn danh rồi chạy **SmartCarTech → Kiểm tra cài đặt…**, dòng *Đếm khách truy cập* báo số lượt xem hôm nay.
 
 ### Đưa file kế hoạch Excel vào Google Sheet
 

@@ -1,7 +1,7 @@
 /**
  * SmartCarTech — Google Apps Script cho website. Hướng dẫn cài từng bước: README.md, mục 5.
  *
- * Script này làm 3 việc:
+ * Script này làm 4 việc:
  * 1. Lưu đơn hàng & yêu cầu tư vấn từ web vào Google Sheet: mỗi đơn là 1 dòng ở trang tính
  *    "Đơn hàng", mỗi yêu cầu tư vấn ở trang tính "Tư vấn". Đơn bảng tên, giá đỡ điện thoại và yêu cầu in theo
  *    file từ trang In 3D (in-3d.html) ở trang tính "In 3D", có cột "Trạng thái" để shop theo dõi từng đơn.
@@ -20,6 +20,8 @@
  *    "Tài khoản trang quản trị…", rồi xem, sửa, thêm, xoá dòng của mọi trang tính ngay trên web (kể cả các trang
  *    kế hoạch nhập từ Excel). Dòng tiêu đề và các cột script tự điền chỉ sửa được trên Sheet. Mọi lần đăng nhập, sửa,
  *    thêm, xoá được ghi ở trang tính "Nhật ký quản trị"; dòng bị xoá được lưu đủ nội dung để chép lại.
+ * 4. Trang tính "Tổng quan": lợi nhuận, doanh thu, số đơn theo nền tảng, khách truy cập theo tháng, năm, có biểu đồ; xem
+ *    được cả trên trang quản trị. Khách truy cập do web đếm ẩn danh (không cookie, không lưu IP), lưu ở trang "Lượt truy cập".
  *
  * Cách cài tóm tắt:
  * 1. Tạo 1 Google Sheet mới → Tiện ích mở rộng (Extensions) → Apps Script.
@@ -73,11 +75,15 @@ const PLATE_TEXT_RE = /^[\p{Script=Latin}\p{M}\p{Nd} .,:;!?&'"’‘“”()\/+\
 const LEAD_SHEET = 'Tư vấn';
 const LEAD_HEADER = ['Thời gian', 'Họ tên', 'SĐT', 'Nội dung'];
 
+const DASHBOARD_SHEET = 'Tổng quan'; // Script tự tạo, tự tính lại: lợi nhuận, số đơn, khách truy cập (dashboardData_)
+const VISIT_SHEET = 'Lượt truy cập'; // Lượt xem web theo ngày, đếm ẩn danh (countVisit_); hôm nay còn đang đếm nên chưa có ở đây
+const DASH_REFRESH_MINUTES = 10;     // Mở Google Sheet thì trang Tổng quan tự tính lại, nếu lần trước đã quá bấy nhiêu phút
+
 // Trang quản trị (quan-tri.html). Tạo tài khoản: menu "SmartCarTech" → "Tài khoản trang quản trị…"
 const ADMIN_LOG_SHEET = 'Nhật ký quản trị'; // Script ghi mọi lần đăng nhập, sửa, thêm, xoá dòng trên trang quản trị
 // Các trang này: dòng mới (đơn web, yêu cầu tư vấn, đơn in 3D, mã mới, nhật ký, dòng thêm trên trang quản trị) chèn ngay
 // dưới dòng tiêu đề, mới nhất ở trên cùng. Trang khác (VD các trang kế hoạch nhập từ Excel) thêm dòng ở cuối
-const NEWEST_FIRST = [ORDER_SHEET, LEAD_SHEET, PRINT_SHEET, CODE_SHEET, ADMIN_LOG_SHEET];
+const NEWEST_FIRST = [ORDER_SHEET, LEAD_SHEET, PRINT_SHEET, CODE_SHEET, ADMIN_LOG_SHEET, VISIT_SHEET];
 const ADMIN_IDLE_HOURS = 3;    // Không thao tác quá bấy nhiêu giờ thì phải đăng nhập lại (tối đa 6)
 const ADMIN_MAX_HOURS = 12;    // Mỗi lần đăng nhập dùng được tối đa bấy nhiêu giờ
 const ADMIN_MAX_FAILS = 5;     // 1 tài khoản sai mật khẩu quá bấy nhiêu lần trong 15 phút thì tạm khoá 15 phút (cả web: gấp 6 lần)
@@ -95,6 +101,16 @@ function doPost(e) {
     data = JSON.parse(e.postData.contents);
   } catch (err) {
     // Không phải JSON (VD bot gửi linh tinh): trả lỗi, không ghi gì
+  }
+
+  // Lượt xem trang (core.js gửi ngầm, không chờ trả lời): đếm rồi trả "ok"; lỗi thì bỏ qua lượt đó
+  if (data && data.type === 'luot-xem') {
+    try {
+      countVisit_(data);
+    } catch (err) {
+      console.error(err);
+    }
+    return ContentService.createTextOutput('ok');
   }
 
   if (data && data.type === 'tai-code') {
@@ -563,6 +579,7 @@ function onOpen() {
     .addItem('Tạo mã tải code…', 'createCodes')
     .addItem('In thẻ cho các mã đang chọn…', 'printCards')
     .addSeparator()
+    .addItem('Cập nhật trang Tổng quan', 'updateDashboard')
     .addItem('Tài khoản trang quản trị…', 'showAdminAccounts')
     .addItem('Kiểm tra cài đặt…', 'checkSetup');
   try {
@@ -582,6 +599,12 @@ function onOpen() {
     if (orders && orders.getLastRow()) [ORDER_KEY_COL, ORDER_CHECK_COL].forEach((name) => colOf_(orders, name, true));
   } catch (err) {
     console.warn(err); // VD người chỉ có quyền xem: không thêm được cột, menu vẫn dùng được
+  }
+  try {
+    const last = Number(PropertiesService.getScriptProperties().getProperty(DASH_UPDATED_KEY)) || 0;
+    if (Date.now() - last > DASH_REFRESH_MINUTES * 60000) refreshDashboard_(SpreadsheetApp.getActiveSpreadsheet());
+  } catch (err) {
+    console.warn(err); // VD người chỉ có quyền xem: không ghi được, trang Tổng quan giữ số liệu lần trước
   }
 }
 
@@ -665,6 +688,7 @@ function checkSetup() {
     : '✗ Chưa điền NOTIFY_EMAIL: shop sẽ không nhận email khi có đơn mới.');
   lines.push(codeFolderStatus_());
   lines.push(...columnLines_());
+  lines.push(visitStatus_());
   const admins = Object.keys(adminAccounts_()).sort();
   lines.push(admins.length
     ? `✓ Trang quản trị ${SITE_URL}/quan-tri.html: ${admins.length} tài khoản (${admins.join(', ')}).`
@@ -1040,6 +1064,14 @@ const ADMIN_RULES = {
     header: true, readOnly: [CODE_ID_COL, CODE_ID_OLD_COL, 'Mã đơn', 'Khách hàng'], noAdd: true, noDelete: true,
     tip: 'Tạo mã mới, in thẻ: mở Google Sheet → menu SmartCarTech. Mã đã in trên thẻ không xoá ở đây: muốn ngừng một mã thì tích ô Khoá.',
   },
+  [DASHBOARD_SHEET]: {
+    all: true,
+    tip: 'Script tự tính từ các trang Đơn hàng, In 3D, Tư vấn, Mã tải code, Lượt truy cập mỗi lần mở trang này hoặc bấm Tải lại. Cách tính ở cuối trang.',
+  },
+  [VISIT_SHEET]: {
+    all: true,
+    tip: 'Mỗi dòng là 1 ngày, đếm ẩn danh. Hôm nay còn đang đếm nên chưa có ở đây: xem ở trang Tổng quan.',
+  },
   [ADMIN_LOG_SHEET]: {
     all: true,
     tip: 'Mọi lần đăng nhập, sửa, thêm, xoá dòng trên trang quản trị. Dòng bị xoá được lưu đủ nội dung ở cột "Trước" để chép lại khi cần.',
@@ -1154,18 +1186,38 @@ function randomKey_() {
   return Utilities.base64EncodeWebSafe(bytes).replace(/=+$/, '');
 }
 
-/** Danh sách trang tính và nội dung trang đang mở (không có tên đó thì mở trang đầu tiên). */
+/**
+ * Danh sách trang tính và nội dung trang đang mở (không có tên đó thì mở trang đầu tiên). Mở trang Tổng quan thì số liệu
+ * được tính lại và gửi kèm (`dashboard`) để web vẽ biểu đồ. Lần đầu sau khi dán script, trang Tổng quan được tạo ở đầu.
+ */
 function adminRead_(data, user) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let dashboard = ss.getSheetByName(DASHBOARD_SHEET) ? null : dashboardFor_(ss);
   const sheets = ss.getSheets();
+  const sh = adminSheet_(data.sheet) || sheets[0];
+  const own = sh.getName() === DASHBOARD_SHEET;
+  if (own && !dashboard) dashboard = dashboardFor_(ss);
+  // Trang cùng tên do shop tự tạo (không có ghi chú của script ở ô A1): hiện như trang tính thường
+  if (!own || sh.getRange(1, 1).getNote() !== DASH_MARK) dashboard = null;
   return {
     ok: true,
     user,
     url: ss.getUrl(),
     log: ADMIN_LOG_SHEET,
     sheets: sheets.map((s) => ({ name: s.getName(), hidden: s.isSheetHidden() })),
-    sheet: sheetView_(adminSheet_(data.sheet) || sheets[0]),
+    sheet: sheetView_(sh),
+    dashboard,
   };
+}
+
+/** Số liệu Tổng quan cho trang quản trị: tính lại và ghi trang trong Sheet; Sheet đang bận thì chỉ tính, không ghi. */
+function dashboardFor_(ss) {
+  try {
+    return refreshDashboard_(ss);
+  } catch (err) {
+    console.warn(err);
+    return dashboardData_(ss, new Date());
+  }
 }
 
 function adminSheet_(name) {
@@ -1978,6 +2030,467 @@ function matchText_(value) {
 function phoneKey_(value) {
   const digits = String(value == null ? '' : value).replace(/\D/g, '');
   return digits.length >= 9 ? digits.slice(-9) : '';
+}
+
+/* ---------- Lượt truy cập web: đếm ẩn danh (assets/js/core.js gửi khi mở trang công khai) ---------- */
+
+const VISIT_HEADER = ['Ngày', 'Lượt xem', 'Khách truy cập', 'Khách mới trong tháng', 'Khách mới trong năm'];
+const VISIT_FIELDS = [['Lượt xem', 'v'], ['Khách truy cập', 'd'], ['Khách mới trong tháng', 'm'], ['Khách mới trong năm', 'y']];
+const VISIT_KEY = 'xem:'; // Script Properties "xem:2026-11-03" → { v: lượt xem, d: khách trong ngày, m: khách mới trong tháng, y: khách mới trong năm }
+const VISIT_MAX_PER_DAY = 10000; // Quá số này trong 1 ngày (VD bị spam) thì ngừng đếm tới hôm sau, chừa hạn mức Script Properties cho đăng nhập quản trị
+
+/**
+ * Một lượt xem trang công khai. Web không gửi gì nhận ra khách (không cookie, IP hay mã riêng), chỉ báo đây có phải lần
+ * đầu trong ngày, tháng, năm của trình duyệt đó không. Đếm trong Script Properties: không ghi Sheet, không giữ khoá nên
+ * không làm chậm đơn hàng. Hai lượt đúng cùng lúc có thể mất 1 lượt đếm: số liệu gần đúng.
+ */
+function countVisit_(data) {
+  const tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+  const key = VISIT_KEY + Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  const props = PropertiesService.getScriptProperties();
+  const c = visitCount_(props.getProperty(key));
+  if (c.v >= VISIT_MAX_PER_DAY) return;
+  // Lần đầu trong năm thì cũng là lần đầu trong tháng, trong ngày
+  const year = data.y === 1;
+  const month = year || data.m === 1;
+  c.v++;
+  if (month || data.d === 1) c.d++;
+  if (month) c.m++;
+  if (year) c.y++;
+  props.setProperty(key, JSON.stringify(c));
+}
+
+/** Số đếm của 1 ngày (chữ JSON trong Script Properties) → { v, d, m, y }; thiếu hoặc hỏng thì là 0. */
+function visitCount_(text) {
+  let c = null;
+  try {
+    c = JSON.parse(text || '{}');
+  } catch (err) {
+    c = null;
+  }
+  const n = (x) => (Number.isFinite(Number(x)) && Number(x) > 0 ? Math.floor(Number(x)) : 0);
+  return c && typeof c === 'object' ? { v: n(c.v), d: n(c.d), m: n(c.m), y: n(c.y) } : { v: 0, d: 0, m: 0, y: 0 };
+}
+
+/** Các dòng của trang "Lượt truy cập" (đọc theo tên cột): { row, day: "yyyy-MM-dd", v, d, m, y }. */
+function visitRows_(sh, tz) {
+  const last = sh.getLastRow();
+  if (last < 2) return [];
+  const head = header_(sh);
+  const at = (name) => head.indexOf(name);
+  return sh.getRange(2, 1, last - 1, head.length).getValues().map((r, i) => {
+    const date = timeOf_(at('Ngày') < 0 ? '' : r[at('Ngày')], tz);
+    const out = { row: i + 2, day: date ? Utilities.formatDate(date, tz, 'yyyy-MM-dd') : '' };
+    VISIT_FIELDS.forEach(([name, f]) => { out[f] = at(name) < 0 ? 0 : Number(r[at(name)]) || 0; });
+    return out;
+  });
+}
+
+/**
+ * Các ngày đã qua: cộng số đếm từ Script Properties vào trang "Lượt truy cập" (mỗi ngày 1 dòng, mới nhất ở trên) rồi
+ * xoá khỏi Script Properties. Hôm nay còn đang đếm nên để lại. Gọi khi đang giữ khoá của Sheet.
+ */
+function archiveVisits_(ss, today) {
+  const props = PropertiesService.getScriptProperties();
+  const all = props.getProperties();
+  const keys = Object.keys(all).filter((k) => k.startsWith(VISIT_KEY) && k.slice(VISIT_KEY.length) < today).sort();
+  if (!keys.length) return;
+  const tz = ss.getSpreadsheetTimeZone();
+  const sh = getSheet_(ss, VISIT_SHEET, VISIT_HEADER);
+  keys.forEach((key) => {
+    const day = key.slice(VISIT_KEY.length);
+    const c = visitCount_(all[key]);
+    const found = visitRows_(sh, tz).find((r) => r.day === day);
+    if (found) {
+      // Ngày đã có dòng (VD có lượt đếm muộn sau lần chuyển trước): cộng thêm, không ghi đè
+      VISIT_FIELDS.forEach(([name, f]) => sh.getRange(found.row, colOf_(sh, name, true)).setValue(found[f] + c[f]));
+    } else {
+      const cells = { 'Ngày': dateFrom_(`${day.slice(8, 10)}/${day.slice(5, 7)}/${day.slice(0, 4)}`, tz) };
+      VISIT_FIELDS.forEach(([name, f]) => { cells[name] = c[f]; });
+      const row = addRow_(sh, cells);
+      sh.getRange(row, colOf_(sh, 'Ngày', false)).setNumberFormat('dd/mm/yyyy');
+    }
+    props.deleteProperty(key);
+  });
+}
+
+/** Số đếm theo ngày: trang "Lượt truy cập" cộng các ngày còn trong Script Properties. Map "yyyy-MM-dd" → { v, d, m, y }. */
+function visitsByDay_(ss, tz) {
+  const out = new Map();
+  const add = (day, c) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return;
+    const cur = out.get(day) || { v: 0, d: 0, m: 0, y: 0 };
+    ['v', 'd', 'm', 'y'].forEach((f) => { cur[f] += c[f]; });
+    out.set(day, cur);
+  };
+  const sh = ss.getSheetByName(VISIT_SHEET);
+  if (sh) visitRows_(sh, tz).forEach((r) => add(r.day, r));
+  const all = PropertiesService.getScriptProperties().getProperties();
+  Object.keys(all).filter((k) => k.startsWith(VISIT_KEY)).forEach((k) => add(k.slice(VISIT_KEY.length), visitCount_(all[k])));
+  return out;
+}
+
+/* ---------- Trang "Tổng quan": lợi nhuận, số đơn, khách truy cập (tab trong Google Sheet và trang quản trị) ---------- */
+
+const DASH_MONTHS = 12;
+const DASH_DAYS = 30;
+const DASH_YEARS = 5;
+const DASH_PLATFORMS = ['Website', 'Shopee', 'TikTok', 'Khác'];
+const DASH_WAITING = ['Mới', 'Đã liên hệ', 'Đã chốt', 'Đang in']; // Trạng thái đơn In 3D còn phải làm
+const DASH_UPDATED_KEY = 'tong-quan:cap-nhat'; // Script Properties: lần cập nhật gần nhất (ms), để mở Sheet liên tục không tính lại mỗi lần
+const DASH_MARK = 'SmartCarTech: trang này do script tạo và ghi lại mỗi lần cập nhật, đừng sửa tay.'; // Ghi chú ở ô A1
+// Màu biểu đồ trên nền trắng của Google Sheet (cùng thứ tự màu với trang quản trị, đã kiểm tra cho người mù màu)
+const DASH_COLORS = { platforms: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4'], money: ['#c3c2b7', '#008300'], visits: ['#c3c2b7', '#2a78d6'] };
+
+/** Nền tảng của một đơn ở trang "Đơn hàng": Website, Shopee, TikTok hoặc Khác. Ô trống mà mã đơn dạng SC… là đơn web. */
+function platformOf_(value, code) {
+  const p = matchText_(value);
+  if (p.includes('shopee')) return 'Shopee';
+  if (/tik ?tok/.test(p)) return 'TikTok';
+  if (p === 'website' || p === 'web' || (!p && /^SC\d{6}-\d{4}$/.test(code))) return 'Website';
+  return 'Khác';
+}
+
+/** Các dòng dữ liệu của một trang (bỏ dòng tiêu đề), đọc theo tên cột: cell(tên cột) → giá trị ô, không có cột đó thì "". */
+function sheetRows_(ss, name) {
+  const sh = ss.getSheetByName(name);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const head = header_(sh);
+  return sh.getRange(2, 1, sh.getLastRow() - 1, head.length).getValues().map((row) => (col) => {
+    const i = head.indexOf(col);
+    return i < 0 ? '' : row[i];
+  });
+}
+
+/**
+ * Số liệu của trang Tổng quan, tính lúc `now`: 12 tháng gần nhất, các năm, 30 ngày gần nhất, tháng này so với cùng kỳ
+ * tháng trước (từ ngày 1 tới cùng ngày), việc cần làm. Chỉ đọc, không ghi gì.
+ */
+function dashboardData_(ss, now) {
+  const tz = ss.getSpreadsheetTimeZone();
+  const fmt = (d, f) => Utilities.formatDate(d, tz, f);
+  const pad = (n) => String(n).padStart(2, '0');
+  const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const [year, month, day] = fmt(now, 'yyyy-MM-dd').split('-').map(Number);
+  const monthAt = (shift) => {
+    const t = year * 12 + month - 1 + shift;
+    return `${Math.floor(t / 12)}-${pad((t % 12) + 1)}`;
+  };
+  const monthKeys = Array.from({ length: DASH_MONTHS }, (_, i) => monthAt(i - DASH_MONTHS + 1));
+  const [thisMonth, lastMonth] = [monthAt(0), monthAt(-1)];
+  const blank = () => ({ Website: 0, Shopee: 0, TikTok: 0, 'Khác': 0, print: 0, quotes: 0, leads: 0,
+    revenue: 0, profit: 0, base: 0, noProfit: 0, views: 0, visitors: 0, counted: 0 });
+  const months = new Map(monthKeys.map((k) => [k, blank()]));
+  const years = new Map();
+  const mtd = { now: blank(), prev: blank() };
+  // Một dòng có ngày được tính vào năm, tháng (nếu trong 12 tháng), và tháng này / cùng kỳ tháng trước
+  const buckets = (date) => {
+    const [y, m, d] = fmt(date, 'yyyy-MM-dd').split('-').map(Number);
+    const key = `${y}-${pad(m)}`;
+    if (!years.has(y)) years.set(y, blank());
+    const out = [years.get(y)];
+    if (months.has(key)) out.push(months.get(key));
+    if (d <= day && key === thisMonth) out.push(mtd.now);
+    if (d <= day && key === lastMonth) out.push(mtd.prev);
+    return out;
+  };
+
+  // Tỷ lệ đặt hàng chỉ tính đơn web từ ngày web bắt đầu đếm khách (counted): đơn cũ hơn không có khách để chia
+  const visits = visitsByDay_(ss, tz);
+  const first = [...visits.keys()].sort()[0] || '';
+  const counted = (date) => Boolean(first) && fmt(date, 'yyyy-MM-dd') >= first;
+
+  let undated = 0;
+  sheetRows_(ss, ORDER_SHEET).forEach((cell) => {
+    if (!['Mã đơn', 'Họ tên', 'Sản phẩm'].some((name) => String(cell(name)).trim())) return;
+    const date = timeOf_(cell('Thời gian'), tz);
+    if (!date) {
+      undated++;
+      return;
+    }
+    const platform = platformOf_(cell(ORDER_PLATFORM_COL), String(cell('Mã đơn')).trim());
+    const revenue = num(cell(ORDER_REVENUE_COL)) ?? num(cell('Tổng (₫)'));
+    const profit = num(cell(ORDER_PROFIT_COL));
+    const web = platform === 'Website' && counted(date);
+    buckets(date).forEach((b) => {
+      b[platform]++;
+      if (web) b.counted++;
+      b.revenue += revenue || 0;
+      if (profit === null) {
+        b.noProfit++;
+      } else {
+        b.profit += profit;
+        b.base += revenue || 0;
+      }
+    });
+  });
+
+  const waiting = Object.fromEntries(DASH_WAITING.map((s) => [s, 0]));
+  sheetRows_(ss, PRINT_SHEET).forEach((cell) => {
+    if (!String(cell('Mã')).trim() && !String(cell('Họ tên')).trim()) return;
+    const status = matchText_(cell(PRINT_STATUS_COL));
+    const open = DASH_WAITING.find((s) => matchText_(s) === status);
+    if (open) waiting[open]++;
+    const date = timeOf_(cell('Thời gian'), tz);
+    if (!date) return;
+    // Yêu cầu in theo file là yêu cầu báo giá, đếm riêng; đơn đã huỷ không tính
+    const quote = matchText_(cell('Loại')).includes('theo file');
+    const web = counted(date);
+    buckets(date).forEach((b) => {
+      if (quote) {
+        b.quotes++;
+      } else if (status !== 'huy') {
+        b.print++;
+        if (web) b.counted++;
+      }
+    });
+  });
+
+  sheetRows_(ss, LEAD_SHEET).forEach((cell) => {
+    const date = timeOf_(cell('Thời gian'), tz);
+    if (date && String(cell('Họ tên')).trim()) buckets(date).forEach((b) => { b.leads++; });
+  });
+
+  // Khách theo tháng: mỗi trình duyệt 1 lần trong tháng (cộng "khách mới trong tháng"); theo năm: 1 lần trong năm
+  visits.forEach((c, key) => {
+    const [y, m, d] = key.split('-').map(Number);
+    const mk = `${y}-${pad(m)}`;
+    if (!years.has(y)) years.set(y, blank());
+    years.get(y).views += c.v;
+    years.get(y).visitors += c.y;
+    [[months.get(mk), true], [mtd.now, mk === thisMonth && d <= day], [mtd.prev, mk === lastMonth && d <= day]].forEach(([b, ok]) => {
+      if (!b || !ok) return;
+      b.views += c.v;
+      b.visitors += c.m;
+    });
+  });
+
+  const summary = (key, label, b) => {
+    const orders = DASH_PLATFORMS.reduce((n, p) => n + b[p], 0) + b.print;
+    return {
+      key, label, web: b.Website, shopee: b.Shopee, tiktok: b.TikTok, other: b['Khác'], print: b.print, orders,
+      quotes: b.quotes, leads: b.leads, revenue: Math.round(b.revenue), profit: Math.round(b.profit),
+      margin: b.base > 0 ? b.profit / b.base : null, noProfit: b.noProfit, views: b.views, visitors: b.visitors,
+      // Đơn đặt trên web (bộ xe + In 3D) từ ngày bắt đầu đếm, trên số khách truy cập
+      conversion: b.visitors > 0 ? b.counted / b.visitors : null,
+    };
+  };
+  const monthLabel = (key) => `T${Number(key.slice(5))}/${key.slice(0, 4)}`;
+
+  let codesNew = 0;
+  let cardsInStock = 0;
+  const cs = ss.getSheetByName(CODE_SHEET);
+  const cc = cs && cs.getLastRow() > 1 ? codeCols_(cs) : null;
+  if (cc && !cc.missing) {
+    const head = header_(cs);
+    const [iPrinted, iOrder] = [PRINTED_COL, 'Mã đơn'].map((name) => head.indexOf(name));
+    cs.getRange(2, 1, cs.getLastRow() - 1, head.length).getValues().forEach((r) => {
+      if (!normalizeCode_(r[cc.id - 1]) || isLocked_(r[cc.lock - 1]) || Number(r[cc.count - 1]) > 0) return;
+      if (iOrder >= 0 && String(r[iOrder]).trim()) return;
+      if (iPrinted >= 0 && String(r[iPrinted]).trim()) cardsInStock++;
+      else codesNew++;
+    });
+  }
+
+  return {
+    updated: fmt(now, 'dd/MM/yyyy HH:mm'),
+    month: `${pad(month)}/${year}`,
+    kpi: { now: summary(thisMonth, monthLabel(thisMonth), mtd.now), prev: summary(lastMonth, monthLabel(lastMonth), mtd.prev) },
+    months: monthKeys.map((k) => summary(k, monthLabel(k), months.get(k))),
+    years: [...years.keys()].sort((a, b) => a - b).slice(-DASH_YEARS).map((y) => summary(String(y), String(y), years.get(y))),
+    days: Array.from({ length: DASH_DAYS }, (_, i) => {
+      const date = new Date(now.getTime() - (DASH_DAYS - 1 - i) * 86400000);
+      const c = visits.get(fmt(date, 'yyyy-MM-dd')) || { v: 0, d: 0 };
+      return { key: fmt(date, 'yyyy-MM-dd'), label: fmt(date, 'dd/MM'), views: c.v, visitors: c.d };
+    }),
+    todo: { print: waiting, noProfit: monthKeys.reduce((n, k) => n + months.get(k).noProfit, 0), codesNew, cardsInStock },
+    undated,
+    visitsSince: first ? `${first.slice(8)}/${first.slice(5, 7)}/${first.slice(0, 4)}` : '',
+  };
+}
+
+/** Tính lại số liệu và ghi trang "Tổng quan" (tạo nếu chưa có). Trả số liệu cho trang quản trị. */
+function refreshDashboard_(ss) {
+  return withDocLock_(() => {
+    const now = new Date();
+    archiveVisits_(ss, Utilities.formatDate(now, ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd'));
+    const data = dashboardData_(ss, now);
+    writeDashboard_(ss, data);
+    PropertiesService.getScriptProperties().setProperty(DASH_UPDATED_KEY, String(Date.now()));
+    return data;
+  });
+}
+
+/** Dòng của "Kiểm tra cài đặt" về đếm khách truy cập: hôm nay đã đếm được bao nhiêu. */
+function visitStatus_() {
+  const tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+  const c = visitCount_(PropertiesService.getScriptProperties().getProperty(VISIT_KEY + Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd')));
+  return c.v
+    ? `✓ Đếm khách truy cập: hôm nay ${money_(c.v)} lượt xem, ${money_(c.d)} khách.`
+    : '• Hôm nay web chưa đếm được lượt xem nào. Sau khi đưa bản web mới lên, mở thử web bằng tab ẩn danh (máy đã mở trang quản trị không được đếm) rồi chạy lại mục này.';
+}
+
+/** Menu "Cập nhật trang Tổng quan". */
+function updateDashboard() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  refreshDashboard_(ss);
+  const sh = ss.getSheetByName(DASHBOARD_SHEET);
+  if (sh) sh.activate();
+  ss.toast('Đã cập nhật số liệu mới nhất.', DASHBOARD_SHEET, 4);
+}
+
+// Bố cục trang Tổng quan: dòng bắt đầu của từng phần (14 cột A–N). Biểu đồ lấy số từ các bảng bên dưới
+const DASH_LAYOUT = { cols: 14, kpi: 4, todo: 9, charts: 15, months: 46, years: 61, days: 69, notes: 102, rows: 108 };
+const DASH_MONTH_HEAD = ['Tháng', 'Website', 'Shopee', 'TikTok', 'Khác', 'In 3D', 'Tổng đơn', 'Doanh thu', 'Lợi nhuận',
+  '% lợi nhuận', 'Khách truy cập', 'Tỷ lệ đặt hàng', 'Tư vấn', 'Yêu cầu in theo file'];
+
+/**
+ * Ghi trang "Tổng quan" trong Google Sheet: thẻ số tháng này, việc cần làm, 3 biểu đồ, bảng theo tháng, theo năm, 30
+ * ngày. Trang cùng tên mà shop tự tạo (ô A1 không có ghi chú DASH_MARK) thì không đụng tới.
+ */
+function writeDashboard_(ss, d) {
+  const L = DASH_LAYOUT;
+  let sh = ss.getSheetByName(DASHBOARD_SHEET);
+  if (sh && sh.getLastRow() && sh.getRange(1, 1).getNote() !== DASH_MARK) {
+    console.warn(`Trang "${DASHBOARD_SHEET}" có sẵn do shop tạo: không ghi đè.`);
+    return;
+  }
+  if (!sh) sh = ss.insertSheet(DASHBOARD_SHEET, 0);
+  if (sh.getMaxRows() < L.rows) sh.insertRowsAfter(sh.getMaxRows(), L.rows - sh.getMaxRows());
+  if (sh.getMaxColumns() < L.cols) sh.insertColumnsAfter(sh.getMaxColumns(), L.cols - sh.getMaxColumns());
+  sh.getRange(1, 1, L.rows, L.cols).breakApart().clear();
+  sh.setHiddenGridlines(true);
+  sh.setColumnWidths(1, L.cols, 92);
+  sh.setColumnWidth(1, 110);
+
+  const ink = { main: '#0b0b0b', soft: '#52514e', muted: '#898781', up: '#006300', down: '#d03b3b', card: '#f3f5f7', line: '#e1e0d9' };
+  const box = (r, c, h, w) => sh.getRange(r, c, h, w);
+  const put = (r, c, value, w = 1) => {
+    sh.getRange(r, c).setValue(value);
+    if (w > 1) box(r, c, 1, w).merge();
+    return box(r, c, 1, w);
+  };
+  const section = (r, title) => put(r, 1, title, L.cols).setFontSize(12).setFontWeight('bold').setFontColor(ink.main)
+    .setBorder(null, null, true, null, null, null, ink.line, SpreadsheetApp.BorderStyle.SOLID);
+  const money = '#,##0" ₫"';
+  const k = d.kpi.now;
+  const p = d.kpi.prev;
+
+  put(1, 1, 'TỔNG QUAN KINH DOANH', L.cols).setFontSize(18).setFontWeight('bold').setFontColor(ink.main);
+  sh.getRange(1, 1).setNote(DASH_MARK);
+  put(2, 1, `Số liệu lúc ${d.updated}. Tự cập nhật khi mở Google Sheet, khi mở trang Tổng quan trên trang quản trị, hoặc menu ` +
+    'SmartCarTech → Cập nhật trang Tổng quan. Trang do script tạo: sửa tay sẽ bị ghi đè.', L.cols).setFontColor(ink.muted).setFontSize(9);
+
+  // Thẻ số tháng này, so với cùng kỳ tháng trước (từ ngày 1 tới cùng ngày)
+  const delta = (now, prev, unit) => {
+    const diff = now - prev;
+    if (!diff) return ['– bằng cùng kỳ tháng trước', ink.muted];
+    const text = unit === 'money' ? `${money_(Math.abs(diff))} ₫` : `${money_(Math.abs(diff))} ${unit}`;
+    return [`${diff > 0 ? '▲ +' : '▼ −'}${text} so với cùng kỳ tháng trước`, diff > 0 ? ink.up : ink.down];
+  };
+  const pct = (x, digits) => (x === null ? '' : `${(x * 100).toFixed(digits).replace('.', ',')}%`);
+  const cards = [
+    ['Lợi nhuận tháng này', k.profit, money, delta(k.profit, p.profit, 'money'),
+      k.margin === null ? 'Chưa có đơn nào điền đủ Doanh thu và Chi phí' : `Bằng ${pct(k.margin, 0)} doanh thu`],
+    ['Doanh thu tháng này', k.revenue, money, delta(k.revenue, p.revenue, 'money'),
+      k.noProfit ? `${k.noProfit} đơn chưa có lợi nhuận` : 'Đơn nào cũng đã có lợi nhuận'],
+    ['Số đơn tháng này', k.orders, '#,##0', delta(k.orders, p.orders, 'đơn'),
+      `Website ${k.web} · Shopee ${k.shopee} · TikTok ${k.tiktok} · In 3D ${k.print}${k.other ? ` · Khác ${k.other}` : ''}`],
+    ['Khách truy cập tháng này', k.visitors, '#,##0', delta(k.visitors, p.visitors, 'khách'),
+      d.visitsSince ? `Tỷ lệ đặt hàng ${pct(k.conversion, 1) || '–'} · ${money_(k.views)} lượt xem` : 'Web bắt đầu đếm sau khi đưa bản mới lên'],
+  ];
+  cards.forEach(([label, value, format, [change, color], note], i) => {
+    const c = 1 + i * 3;
+    box(L.kpi, c, 4, 3).setBackground(ink.card);
+    put(L.kpi, c, label, 3).setFontColor(ink.soft).setFontSize(10);
+    put(L.kpi + 1, c, value, 3).setNumberFormat(format).setFontSize(20).setFontWeight('bold').setFontColor(ink.main)
+      .setHorizontalAlignment('left');
+    put(L.kpi + 2, c, change, 3).setFontColor(color).setFontSize(9);
+    put(L.kpi + 3, c, note, 3).setFontColor(ink.muted).setFontSize(9);
+  });
+
+  section(L.todo, 'Việc cần làm');
+  const waiting = DASH_WAITING.map((s) => `${s} ${d.todo.print[s]}`).join(' · ');
+  [
+    ['Đơn In 3D đang chờ', DASH_WAITING.reduce((n, s) => n + d.todo.print[s], 0), waiting],
+    ['Đơn chưa có lợi nhuận (12 tháng)', d.todo.noProfit, 'Điền Doanh thu sau điều chỉnh và Chi phí ở trang Đơn hàng'],
+    ['Mã tải code chưa in', d.todo.codesNew, 'In thẻ: menu SmartCarTech → In thẻ cho các mã đang chọn…'],
+    ['Thẻ đã in, chưa gán đơn', d.todo.cardsInStock, 'Số thẻ còn để bỏ vào hộp'],
+  ].forEach(([label, value, hint], i) => {
+    put(L.todo + 1 + i, 1, label, 4).setFontColor(ink.main);
+    put(L.todo + 1 + i, 5, value).setFontWeight('bold').setHorizontalAlignment('right').setNumberFormat('#,##0');
+    put(L.todo + 1 + i, 6, hint, L.cols - 5).setFontColor(ink.muted).setFontSize(9);
+  });
+
+  // Bảng nguồn của biểu đồ: tháng cũ ở trên, giống trục ngang của biểu đồ
+  const table = (r, title, head, rows, size) => {
+    section(r, title);
+    box(r + 1, 1, 1, head.length).setValues([head]).setFontWeight('bold').setFontColor(ink.soft).setBackground(ink.card)
+      .setWrap(true).setVerticalAlignment('middle');
+    const body = Array.from({ length: size }, (_, i) => (rows[i] || head.map(() => '')));
+    if (size) box(r + 2, 1, size, head.length).setValues(body).setFontColor(ink.main);
+    return r + 2;
+  };
+  // Nhãn tháng, năm dạng chữ (dấu ' ở đầu): "2026" không bị Sheet đổi thành số
+  const row = (m) => [`'${m.label}`, m.web, m.shopee, m.tiktok, m.other, m.print, m.orders, m.revenue, m.profit,
+    m.margin === null ? '' : m.margin, m.visitors, m.conversion === null ? '' : m.conversion, m.leads, m.quotes];
+  const formats = (r, n) => {
+    if (!n) return;
+    box(r, 2, n, 6).setNumberFormat('#,##0');
+    box(r, 8, n, 2).setNumberFormat('#,##0');
+    box(r, 10, n, 1).setNumberFormat('0%');
+    box(r, 11, n, 1).setNumberFormat('#,##0');
+    box(r, 12, n, 1).setNumberFormat('0.0%');
+    box(r, 13, n, 2).setNumberFormat('#,##0');
+  };
+  const monthsAt = table(L.months, `Theo tháng (${DASH_MONTHS} tháng gần nhất)`, DASH_MONTH_HEAD, d.months.map(row), DASH_MONTHS);
+  formats(monthsAt, DASH_MONTHS);
+  const yearsAt = table(L.years, 'Theo năm', ['Năm'].concat(DASH_MONTH_HEAD.slice(1)), d.years.map(row), DASH_YEARS);
+  formats(yearsAt, d.years.length);
+  // Ngày dạng chữ (dấu ' ở đầu): "03/11" không bị Sheet đổi thành ngày tháng
+  const daysAt = table(L.days, `Lượt truy cập ${DASH_DAYS} ngày gần nhất`, ['Ngày', 'Lượt xem', 'Khách truy cập'],
+    d.days.map((x) => [`'${x.label}`, x.views, x.visitors]), DASH_DAYS);
+  box(daysAt, 2, DASH_DAYS, 2).setNumberFormat('#,##0');
+
+  section(L.notes, 'Cách tính');
+  [
+    'Số đơn: trang Đơn hàng theo cột Nền tảng (trống mà mã đơn dạng SC… là đơn web), cộng đơn In 3D đặt trên web (bảng tên, giá đỡ; không tính đơn Huỷ). Yêu cầu in theo file là yêu cầu báo giá, đếm riêng.',
+    'Doanh thu: cột Doanh thu sau điều chỉnh, đơn chưa điền thì lấy Tổng (₫). Lợi nhuận: cột Lợi nhuận, chỉ có ở đơn đã điền đủ Doanh thu và Chi phí; % lợi nhuận tính trên các đơn đó.',
+    'Khách truy cập: số trình duyệt ghé web, đếm ẩn danh (không cookie, không lưu IP); máy đã mở trang quản trị không bị đếm. Theo tháng, mỗi khách tính 1 lần. Tỷ lệ đặt hàng: đơn đặt trên web (bộ xe + In 3D) chia cho khách truy cập.',
+    `Tháng này so với cùng kỳ tháng trước: từ ngày 1 tới cùng ngày của tháng trước.${d.undated ? ` Có ${d.undated} đơn chưa có Thời gian nên chưa được tính.` : ''}`,
+  ].forEach((text, i) => put(L.notes + 1 + i, 1, text, L.cols).setFontColor(ink.soft).setFontSize(9).setWrap(true));
+
+  dashboardCharts_(sh, monthsAt, daysAt);
+}
+
+/** 3 biểu đồ của trang Tổng quan. Đã có đủ thì giữ nguyên (bảng nguồn không đổi chỗ), tránh vẽ lại mỗi lần cập nhật. */
+function dashboardCharts_(sh, monthsAt, daysAt) {
+  const charts = sh.getCharts();
+  if (charts.length === 3) return;
+  charts.forEach((c) => sh.removeChart(c));
+  const L = DASH_LAYOUT;
+  const style = {
+    legend: { position: 'top', textStyle: { color: '#52514e', fontSize: 11 } },
+    titleTextStyle: { color: '#0b0b0b', fontSize: 13, bold: true },
+    vAxis: { format: 'short', gridlines: { color: '#e1e0d9' }, minorGridlines: { count: 0 }, textStyle: { color: '#898781' } },
+    hAxis: { textStyle: { color: '#898781' } },
+  };
+  const add = (type, ranges, row, col, width, height, options) => {
+    let b = sh.newChart().setChartType(type).setNumHeaders(1).setPosition(row, col, 0, 0)
+      .setOption('width', width).setOption('height', height);
+    ranges.forEach(([r, c, h, w]) => { b = b.addRange(sh.getRange(r, c, h, w)); });
+    Object.keys(style).concat(Object.keys(options)).forEach((key) => {
+      b = b.setOption(key, options.hasOwnProperty(key) ? options[key] : style[key]);
+    });
+    sh.insertChart(b.build());
+  };
+  const head = monthsAt - 1;
+  add(Charts.ChartType.COLUMN, [[head, 1, DASH_MONTHS + 1, 1], [head, 8, DASH_MONTHS + 1, 2]], L.charts, 1, 640, 300,
+    { title: 'Doanh thu và lợi nhuận theo tháng', colors: DASH_COLORS.money });
+  add(Charts.ChartType.COLUMN, [[head, 1, DASH_MONTHS + 1, 1], [head, 2, DASH_MONTHS + 1, 5]], L.charts, 8, 640, 300,
+    { title: 'Số đơn theo nền tảng', colors: DASH_COLORS.platforms, isStacked: true });
+  add(Charts.ChartType.LINE, [[daysAt - 1, 1, DASH_DAYS + 1, 3]], L.charts + 16, 1, 1290, 280,
+    { title: `Khách truy cập ${DASH_DAYS} ngày gần nhất`, colors: DASH_COLORS.visits, lineWidth: 2 });
 }
 
 /* ---------- Dùng chung ---------- */

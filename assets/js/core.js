@@ -6,6 +6,9 @@
 
 export const DATA_URL = 'products.json';
 const CART_KEY = 'sctech_cart_v1';
+const SEEN_KEY = 'sctech_seen';                   // day / month / year this browser was last counted
+export const NO_COUNT_KEY = 'sctech_khong_dem';   // set by quan-tri.html: the shop's own browsers are not counted
+const COUNT_HOST = 'smartcartech.vn';             // only the live site counts (not local copies, previews)
 const ICONS = 'assets/img/icons.svg';
 const MAX_QTY = 99;
 
@@ -639,6 +642,27 @@ function showDataError(err) {
 }
 
 /**
+ * Count this page view in the shop's Google Sheet, anonymously: no cookie, no id, nothing about the visitor. The
+ * browser only remembers the day it was last counted, to tell the Sheet whether this is its first view today /
+ * this month / this year. Skipped for bots, other hosts and browsers that opened the admin page. Fire-and-forget.
+ */
+function countVisit(site) {
+  try {
+    if (location.hostname !== COUNT_HOST || !site?.order_endpoint || !navigator.sendBeacon) return;
+    if (navigator.webdriver || /bot|crawl|spider|slurp|headless|lighthouse|preview/i.test(navigator.userAgent)) return;
+    if (localStorage.getItem(NO_COUNT_KEY)) return;
+    const [y, m, d] = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date()).split('-');
+    const now = { d: `${y}-${m}-${d}`, m: `${y}-${m}`, y };
+    let seen = {};
+    try { seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '{}') || {}; } catch { seen = {}; }
+    localStorage.setItem(SEEN_KEY, JSON.stringify(now));
+    const first = (key) => (seen[key] === now[key] ? 0 : 1);
+    const body = JSON.stringify({ type: 'luot-xem', d: first('d'), m: first('m'), y: first('y') });
+    navigator.sendBeacon(site.order_endpoint, new Blob([body], { type: 'text/plain;charset=utf-8' }));
+  } catch { /* storage blocked (private mode in some browsers): not counted */ }
+}
+
+/**
  * Boot a page: load data, wire the header/footer/cart, then run the page init.
  * @param {(data: object) => void} pageInit
  */
@@ -658,6 +682,7 @@ export async function boot(pageInit) {
   }
   shellData = data;
   bindSite(data.site);
+  countVisit(data.site);
   document.body.classList.add('is-ready');
   pageInit?.(data);
   // Content above an anchor is rendered async; re-align to #hash once it exists.

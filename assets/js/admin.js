@@ -4,7 +4,8 @@
    google-apps-script.gs kiểm tra phiên đăng nhập trước mỗi việc, và chỉ ghi khi dòng chưa bị đổi ở nơi khác
    (web gửi kèm mã của dòng lúc tải). Web giữ mã phiên trong tab đang mở (sessionStorage): đóng tab là đăng xuất.
 */
-import { $, $$, esc, icon, toast, loadData, trapFocus } from './core.js';
+import { $, $$, esc, icon, toast, loadData, trapFocus, NO_COUNT_KEY } from './core.js';
+import { renderDashboard, redrawDashboard } from './dashboard.js';
 
 const SESSION_KEY = 'sctech_admin_v1';
 const SHEET_KEY = 'sctech_admin_sheet';
@@ -218,9 +219,11 @@ async function loadSheet(name, { keepScroll = false } = {}) {
   const ticket = ++app.ticket;
   setStatus('Đang tải trang tính…');
   els.grid.setAttribute('aria-busy', 'true');
+  els.dash.setAttribute('aria-busy', 'true');
   const out = await api('doc', { sheet: name || '' });
   if (ticket !== app.ticket) return false;
   els.grid.removeAttribute('aria-busy');
+  els.dash.removeAttribute('aria-busy');
   if (!out.ok) {
     if (out.login) setStatus('');
     else if (app.doc) setStatus(out.error || 'Chưa tải được trang tính. Thử lại sau ít phút.', true);
@@ -229,7 +232,9 @@ async function loadSheet(name, { keepScroll = false } = {}) {
   }
   setStatus('');
   const same = app.doc && app.doc.sheet.name === out.sheet.name;
-  const scroll = keepScroll && same ? { top: els.grid.scrollTop, left: els.grid.scrollLeft } : null;
+  // Trang Tổng quan: số liệu, biểu đồ thay cho lưới ô
+  const view = out.dashboard ? els.dash : els.grid;
+  const scroll = keepScroll && same ? { top: view.scrollTop, left: view.scrollLeft } : null;
   if (!same) app.query = '';
   app.doc = out;
   app.user = out.user || app.user;
@@ -241,14 +246,17 @@ async function loadSheet(name, { keepScroll = false } = {}) {
   showUser();
   renderTabs();
   renderTools();
-  renderGrid();
-  if (scroll) {
-    els.grid.scrollTop = scroll.top;
-    els.grid.scrollLeft = scroll.left;
+  els.grid.hidden = Boolean(out.dashboard);
+  els.dash.hidden = !out.dashboard;
+  if (out.dashboard) {
+    renderDashboard(els.dash, out.dashboard, { onOpenSheet: (sheet) => loadSheet(sheet) });
+    renderInfo(0, 0);
   } else {
-    els.grid.scrollTop = 0;
-    els.grid.scrollLeft = 0;
+    els.dash.textContent = '';
+    renderGrid();
   }
+  view.scrollTop = scroll ? scroll.top : 0;
+  view.scrollLeft = scroll ? scroll.left : 0;
   return true;
 }
 
@@ -338,21 +346,24 @@ function renderTools() {
   els.open.hidden = !url;
   els.open.href = url || '#';
   if (els.search.value !== app.query) els.search.value = app.query;
+  els.searchBox.hidden = Boolean(app.doc.dashboard);
 }
 
 function renderInfo(shown, total) {
   const sh = app.doc.sheet;
   const time = app.loadedAt ? app.loadedAt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
   const q = app.query.trim();
-  const facts = [q ? `Đang lọc: ${shown}/${total} dòng có “${esc(q)}”` : `${total} dòng`, `${sh.cols} cột`, time && `tải lúc ${time}`].filter(Boolean);
+  const facts = app.doc.dashboard ? [`số liệu lúc ${esc(app.doc.dashboard.updated)}`]
+    : [q ? `Đang lọc: ${shown}/${total} dòng có “${esc(q)}”` : `${total} dòng`, `${sh.cols} cột`, time && `tải lúc ${time}`].filter(Boolean);
   const notes = [];
   if (sh.rules.tip) notes.push(esc(sh.rules.tip));
   else if (sh.rules.all) notes.push('Trang tính này chỉ xem trên web.');
   if (sh.rules.header) notes.push('Dòng 1 là tên cột: script dựa vào đó để ghi đơn, nên chỉ đổi tên cột trên Google Sheet.');
   if (sh.rules.cols.length) notes.push(`Cột ${sh.rules.cols.map(colName).join(', ')} do script tự điền: chỉ xem.`);
   if (sh.images) notes.push(`Có ${sh.images} hình ảnh đặt trên trang tính: xem trên Google Sheet.`);
+  if (app.doc.dashboard) notes.push('Trên Google Sheet, trang Tổng quan có cùng số liệu và biểu đồ của Google.');
   const shownRows = sh.cells.length - sh.headRows;
-  if (sh.rows - sh.headRows > shownRows) {
+  if (!app.doc.dashboard && sh.rows - sh.headRows > shownRows) {
     notes.push(`Trang tính lớn: chỉ hiện ${shownRows} dòng ${sh.rules.top ? 'đầu (mới nhất)' : 'cuối'}, dòng cũ hơn xem trên Google Sheet.`);
   }
   if (sh.rules.top) notes.push('Dòng mới nhất ở trên cùng: đơn, yêu cầu, mã, dòng thêm trên web đều chèn ngay dưới dòng tiêu đề.');
@@ -913,6 +924,8 @@ function bind() {
   els.menu = $('[data-admin-menu]');
   els.status = $('[data-admin-status]');
   els.grid = $('[data-admin-grid]');
+  els.dash = $('[data-admin-dash]');
+  els.searchBox = els.search.closest('.admin-search');
   els.userBox = $('[data-admin-user]');
   els.userName = $('[data-admin-name]');
 
@@ -959,7 +972,7 @@ function bind() {
     clearTimeout(timer);
     timer = setTimeout(() => {
       app.query = els.search.value;
-      if (app.doc) renderGrid();
+      if (app.doc && !app.doc.dashboard) renderGrid();
     }, 150);
   });
   els.grid.addEventListener('click', (e) => {
@@ -973,11 +986,15 @@ function bind() {
     if (tr) openPanel('edit', Number(tr.dataset.row), Number(td.dataset.col));
   });
   window.addEventListener('resize', () => {
-    if (app.doc) stickHead();
+    if (app.doc && !app.doc.dashboard) stickHead();
   });
+  // Biểu đồ vẽ theo độ rộng khung: vẽ lại khi khung đổi cỡ (xoay máy, ẩn hiện cột trái)
+  new ResizeObserver(() => { if (!els.dash.hidden) redrawDashboard(); }).observe(els.dash);
 }
 
 async function start() {
+  // Máy đã mở trang quản trị là máy của shop: không đếm vào khách truy cập web (core.js)
+  try { localStorage.setItem(NO_COUNT_KEY, '1'); } catch { /* private mode */ }
   bind();
   let data;
   try {
