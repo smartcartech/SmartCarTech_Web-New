@@ -229,9 +229,9 @@ Mỗi hộp có một thẻ in **mã tải code** riêng, VD `K7M3-Q9XP`. Ở tr
   - Dán đè toàn bộ bằng bản script mới thì nhớ điền lại `NOTIFY_EMAIL` và `CODE_FOLDER_ID`.
   - Dán bản mới, bấm **Lưu** xong thì tải lại Sheet và chạy **SmartCarTech → Kiểm tra cài đặt…** *trước khi* triển khai. Bản mới cần thêm quyền thì Google hỏi ở bước này.
 
-## 6. Trang quản trị (chỉ admin)
+## 6. Trang quản trị: admin, manager, seller
 
-Mở `smartcartech.vn/quan-tri.html`, đăng nhập, rồi xem và sửa dữ liệu Google Sheet của shop ngay trên web, trên điện thoại cũng được, không cần mở Google Sheet. Web không có link nào tới trang này, Google cũng không hiện trang này khi tìm kiếm.
+Mở `smartcartech.vn/quan-tri.html`, đăng nhập, rồi xem và sửa dữ liệu Google Sheet của shop ngay trên web, trên điện thoại cũng được, không cần mở Google Sheet. Web không có link nào tới trang này, Google cũng không hiện trang này khi tìm kiếm. Phần dưới đây là những gì tài khoản **admin** làm được; manager, seller chỉ xem, làm được phần admin cho (xem *Tài khoản manager, seller và hoa hồng* bên dưới).
 
 **Làm được gì:**
 
@@ -256,20 +256,21 @@ Mở `smartcartech.vn/quan-tri.html`, đăng nhập, rồi xem và sửa dữ li
 - Trang Mã tải code không thêm, xoá dòng trên web được, vì mã đã in trên thẻ. Cột Mã tải code, Mã đơn, Khách hàng chỉ xem. Tạo mã, in thẻ vẫn làm ở menu SmartCarTech. Muốn ngừng một mã: tích ô Khoá.
 - Ô script tự tính, tự ghi chỉ xem trên trang quản trị (trên Google Sheet vẫn sửa được khi thật cần):
   - **Lợi nhuận** ở trang Đơn hàng, mọi dòng: script tự tính bằng Doanh thu sau điều chỉnh trừ Chi phí. Muốn lợi nhuận đổi thì sửa 2 cột đó.
+  - **Lợi nhuận sau hoa hồng**: script tự tính bằng Lợi nhuận trừ Hoa hồng (₫) (xem *Hoa hồng* bên dưới).
   - **Đơn đặt trên website** (Nền tảng là Website, hoặc trống mà mã đơn dạng SC…): Thời gian, Mã đơn, Nền tảng, Sản phẩm, Tổng (₫), Kiểm tra. Họ tên, SĐT, Địa chỉ, Ghi chú (khách gõ, có thể sai) và các cột shop tự điền vẫn sửa được. Đơn shop tự thêm (Shopee, Tiktok) thì sửa được hết, trừ Lợi nhuận.
   - **Yêu cầu đặt ở trang In 3D** (mã dạng IN…): Thời gian, Mã, Loại, Kiểm tra. Nội dung, Số lượng, Tạm tính vẫn sửa được, vì shop chốt lại với khách và báo giá in theo file.
   - Trang **Mã tải code**: Tải lần đầu, Tải gần nhất, File tải gần nhất, Đã in. *Số lần tải* vẫn sửa được để đặt lại về 0 khi khách hết lượt.
   - **Ô công thức** ở mọi trang: hiện kết quả và công thức; đổi công thức thì sửa trên Google Sheet.
 - Sửa cột Mã tải code (hoặc Mã đơn, Họ tên, SĐT) ở trang Đơn hàng trên web thì script gán mã y như khi gõ trên Sheet.
-- Mọi lần đăng nhập, sửa ô, thêm, xoá dòng được ghi ở trang tính **Nhật ký quản trị** (script tự tạo; trên web chỉ xem). Dòng bị xoá được lưu đủ nội dung ở cột *Trước*: lỡ tay xoá thì chép lại từ đây. Script không ghi được nhật ký thì cũng không xoá dòng.
+- Mọi lần đăng nhập, sửa ô, thêm, xoá dòng, tạo, sửa, xoá tài khoản, đổi mật khẩu được ghi ở trang tính **Nhật ký quản trị** (script tự tạo; trên web chỉ xem, chỉ admin thấy). Dòng bị xoá được lưu đủ nội dung ở cột *Trước*: lỡ tay xoá thì chép lại từ đây. Script không ghi được nhật ký thì cũng không xoá dòng.
 - Google Sheet cũng giữ mọi thay đổi ở **Tệp → Lịch sử phiên bản**.
 - Hình ảnh đặt trên trang tính và định dạng (màu, cỡ chữ, độ rộng cột) chỉ sửa trên Google Sheet.
 - Trang tính rất lớn (hơn 40.000 ô, `ADMIN_MAX_CELLS` trong script): web chỉ hiện các dòng mới nhất (đầu trang với Đơn hàng, Tư vấn, In 3D, Mã tải code, Nhật ký quản trị; cuối trang với trang khác), dòng cũ hơn xem trên Sheet.
 
 **Tài khoản, đăng nhập:**
 
-- Tạo tài khoản trong Google Sheet: menu **SmartCarTech → Tài khoản trang quản trị…**. Nhập tên đăng nhập (chữ không dấu) và mật khẩu ít nhất 10 ký tự, hoặc bấm *Tạo mật khẩu mạnh* rồi chép lại. Bấm **Lưu tài khoản**. Tạo được nhiều tài khoản, VD mỗi người một tài khoản.
-- Quên hoặc muốn đổi mật khẩu: nhập lại tên đó với mật khẩu mới. Mọi nơi đang đăng nhập bằng tài khoản đó bị đăng xuất. Xoá tài khoản: bấm *Xoá* 2 lần.
+- Tạo tài khoản trên trang quản trị bằng tài khoản admin (mục **Tài khoản**, xem bên dưới), hoặc trong Google Sheet: menu **SmartCarTech → Tài khoản trang quản trị…**. Nhập tên đăng nhập (chữ không dấu), chọn vai trò và mật khẩu ít nhất 10 ký tự, hoặc bấm *Tạo mật khẩu mạnh* rồi chép lại. Bấm **Lưu tài khoản**. Tạo được nhiều tài khoản, VD mỗi người một tài khoản.
+- Tự đổi mật khẩu: nút ổ khoá cạnh tên mình ở cuối cột trái (cần mật khẩu hiện tại). Quên mật khẩu: admin đặt mật khẩu mới ở mục Tài khoản, hoặc trong cửa sổ trên Google Sheet nhập lại tên đó với mật khẩu mới. Mọi nơi đang đăng nhập bằng tài khoản đó bị đăng xuất. Xoá tài khoản: bấm *Xoá* 2 lần.
 - Mật khẩu chỉ lưu dạng mã hoá trong script (Script Properties), không nằm trong kho GitHub hay trên web: không ai xem lại được mật khẩu, kể cả chủ Sheet.
 - Sai mật khẩu hoặc mã 2 bước 5 lần trong 15 phút thì tài khoản đó tạm khoá 15 phút. Cả web sai 30 lần thì mọi tài khoản tạm khoá 15 phút. Như vậy không ai dò được mật khẩu. Bị khoá mà cần gấp thì mở thẳng Google Sheet.
 - Phiên đăng nhập chỉ giữ trong tab đang mở: đóng tab là phải đăng nhập lại. Không thao tác 3 giờ (`ADMIN_IDLE_HOURS`) hoặc dùng quá 12 giờ (`ADMIN_MAX_HOURS`) cũng phải đăng nhập lại. Đang sửa dở thì khung đăng nhập hiện đè lên: đăng nhập xong bấm Lưu lần nữa, nội dung đang sửa không mất.
@@ -293,6 +294,7 @@ Mở `smartcartech.vn/quan-tri.html`, đăng nhập, rồi xem và sửa dữ li
 
 - Tài khoản nhập đúng mật khẩu trên một trình duyệt chưa từng đăng nhập xong. Tài khoản có mã 2 bước được báo ngay sau bước mật khẩu, trước khi nhập mã: email ghi rõ người đó còn phải có điện thoại của bạn. Mỗi máy, mỗi trình duyệt bạn dùng sẽ báo 1 lần đầu, là bình thường. Tab ẩn danh hay xoá dữ liệu trình duyệt thì tính là trình duyệt mới. Đổi mật khẩu thì script quên hết các trình duyệt đã biết.
 - Tài khoản bị khoá vì sai 5 lần, hoặc cả web bị khoá vì sai 30 lần. Có lần nhập đúng mật khẩu mà sai mã 2 bước thì email nói mật khẩu đã lộ: đặt mật khẩu mới ngay.
+- Admin tạo, xoá tài khoản, đổi vai trò hay đặt mật khẩu mới cho người khác trên trang quản trị (đổi quyền xem thì chỉ ghi nhật ký).
 - Cùng một việc chỉ báo 1 lần trong 6 giờ, tối đa 5 email báo mỗi giờ. Hạn mức email trong ngày còn 20 thì thôi báo, để dành cho email báo đơn.
 - Email ghi giờ, tài khoản và tên trình duyệt (do trình duyệt tự báo, có thể bị giả). Script không biết địa chỉ IP. Trình duyệt được nhận ra nhờ một mã ngẫu nhiên nó tự giữ; script chỉ lưu mã băm của mã đó.
 - Nhật ký quản trị ghi tên trình duyệt ở cột *Vị trí* của mỗi lần đăng nhập, kèm "(trình duyệt mới)", và mọi lần nhập sai mã 2 bước.
@@ -309,6 +311,49 @@ Mở `smartcartech.vn/quan-tri.html`, đăng nhập, rồi xem và sửa dữ li
 6. Đưa web lên, rồi mở `smartcartech.vn/quan-tri.html` và đăng nhập.
 
 Web lên trước khi triển khai script mới thì trang quản trị báo "chưa có bản mới"; các phần khác của web vẫn chạy bình thường. Thứ tự giữa script và web không quan trọng với mã 2 bước: trang cũ gặp tài khoản đã bật mã thì nhắc tải lại trang.
+
+### Tài khoản manager, seller và hoa hồng
+
+Mỗi tài khoản có một vai trò:
+
+- **Admin**: xem, sửa mọi thứ, quản lý tài khoản, xem hoa hồng của mọi seller. Tài khoản tạo từ trước khi có vai trò đều là admin.
+- **Manager**: giúp quản lý đơn. Chỉ xem được các trang tính, các cột admin cho. Không bao giờ thấy cột hoa hồng (mọi cột có chữ "hoa hồng", ở mọi trang tính), không có mục Hoa hồng, Tài khoản.
+- **Seller**: tự tìm khách rồi lên đơn trên web. Ở Đơn hàng, In 3D chỉ thấy đơn mình lên, không thêm, xoá dòng ở đó; xem tình trạng đơn và hoa hồng của mình.
+
+Nhật ký quản trị và trang Hoa hồng seller chỉ admin xem được. Mọi quyền do script kiểm tra ở mỗi lần bấm: cột bị ẩn, đơn của người khác không được gửi về trình duyệt, nên xem mã nguồn trang cũng không thấy. Seller xem được Hoa hồng (₫), Đã trả hoa hồng của đơn mình nhưng không sửa được; cột Seller cũng chỉ admin sửa.
+
+**Tạo, sửa tài khoản** (đăng nhập bằng tài khoản admin → mục **Tài khoản** ở đầu cột trái):
+
+1. Bấm **Thêm tài khoản**, nhập tên đăng nhập, chọn vai trò, bấm *Tạo mật khẩu* rồi chép lại.
+2. Chọn trang tính được xem và việc được làm ở trang đó: *Xem*, *Sửa*, *Thêm dòng*, *Xoá dòng*. Bấm *Cột* để chỉ cho xem một số cột, hoặc để *Mọi cột, kể cả cột thêm sau này*. Vai trò mới có sẵn quyền gợi ý: manager xem, sửa, thêm dòng ở Đơn hàng, In 3D, Tư vấn; seller xem đơn của mình ở Đơn hàng, In 3D (các cột khách, sản phẩm, tổng, trạng thái, hoa hồng) và được lên đơn.
+3. Bấm **Tạo tài khoản**, gửi tên đăng nhập và mật khẩu cho người đó. Họ tự đổi mật khẩu ở nút ổ khoá cạnh tên mình.
+
+- Đổi quyền có hiệu lực ngay ở lần bấm tiếp theo của người đó. Đổi vai trò hay đặt mật khẩu mới thì người đó bị đăng xuất.
+- Không tự đổi vai trò, không tự xoá tài khoản của mình, và web luôn còn ít nhất 1 admin. Mất hết admin (VD quên mật khẩu): tạo lại trong Google Sheet, menu SmartCarTech → Tài khoản trang quản trị…, vai trò Admin.
+- Cột được chọn theo tên cột: đổi tên một cột thì manager, seller không thấy cột đó nữa tới khi admin tích lại.
+- Trang Tổng quan không có số liệu hoa hồng, cấp cho manager được.
+- Mã 2 bước của manager, seller cũng bật trong Google Sheet như admin (cần điện thoại của người đó để quét mã).
+
+**Seller lên đơn:**
+
+1. Seller đăng nhập trang quản trị, bấm **Lên đơn bộ xe** hoặc **Lên đơn In 3D**: trang bán hàng mở ngay trong tab đó, đầu trang có dòng "Đang lên đơn cho khách bằng tài khoản seller …".
+2. Chọn sản phẩm, điền thông tin khách đưa rồi gửi như khách đặt. Đơn được ghi ở Đơn hàng hoặc In 3D: cột **Seller** là tên seller, **Hoa hồng (₫)** tự tính, **Đã trả hoa hồng** chưa tích. Email báo đơn ghi tên seller và hoa hồng.
+
+- Phải mở trang bán hàng trong cùng tab với trang quản trị: ở tab khác, máy khác, đơn là đơn khách tự đặt, không có tên seller.
+- Phiên seller hết hạn (3 giờ không dùng) thì dòng đầu trang báo đăng nhập lại. Đơn gửi lúc đó không được ghi, để seller đăng nhập lại rồi gửi lại, không mất hoa hồng.
+- Admin bỏ tích *Được lên đơn* của seller nào thì đơn seller đó gửi không được ghi.
+
+**Hoa hồng:**
+
+- Mức hoa hồng ở trang tính **Hoa hồng seller** (script tạo, chỉ admin xem): mỗi sản phẩm trên web một dòng (các bộ xe, bảng tên 1 tầng, 2 tầng, giá đỡ), admin điền cột *Hoa hồng mỗi sản phẩm (₫)*, chung cho mọi seller. Sản phẩm mới trên web tự có dòng (mức để trống) khi mở trang này hoặc chạy *Kiểm tra cài đặt*. Trang Affiliate cũ nhập từ Excel không được dùng: chép mức sang trang này.
+- Hoa hồng của đơn = mức × số lượng, cộng các sản phẩm trong đơn. Sản phẩm chưa có mức, hay đơn in theo file (chưa có giá), thì ô Hoa hồng để trống: admin tự ghi vào đơn. Đổi mức chỉ áp dụng cho đơn mới.
+- Trang Đơn hàng có thêm cột **Trạng thái** (Mới, Đã xác nhận, Đang giao, Đã giao, Huỷ; `ORDER_STATUSES` trong script): đơn web mới ghi "Mới", manager cập nhật ở ô thả xuống. In 3D dùng cột Trạng thái sẵn có.
+- Mục **Hoa hồng seller** (admin), **Đơn và hoa hồng của tôi** (seller): *Chưa trả* là đơn Đã giao mà chưa tích Đã trả hoa hồng, *Đang chờ* là đơn chưa giao xong, *Đã trả*; đơn Huỷ không tính. Admin thấy từng seller và các đơn cần làm: bấm **Mở đơn**, tích **Đã trả hoa hồng** khi đã trả cho seller.
+- Cột **Lợi nhuận sau hoa hồng** ở trang Đơn hàng = Lợi nhuận trừ Hoa hồng (₫), tự tính như cột Lợi nhuận: đơn có lợi nhuận thì có số, đơn không có seller thì bằng Lợi nhuận, hoa hồng đổi thì tự tính lại. Đơn chưa có lợi nhuận thì để trống. Cột Lợi nhuận vẫn là Doanh thu sau điều chỉnh trừ Chi phí.
+- Manager không thấy cột Lợi nhuận sau hoa hồng (tên có chữ "hoa hồng"): thấy cả 2 cột lợi nhuận thì trừ ra được hoa hồng. Trang Tổng quan chưa có lợi nhuận sau hoa hồng, vì trang đó cấp cho manager được.
+- Các cột Trạng thái, Seller, Hoa hồng (₫), Đã trả hoa hồng được thêm vào cuối trang Đơn hàng, In 3D khi mở Google Sheet sau khi dán script; các đơn cũ để trống. Trang Đơn hàng có thêm cột Lợi nhuận sau hoa hồng ở cuối (khi đã có cột Lợi nhuận): lần đầu thêm, mọi đơn đã có lợi nhuận được tính luôn.
+
+**Cài đặt (sau khi dán script mới):** tải lại Google Sheet (các cột mới được thêm), chạy **Kiểm tra cài đặt…** (tạo trang Hoa hồng seller), điền mức hoa hồng, triển khai phiên bản mới, rồi tạo tài khoản manager, seller ở mục Tài khoản.
 
 ### Trang Tổng quan và khách truy cập
 

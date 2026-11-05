@@ -44,7 +44,7 @@
         </span>
         <div class="admin-login__head">
           <h1 class="admin-login__title" id="login-title">Đăng nhập quản trị</h1>
-          <p class="admin-login__lead">Xem và sửa dữ liệu Google Sheet của shop: đơn hàng, In 3D, tư vấn, mã tải code và kế hoạch.</p>
+          <p class="admin-login__lead">Xem và sửa dữ liệu Google Sheet của shop theo quyền của tài khoản: đơn hàng, In 3D, tư vấn, hoa hồng seller và kế hoạch.</p>
         </div>
         <form class="form" data-login-form novalidate>
           <div class="field">
@@ -74,7 +74,7 @@
           <button type="submit" class="btn btn--primary btn--block" data-code-submit>Xác nhận</button>
           <button type="button" class="btn btn--ghost btn--block" data-code-back>Quay lại nhập mật khẩu</button>
         </form>
-        <p class="admin-login__note">Chỉ dành cho quản trị viên. Tài khoản tạo trong Google Sheet của shop: menu <strong>SmartCarTech → Tài khoản trang quản trị…</strong></p>
+        <p class="admin-login__note">Dành cho admin, manager và seller của shop. Tài khoản do admin tạo trên trang này (mục <strong>Tài khoản</strong>) hoặc trong Google Sheet của shop (menu <strong>SmartCarTech → Tài khoản trang quản trị…</strong>).</p>
       </div>
     </section>
 
@@ -90,13 +90,18 @@
             <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-close"></use></svg>
           </button>
         </div>
+        <!-- Hoa hồng, Tài khoản, Lên đơn: theo vai trò (admin.js) -->
+        <nav class="admin-views" data-admin-views aria-label="Mục quản lý" hidden></nav>
         <h2 class="admin-side__label" id="admin-tabs-title">Trang tính</h2>
         <nav class="admin-tabs" data-admin-tabs aria-labelledby="admin-tabs-title"></nav>
         <div class="admin-user" data-admin-user hidden>
           <span class="admin-user__name">
             <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-shield"></use></svg>
-            <span data-admin-name></span>
+            <span><span data-admin-name></span> <span class="admin-user__role" data-admin-role></span></span>
           </span>
+          <button type="button" class="btn btn--ghost btn--sm admin-user__pass" data-admin-password aria-label="Đổi mật khẩu" title="Đổi mật khẩu">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-lock"></use></svg>
+          </button>
           <button type="button" class="btn btn--ghost btn--sm" data-admin-logout>
             <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-logout"></use></svg>
             Đăng xuất
@@ -136,6 +141,7 @@
           <p class="admin-status" data-admin-status role="status" hidden></p>
           <div class="admin-grid" data-admin-grid tabindex="0" aria-label="Nội dung trang tính. Bấm số dòng hoặc một ô để xem, sửa cả dòng."></div>
           <div class="dash" data-admin-dash hidden></div>
+          <div class="dash admin-view" data-admin-view hidden></div>
         </div>
       </div>
     </section>

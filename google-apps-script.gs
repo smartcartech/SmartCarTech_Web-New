@@ -66,13 +66,31 @@ const ORDER_PLATFORMS = ['Shopee', 'Tiktok']; // Ô thả xuống "Nền tảng"
 const ORDER_REVENUE_COL = 'Doanh thu sau điều chỉnh'; // Shop tự điền 2 cột này; đủ 2 số thì ORDER_PROFIT_COL tự tính (syncProfit_)
 const ORDER_COST_COL = 'Chi phí';
 const ORDER_PROFIT_COL = 'Lợi nhuận';
-const ORDER_HEADER = ['Thời gian', 'Mã đơn', 'Họ tên', 'SĐT', 'Địa chỉ', 'Sản phẩm', 'Tổng (₫)', ORDER_CHECK_COL, 'Ghi chú', ORDER_KEY_COL];
+// Lợi nhuận trừ Hoa hồng (₫), tự tính cùng Lợi nhuận (syncProfit_). Tên có chữ "hoa hồng" nên manager không thấy: thấy cả 2 cột
+// lợi nhuận thì trừ ra được hoa hồng
+const ORDER_NET_COL = 'Lợi nhuận sau hoa hồng';
+const ORDER_STATUS_COL = 'Trạng thái'; // Đơn web mới ghi "Mới", shop chọn tiếp ở ô thả xuống; seller theo dõi đơn của mình ở đây
+const ORDER_STATUSES = ['Mới', 'Đã xác nhận', 'Đang giao', 'Đã giao', 'Huỷ'];
+// Đơn seller lên trên trang Đặt hàng, In 3D (đã đăng nhập trang quản trị bằng tài khoản seller trong cùng tab): script
+// ghi tên seller và hoa hồng tính theo trang COMMISSION_SHEET. Admin tích "Đã trả hoa hồng" khi đã trả cho seller
+const SELLER_COL = 'Seller';
+const COMMISSION_COL = 'Hoa hồng (₫)';
+const COMMISSION_PAID_COL = 'Đã trả hoa hồng';
+const SELLER_COLS = [SELLER_COL, COMMISSION_COL, COMMISSION_PAID_COL];
+const COMMISSION_SHEET = 'Hoa hồng seller'; // Script tạo, mỗi sản phẩm trên web một dòng; admin điền mức. Chỉ admin xem được
+const COMMISSION_HEADER = ['Mã', 'Sản phẩm', 'Giá bán (₫)', 'Hoa hồng mỗi sản phẩm (₫)'];
+// Cột "Mã" ở trang đó: bộ xe là "dòng:bộ" như products.json (VD "pro:day-du"); bảng tên thêm id kiểu bảng (1-tang, 2-tang)
+const COMMISSION_PLATE = 'in-3d:bang-ten:';
+const COMMISSION_STAND = 'in-3d:gia-do';
+const ORDER_HEADER = ['Thời gian', 'Mã đơn', 'Họ tên', 'SĐT', 'Địa chỉ', 'Sản phẩm', 'Tổng (₫)', ORDER_CHECK_COL, 'Ghi chú', ORDER_KEY_COL,
+  ORDER_STATUS_COL, ...SELLER_COLS];
 const PHONE_RE = /^(0|\+?84)(3|5|7|8|9)\d{8}$/; // Giống assets/js/core.js
 
 const PRINT_SHEET = 'In 3D';
 const PRINT_STATUS_COL = 'Trạng thái'; // Shop chọn ở ô thả xuống; đơn, yêu cầu mới ghi "Mới"
 const PRINT_STATUSES = ['Mới', 'Đã liên hệ', 'Đã chốt', 'Đang in', 'Đã giao', 'Huỷ'];
-const PRINT_HEADER = ['Thời gian', 'Mã', 'Loại', 'Họ tên', 'SĐT', 'Địa chỉ', 'Nội dung', 'Số lượng', 'Tạm tính (₫)', ORDER_CHECK_COL, 'Ghi chú', PRINT_STATUS_COL];
+const PRINT_HEADER = ['Thời gian', 'Mã', 'Loại', 'Họ tên', 'SĐT', 'Địa chỉ', 'Nội dung', 'Số lượng', 'Tạm tính (₫)', ORDER_CHECK_COL, 'Ghi chú', PRINT_STATUS_COL,
+  ...SELLER_COLS];
 const PRINT_KINDS = ['Bảng tên để bàn', 'Giá đỡ điện thoại', 'In theo file']; // Cột "Loại", giống plateRow_, standRow_, fileRow_
 // Chữ in trên bảng tên: chữ cái (có dấu tiếng Việt), số, dấu câu thường dùng. Giống assets/js/print3d.js
 const PLATE_TEXT_RE = /^[\p{Script=Latin}\p{M}\p{Nd} .,:;!?&'"’‘“”()\/+\-–—#@*]*$/u;
@@ -174,6 +192,7 @@ function saveOrder_(data) {
     checks.push('Chưa đối chiếu được giá với products.json: kiểm tra lại sản phẩm và tổng tiền.');
   }
   const products = [];
+  const sold = []; // { key, qty } của từng bộ: tính hoa hồng khi seller lên đơn
   let total = 0;
   for (const item of items) {
     const qty = Number(item && item.qty);
@@ -184,31 +203,86 @@ function saveOrder_(data) {
       : { line: clean_(item.line, 100), kit: clean_(item.kit, 100), price: Number(item.price) || 0 };
     if (!kit || !kit.line || !kit.kit) return 'invalid';
     products.push(`${productName_(kit.line, kit.kit)} × ${qty}`);
+    sold.push({ key: kit.key || `${item.line_id}:${item.kit_id}`, qty });
     total += kit.price * qty;
   }
   const sentTotal = Number(data.total) || 0;
   if (kits && sentTotal !== total) {
     checks.push(`Web gửi tổng ${money_(sentTotal)} ₫, giá đúng ${money_(total)} ₫: báo lại giá cho khách khi gọi xác nhận.`);
   }
+  const seller = orderSeller_(data);
+  if (seller.error) return seller.error;
   if (overLimit_(phone)) return 'busy';
 
-  addRow_(getSheet_(SpreadsheetApp.getActiveSpreadsheet(), ORDER_SHEET, ORDER_HEADER), {
-    'Thời gian': new Date(),
-    'Mã đơn': code,
-    'Họ tên': name,
-    'SĐT': phone,
-    'Địa chỉ': address,
-    'Sản phẩm': products.join('\n'),
-    'Tổng (₫)': total,
-    [ORDER_CHECK_COL]: checks.join('\n'),
-    'Ghi chú': note,
-    [ORDER_PLATFORM_COL]: WEB_PLATFORM,
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = getSheet_(ss, ORDER_SHEET, ORDER_HEADER);
+  const commission = seller.name ? commissionOf_(ss, sold) : '';
+  // Ghi dòng và ô thả xuống, ô tích trong cùng một khoá: đơn khác chèn lên trên giữa chừng thì vẫn vào đúng dòng
+  withDocLock_(() => {
+    const added = addRow_(sh, Object.assign({
+      'Thời gian': new Date(),
+      'Mã đơn': code,
+      'Họ tên': name,
+      'SĐT': phone,
+      'Địa chỉ': address,
+      'Sản phẩm': products.join('\n'),
+      'Tổng (₫)': total,
+      [ORDER_CHECK_COL]: checks.join('\n'),
+      'Ghi chú': note,
+      [ORDER_PLATFORM_COL]: WEB_PLATFORM,
+      [ORDER_STATUS_COL]: ORDER_STATUSES[0],
+    }, sellerCells_(seller.name, commission)));
+    orderCells_(sh, added, ORDER_STATUSES, Boolean(seller.name));
   });
   notify_(`Đơn mới #${code} – ${name}`, [
     `${name} – ${phone}`, address, '', ...products, '',
-    `Tổng: ${money_(total)} ₫`, `Ghi chú: ${note}`, ...(checks.length ? ['', `Cần kiểm tra: ${checks.join(' ')}`] : []),
+    `Tổng: ${money_(total)} ₫`, `Ghi chú: ${note}`, ...sellerLines_(seller.name, commission),
+    ...(checks.length ? ['', `Cần kiểm tra: ${checks.join(' ')}`] : []),
   ].join('\n'));
   return 'ok';
+}
+
+/**
+ * Đơn do seller lên: trang đặt hàng gửi kèm mã phiên trang quản trị của seller (`data.seller`). Trả { name } (rỗng: đơn
+ * khách tự đặt) hoặc { error } là câu trả lời cho web: "seller-login" phiên đã hết hạn, "seller-off" admin chưa cho
+ * seller này lên đơn. Không ghi đơn trong 2 trường hợp đó, để seller đăng nhập lại rồi gửi lại, không mất hoa hồng.
+ * Mã phiên của admin, manager: đơn thường.
+ */
+function orderSeller_(data) {
+  if (data.seller == null || data.seller === '') return { name: '' };
+  const session = adminSession_(data.seller);
+  if (!session) return { error: 'seller-login' };
+  if (session.role !== 'seller') return { name: '' };
+  if (!adminPerms_(session.user).order) return { error: 'seller-off' };
+  return { name: session.user };
+}
+
+/** Các ô của seller ở dòng đơn: tên, hoa hồng (rỗng: chưa có mức), chưa trả. Đơn không có seller: không ghi gì. */
+function sellerCells_(name, commission) {
+  return name ? { [SELLER_COL]: name, [COMMISSION_COL]: commission, [COMMISSION_PAID_COL]: false } : {};
+}
+
+/** Dòng trong email báo đơn mới: seller nào lên, hoa hồng bao nhiêu. Email chỉ gửi tới shop (NOTIFY_EMAIL). */
+function sellerLines_(name, commission) {
+  if (!name) return [];
+  const amount = commission === '' ? `chưa có mức hoa hồng (điền ở trang "${COMMISSION_SHEET}" rồi ghi vào đơn)` : `hoa hồng ${money_(commission)} ₫`;
+  return ['', `Seller lên đơn: ${name}, ${amount}`];
+}
+
+/**
+ * Ô thả xuống "Trạng thái" và ô tích "Đã trả hoa hồng" của dòng đơn vừa ghi. Dòng chèn trên cùng lấy ô tích của dòng
+ * ngay dưới: đơn không có seller thì bỏ ô tích đó đi, để chỉ đơn của seller mới có ô tích.
+ */
+function orderCells_(sh, row, statuses, seller) {
+  const status = colOf_(sh, ORDER_STATUS_COL, false);
+  if (status) {
+    sh.getRange(row, status).setDataValidation(
+      SpreadsheetApp.newDataValidation().requireValueInList(statuses, true).setAllowInvalid(true).build());
+  }
+  const paid = colOf_(sh, COMMISSION_PAID_COL, false);
+  if (paid) {
+    sh.getRange(row, paid).setDataValidation(seller ? SpreadsheetApp.newDataValidation().requireCheckbox().build() : null);
+  }
 }
 
 /** Yêu cầu tư vấn từ Trang chủ. */
@@ -240,20 +314,21 @@ function savePrint_(data) {
   if (!name || !PHONE_RE.test(phone) || !/^IN\d{6}-\d{4}$/.test(code)) return 'invalid';
   const row = PRINT_ROWS.hasOwnProperty(data.kind) ? PRINT_ROWS[data.kind](data) : null;
   if (!row) return 'invalid';
+  const seller = orderSeller_(data);
+  if (seller.error) return seller.error;
   if (overLimit_(phone)) return 'busy';
 
-  const sh = getSheet_(SpreadsheetApp.getActiveSpreadsheet(), PRINT_SHEET, PRINT_HEADER);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = getSheet_(ss, PRINT_SHEET, PRINT_HEADER);
+  // In theo file chưa có giá: admin ghi hoa hồng sau khi báo giá
+  const commission = seller.name && row.sold ? commissionOf_(ss, [row.sold]) : '';
   // Ghi dòng và ô thả xuống trong cùng một khoá: đơn khác chèn lên trên giữa chừng thì ô thả xuống vẫn vào đúng dòng
   withDocLock_(() => {
     const added = addRow_(sh, Object.assign({ 'Thời gian': new Date(), 'Mã': code, 'Họ tên': name, 'SĐT': phone }, row.cells,
-      { [PRINT_STATUS_COL]: PRINT_STATUSES[0] }));
-    const statusCol = colOf_(sh, PRINT_STATUS_COL, false);
-    if (statusCol) {
-      sh.getRange(added, statusCol).setDataValidation(
-        SpreadsheetApp.newDataValidation().requireValueInList(PRINT_STATUSES, true).setAllowInvalid(true).build());
-    }
+      { [PRINT_STATUS_COL]: PRINT_STATUSES[0] }, sellerCells_(seller.name, commission)));
+    orderCells_(sh, added, PRINT_STATUSES, Boolean(seller.name));
   });
-  notify_(`${row.title} #${code} – ${name}`, [`${name} – ${phone}`, ...row.email].join('\n'));
+  notify_(`${row.title} #${code} – ${name}`, [`${name} – ${phone}`, ...row.email, ...sellerLines_(seller.name, commission)].join('\n'));
   return 'ok';
 }
 
@@ -318,7 +393,9 @@ function plateRow_(data) {
     `Icon: ${iconText.length ? iconText.join(', ') : 'không'}`,
     `Màu: thân ${body.name}, chữ ${text.name}`,
   ];
-  return orderRow_('Đơn bảng tên', 'Bảng tên để bàn', { address, content, qty, price, total, checks, note });
+  // Hoa hồng theo kiểu bảng (1 tầng, 2 tầng); không đọc được products.json thì theo id web gửi
+  const sold = { key: `${COMMISSION_PLATE}${layout.id || String(p.layout_id || '').replace(/[^\w-]/g, '').slice(0, 40)}`, qty };
+  return orderRow_('Đơn bảng tên', 'Bảng tên để bàn', { address, content, qty, price, total, checks, note, sold });
 }
 
 /** Đơn giá đỡ điện thoại in tên: tên khắc (in hoa) và màu theo products.json → print3d.stand. */
@@ -341,7 +418,7 @@ function standRow_(data) {
   const price = cat ? Number(cat.stand.price) || 0 : Number(data.price) || 0;
   const total = printTotal_(price, qty, data, checks, Boolean(cat));
   const content = [`Tên khắc: ${text}`, `Màu: ${color.name}`];
-  return orderRow_('Đơn giá đỡ điện thoại', 'Giá đỡ điện thoại', { address, content, qty, price, total, checks, note });
+  return orderRow_('Đơn giá đỡ điện thoại', 'Giá đỡ điện thoại', { address, content, qty, price, total, checks, note, sold: { key: COMMISSION_STAND, qty } });
 }
 
 /** Tổng tiền theo giá trong products.json; tổng web gửi khác thì ghi lời nhắc vào cột "Kiểm tra". */
@@ -355,10 +432,11 @@ function printTotal_(price, qty, data, checks, known) {
   return total;
 }
 
-/** Dòng ở trang tính "In 3D" và email báo shop cho một đơn đặt ngay (bảng tên, giá đỡ). */
+/** Dòng ở trang tính "In 3D" và email báo shop cho một đơn đặt ngay (bảng tên, giá đỡ). `sold`: tính hoa hồng. */
 function orderRow_(title, kind, o) {
   return {
     title,
+    sold: o.sold,
     cells: {
       'Loại': kind,
       'Địa chỉ': o.address,
@@ -437,6 +515,95 @@ function productNames_() {
   }
 }
 
+/* ---------- Hoa hồng seller: mức cho mỗi sản phẩm ở trang COMMISSION_SHEET ---------- */
+
+/** Sản phẩm trên web có hoa hồng: { key (cột "Mã"), name, price }. In theo file chưa có giá nên admin ghi hoa hồng từng đơn. */
+function commissionProducts_() {
+  const data = siteData_();
+  const list = [];
+  (data.lines || []).forEach((l) => (l.kits || []).forEach((k) => {
+    list.push({ key: `${l.id}:${k.id}`, name: productName_(l.name, k.name), price: Number(k.price) || 0 });
+  }));
+  const p = data.print3d || {};
+  ((p.nameplate || {}).layouts || []).forEach((x) => {
+    list.push({ key: COMMISSION_PLATE + x.id, name: `${PRINT_KINDS[0]} – ${x.name}`, price: Number(x.price) || 0 });
+  });
+  if (p.stand) list.push({ key: COMMISSION_STAND, name: PRINT_KINDS[1], price: Number(p.stand.price) || 0 });
+  return list;
+}
+
+/**
+ * Trang COMMISSION_SHEET có đủ các sản phẩm đang bán theo products.json: sản phẩm mới thêm dòng (mức để trống cho admin
+ * điền), tên hay giá đổi thì ghi lại, mức đã điền giữ nguyên. Sản phẩm đã bỏ khỏi web vẫn giữ dòng. Không đọc được
+ * products.json thì để trang như cũ. Trả trang tính.
+ */
+function syncCommission_(ss) {
+  const sh = getSheet_(ss, COMMISSION_SHEET, COMMISSION_HEADER);
+  let list;
+  try {
+    list = commissionProducts_();
+  } catch (err) {
+    console.warn(err);
+    return sh;
+  }
+  withDocLock_(() => {
+    const [key, name, price, rate] = COMMISSION_HEADER.map((col) => colOf_(sh, col, true));
+    const width = sh.getLastColumn();
+    const last = sh.getLastRow();
+    const rows = last > 1 ? sh.getRange(2, 1, last - 1, width).getValues() : [];
+    const at = new Map(rows.map((r, i) => [String(r[key - 1]).trim(), i + 2]));
+    list.forEach((p) => {
+      const r = at.get(p.key);
+      if (r) {
+        if (rows[r - 2][name - 1] !== p.name) sh.getRange(r, name).setValue(p.name);
+        if (rows[r - 2][price - 1] !== p.price) sh.getRange(r, price).setValue(p.price);
+        return;
+      }
+      const row = new Array(width).fill('');
+      row[key - 1] = p.key;
+      row[name - 1] = p.name;
+      row[price - 1] = p.price;
+      sh.appendRow(row);
+      [price, rate].forEach((col) => sh.getRange(sh.getLastRow(), col).setNumberFormat('#,##0'));
+    });
+  });
+  return sh;
+}
+
+/** Mức hoa hồng: Map mã sản phẩm → số ₫ (ô trống, gõ không ra số thì không có). Chưa có trang thì tạo, đủ sản phẩm. */
+function commissionRates_(ss) {
+  const sh = ss.getSheetByName(COMMISSION_SHEET) || syncCommission_(ss);
+  const rates = new Map();
+  const head = header_(sh).map(matchText_);
+  const key = head.indexOf(matchText_(COMMISSION_HEADER[0]));
+  const rate = head.indexOf(matchText_(COMMISSION_HEADER[3]));
+  if (key < 0 || rate < 0 || sh.getLastRow() < 2) return rates;
+  const dec = gridContext_(sh).dec;
+  sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues().forEach((r) => {
+    const v = r[rate];
+    const n = typeof v === 'number' ? v : numberFrom_(String(v), dec); // VD gõ "60.000đ" thành chữ, như trang Affiliate cũ
+    const k = String(r[key]).trim();
+    if (k && typeof n === 'number' && n >= 0) rates.set(k, n);
+  });
+  return rates;
+}
+
+/** Hoa hồng của một đơn: tổng mức × số lượng. Sản phẩm nào chưa có mức thì "" (admin tự ghi vào đơn). */
+function commissionOf_(ss, sold) {
+  try {
+    const rates = commissionRates_(ss);
+    let sum = 0;
+    for (const { key, qty } of sold) {
+      if (!rates.has(key)) return '';
+      sum += rates.get(key) * qty;
+    }
+    return sum;
+  } catch (err) {
+    console.error(err); // Không đọc được mức: vẫn ghi đơn, hoa hồng để trống
+    return '';
+  }
+}
+
 /**
  * Bảng giá theo products.json trên website: "pro:day-du" và "SC Tech Pro|Bộ đầy đủ linh kiện"
  * cùng trỏ tới { line, kit, price } của bộ đó.
@@ -444,7 +611,7 @@ function productNames_() {
 function catalog_() {
   const kits = new Map();
   siteData_().lines.forEach((l) => l.kits.forEach((k) => {
-    const kit = { line: l.name, kit: k.name, price: Number(k.price) || 0 };
+    const kit = { line: l.name, kit: k.name, price: Number(k.price) || 0, key: `${l.id}:${k.id}` };
     kits.set(`${l.id}:${k.id}`, kit);
     kits.set(`${l.name}|${k.name}`, kit); // trang web bản cũ chưa gửi line_id, kit_id: chỉ có tên dòng, tên bộ
   }));
@@ -620,7 +787,13 @@ function onOpen() {
     const codes = ss.getSheetByName(CODE_SHEET);
     if (codes && codes.getLastRow()) CODE_HEADER.slice(7).forEach((name) => colOf_(codes, name, true));
     const orders = ss.getSheetByName(ORDER_SHEET);
-    if (orders && orders.getLastRow()) [ORDER_KEY_COL, ORDER_CHECK_COL].forEach((name) => colOf_(orders, name, true));
+    if (orders && orders.getLastRow()) {
+      [ORDER_KEY_COL, ORDER_CHECK_COL, ORDER_STATUS_COL, ...SELLER_COLS].forEach((name) => colOf_(orders, name, true));
+      addNetColumn_(orders);
+    }
+    // Cột của seller có sẵn để admin cấp quyền xem cột cho seller ngay, trước khi có đơn seller đầu tiên
+    const prints = ss.getSheetByName(PRINT_SHEET);
+    if (prints && prints.getLastRow()) SELLER_COLS.forEach((name) => colOf_(prints, name, true));
   } catch (err) {
     console.warn(err); // VD người chỉ có quyền xem: không thêm được cột, menu vẫn dùng được
   }
@@ -714,8 +887,24 @@ function checkSetup() {
   lines.push(...columnLines_());
   lines.push(visitStatus_());
   lines.push(...adminStatus_());
+  lines.push(commissionStatus_());
   const ui = SpreadsheetApp.getUi();
   ui.alert('Kiểm tra cài đặt', lines.join('\n\n'), ui.ButtonSet.OK);
+}
+
+/** Trang COMMISSION_SHEET (tạo nếu chưa có, thêm sản phẩm mới trên web): còn bao nhiêu sản phẩm chưa có mức hoa hồng. */
+function commissionStatus_() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const products = Math.max(0, syncCommission_(ss).getLastRow() - 1);
+    const missing = Math.max(0, products - commissionRates_(ss).size);
+    if (!products) return `✗ Trang "${COMMISSION_SHEET}" chưa có sản phẩm nào (chưa đọc được products.json): chạy lại mục này sau.`;
+    return missing
+      ? `• Trang "${COMMISSION_SHEET}": ${missing}/${products} sản phẩm chưa có mức hoa hồng. Seller lên đơn sản phẩm đó thì ô hoa hồng để trống, admin tự ghi.`
+      : `✓ Trang "${COMMISSION_SHEET}" có mức hoa hồng cho cả ${products} sản phẩm.`;
+  } catch (err) {
+    return `✗ Chưa kiểm tra được trang "${COMMISSION_SHEET}" (${err.message}).`;
+  }
 }
 
 /** Thư mục code mẫu và các file trong đó phải ở chế độ "Bị hạn chế": chia sẻ công khai thì ai có link cũng tải được code. */
@@ -875,7 +1064,13 @@ function onEdit(e) {
     if (done && done.issue) sh.getParent().toast(done.issue, 'Chưa gán được mã', 8);
     else if (done && done.linked) sh.getParent().toast(`Đã ghi Mã đơn, Khách hàng ở trang "${CODE_SHEET}".`, 'Đã gán mã', 4);
   }
-  if (watchesProfit_(sh, colFrom, colTo)) withDocLock_(() => syncProfit_(sh, rowFrom, rowTo));
+  if (watchesProfit_(sh, colFrom, colTo)) {
+    withDocLock_(() => syncProfit_(sh, rowFrom, rowTo));
+  } else {
+    // Shop tự gõ, tự xoá ô Lợi nhuận: chỉ cột Lợi nhuận sau hoa hồng theo, ô Lợi nhuận giữ đúng như vừa gõ
+    const cols = profitCols_(sh);
+    if (cols && cols.net && cols.profit >= colFrom && cols.profit <= colTo) withDocLock_(() => syncProfit_(sh, rowFrom, rowTo, true));
+  }
 }
 
 /** Cột colFrom–colTo của trang "Đơn hàng" có "Mã đơn", "Họ tên", "SĐT" hoặc "Mã tải code": sửa thì phải gán lại mã. */
@@ -1025,17 +1220,26 @@ function withDocLock_(fn) {
 
 /* ---------- Lợi nhuận của đơn: tự tính khi shop điền đủ Doanh thu và Chi phí ---------- */
 
-/** Số thứ tự cột Doanh thu, Chi phí, Lợi nhuận ở trang "Đơn hàng" (tìm theo tên); trang khác hoặc thiếu cột thì null. */
+/**
+ * Số thứ tự cột Doanh thu, Chi phí, Lợi nhuận ở trang "Đơn hàng" (tìm theo tên); trang khác hoặc thiếu cột thì null.
+ * `net`: cột Lợi nhuận sau hoa hồng (0 khi chưa có cột đó hay cột Hoa hồng (₫)).
+ */
 function profitCols_(sh) {
   if (sh.getName() !== ORDER_SHEET) return null;
   const head = header_(sh);
-  const [revenue, cost, profit] = [ORDER_REVENUE_COL, ORDER_COST_COL, ORDER_PROFIT_COL].map((name) => head.indexOf(name) + 1);
-  return revenue && cost && profit ? { revenue, cost, profit } : null;
+  const [revenue, cost, profit, commission, net] = [ORDER_REVENUE_COL, ORDER_COST_COL, ORDER_PROFIT_COL, COMMISSION_COL, ORDER_NET_COL]
+    .map((name) => head.indexOf(name) + 1);
+  return revenue && cost && profit ? { revenue, cost, profit, commission, net: commission ? net : 0 } : null;
 }
 
 /** Chỉ có dấu trừ, không có dấu phân cách đối số (Sheet vùng Việt Nam có thể dùng ";" thay ","): vùng nào cũng nhận. */
 function profitFormula_(cols, row) {
   return `=${colName_(cols.revenue)}${row}-${colName_(cols.cost)}${row}`;
+}
+
+/** Lợi nhuận sau hoa hồng: ô Lợi nhuận trừ ô Hoa hồng (₫); ô hoa hồng trống (đơn không có seller) tính là 0. */
+function netFormula_(cols, row) {
+  return `=${colName_(cols.profit)}${row}-${colName_(cols.commission)}${row}`;
 }
 
 /** Cột colFrom–colTo có Doanh thu hoặc Chi phí: sửa thì phải chạy syncProfit_. */
@@ -1047,21 +1251,50 @@ function watchesProfit_(sh, colFrom, colTo) {
 /**
  * Dòng from–to: đủ 2 số Doanh thu, Chi phí mà ô Lợi nhuận còn trống thì đặt công thức; thiếu 1 trong 2 số thì xoá đúng
  * công thức đó (nếu không, đơn chỉ có doanh thu sẽ hiện lợi nhuận bằng cả doanh thu). Ô shop tự gõ số, công thức khác giữ nguyên.
+ * Cột Lợi nhuận sau hoa hồng theo ô Lợi nhuận cùng cách: có số thì đặt công thức, hết số thì xoá đúng công thức đó (không thì
+ * đơn chưa có lợi nhuận hiện số âm bằng hoa hồng). `netOnly`: không đụng cột Lợi nhuận (VD shop vừa tự gõ ô Lợi nhuận).
  */
-function syncProfit_(sh, from, to) {
+function syncProfit_(sh, from, to, netOnly) {
   const cols = profitCols_(sh);
   const first = Math.max(from, 2);
   const last = Math.min(to, sh.getLastRow());
-  if (!cols || last < first) return;
+  if (!cols || last < first || (netOnly && !cols.net)) return;
   const values = sh.getRange(first, 1, last - first + 1, sh.getLastColumn()).getValues();
   const formulas = sh.getRange(first, cols.profit, last - first + 1, 1).getFormulas();
+  const nets = cols.net ? sh.getRange(first, cols.net, last - first + 1, 1).getFormulas() : [];
+  const same = (formula, wanted) => formula.replace(/\s/g, '').toUpperCase() === wanted;
   values.forEach((row, i) => {
     const wanted = profitFormula_(cols, first + i);
     const formula = formulas[i][0];
     const both = typeof row[cols.revenue - 1] === 'number' && typeof row[cols.cost - 1] === 'number';
-    if (both && row[cols.profit - 1] === '' && !formula) sh.getRange(first + i, cols.profit).setFormula(wanted);
-    else if (!both && formula.replace(/\s/g, '').toUpperCase() === wanted) sh.getRange(first + i, cols.profit).clearContent();
+    let profit = typeof row[cols.profit - 1] === 'number'; // ô Lợi nhuận có số, sau khi dòng này sửa xong
+    if (!netOnly && both && row[cols.profit - 1] === '' && !formula) {
+      sh.getRange(first + i, cols.profit).setFormula(wanted);
+      profit = true;
+    } else if (!netOnly && !both && same(formula, wanted)) {
+      sh.getRange(first + i, cols.profit).clearContent();
+      profit = false;
+    }
+    if (!cols.net) return;
+    const net = netFormula_(cols, first + i);
+    if (profit && row[cols.net - 1] === '' && !nets[i][0]) sh.getRange(first + i, cols.net).setFormula(net);
+    else if (!profit && same(nets[i][0], net)) sh.getRange(first + i, cols.net).clearContent();
   });
+}
+
+/**
+ * Thêm cột Lợi nhuận sau hoa hồng vào cuối trang Đơn hàng (khi đã có Doanh thu, Chi phí, Lợi nhuận và Hoa hồng (₫)). Lần đầu
+ * thêm thì điền công thức cho mọi đơn đã có lợi nhuận, ghi cả cột một lần (cột mới nên chưa có gì để ghi đè).
+ */
+function addNetColumn_(sh) {
+  if (!profitCols_(sh) || !header_(sh).includes(COMMISSION_COL) || header_(sh).includes(ORDER_NET_COL)) return;
+  colOf_(sh, ORDER_NET_COL, true);
+  const cols = profitCols_(sh);
+  const last = sh.getLastRow();
+  if (last < 2) return;
+  const values = sh.getRange(2, cols.profit, last - 1, 1).getValues();
+  sh.getRange(2, cols.net, last - 1, 1).setFormulas(values.map(([v], i) => [typeof v === 'number' ? netFormula_(cols, i + 2) : '']));
+  sh.getRange(2, cols.net, last - 1, 1).setNumberFormat('#,##0');
 }
 
 /* ---------- Trang quản trị (quan-tri.html): admin xem, sửa Google Sheet ngay trên web ---------- */
@@ -1096,12 +1329,19 @@ const ADMIN_OFF_TEXT = 'Trang quản trị đang tắt. Bật lại trong Google
 const ADMIN_AUTO_DOWNLOAD = 'Script tự ghi khi khách tải code.';
 const ADMIN_AUTO_LINK = 'Script tự điền khi gõ mã này vào một đơn ở trang Đơn hàng.';
 const ADMIN_FORMULA = 'Ô công thức, tự tính: muốn đổi công thức thì sửa trên Google Sheet.';
+const ADMIN_AUTO_PRODUCT = 'Script ghi theo products.json trên web.';
 const ADMIN_RULES = {
   [ORDER_SHEET]: {
     header: true,
-    readOnly: { [ORDER_PROFIT_COL]: `Tự tính: ${ORDER_REVENUE_COL} trừ ${ORDER_COST_COL}.` },
+    readOnly: {
+      [ORDER_PROFIT_COL]: `Tự tính: ${ORDER_REVENUE_COL} trừ ${ORDER_COST_COL}.`,
+      [ORDER_NET_COL]: `Tự tính: ${ORDER_PROFIT_COL} trừ ${COMMISSION_COL}.`,
+    },
     web: { why: 'Web tự ghi cho đơn đặt trên website.', cols: ['Thời gian', 'Mã đơn', ORDER_PLATFORM_COL, 'Sản phẩm', 'Tổng (₫)', ORDER_CHECK_COL] },
-    choices: { [ORDER_PLATFORM_COL]: ORDER_PLATFORMS, 'Sản phẩm': () => productNames_() },
+    choices: {
+      [ORDER_PLATFORM_COL]: ORDER_PLATFORMS, 'Sản phẩm': () => productNames_(), [ORDER_STATUS_COL]: ORDER_STATUSES,
+      [SELLER_COL]: () => sellerNames_(),
+    },
     qty: ['Sản phẩm'],
   },
   [LEAD_SHEET]: { header: true },
@@ -1109,7 +1349,12 @@ const ADMIN_RULES = {
     header: true,
     // Nội dung, Số lượng, Tạm tính vẫn sửa được: shop chốt lại với khách, yêu cầu in theo file chờ shop báo giá
     web: { why: 'Web tự ghi cho yêu cầu đặt trên website.', cols: ['Thời gian', 'Mã', 'Loại', ORDER_CHECK_COL] },
-    choices: { 'Loại': PRINT_KINDS },
+    choices: { 'Loại': PRINT_KINDS, [PRINT_STATUS_COL]: PRINT_STATUSES, [SELLER_COL]: () => sellerNames_() },
+  },
+  [COMMISSION_SHEET]: {
+    header: true, noAdd: true,
+    readOnly: { [COMMISSION_HEADER[0]]: ADMIN_AUTO_PRODUCT, [COMMISSION_HEADER[1]]: ADMIN_AUTO_PRODUCT, [COMMISSION_HEADER[2]]: ADMIN_AUTO_PRODUCT },
+    tip: `Mức hoa hồng seller nhận cho mỗi sản phẩm: đơn seller lên tự tính bằng mức × số lượng. Đổi mức chỉ áp dụng cho đơn mới, đơn đã có thì sửa ở cột "${COMMISSION_COL}" của đơn đó. Chỉ admin xem được trang này.`,
   },
   [CODE_SHEET]: {
     header: true, noAdd: true, noDelete: true,
@@ -1135,7 +1380,23 @@ const ADMIN_RULES = {
     tip: 'Mọi lần đăng nhập, sửa, thêm, xoá dòng trên trang quản trị. Dòng bị xoá được lưu đủ nội dung ở cột "Trước" để chép lại khi cần.',
   },
 };
-const ADMIN_ACTIONS = { doc: adminRead_, sua: adminEdit_, them: adminAppend_, xoa: adminDelete_ };
+const ADMIN_ACTIONS = {
+  doc: adminRead_, sua: adminEdit_, them: adminAppend_, xoa: adminDelete_, phien: adminWho_, 'doi-mat-khau': adminPassword_,
+  'hoa-hong': adminCommission_, 'tai-khoan': adminAccountList_, 'luu-tai-khoan': adminAccountSave_, 'xoa-tai-khoan': adminAccountRemove_,
+};
+const ADMIN_ONLY_ACTIONS = ['tai-khoan', 'luu-tai-khoan', 'xoa-tai-khoan']; // Quản lý tài khoản: chỉ admin
+
+/* Vai trò: admin làm được mọi việc. Manager, seller chỉ thấy các trang tính admin cho (quyền lưu ở ADMIN_PERMS_KEY + tên):
+   manager không bao giờ thấy cột hoa hồng; seller ở trang Đơn hàng, In 3D chỉ thấy đơn mình lên. Tài khoản tạo từ trước
+   khi có vai trò (không ghi role) là admin. */
+const ADMIN_ROLES = { admin: 'Admin', manager: 'Manager', seller: 'Seller' };
+const ADMIN_PERMS_KEY = 'quan-tri:quyen:'; // + tên: { sheets: { id trang tính: { view, edit, add, del, cols? } }, order }
+const ADMIN_ONLY_SHEETS = [ADMIN_LOG_SHEET, COMMISSION_SHEET]; // Không cấp cho manager, seller được
+const OWN_ROW_SHEETS = [ORDER_SHEET, PRINT_SHEET];            // Seller chỉ thấy dòng có cột Seller là tên mình
+const ADMIN_NOT_ALLOWED = 'Tài khoản của bạn không làm được việc này.';
+const ADMIN_ONLY_EDIT = 'Chỉ admin sửa được.';
+const ADMIN_NAME_RE = /^[a-z0-9][a-z0-9._-]{2,29}$/;
+const ADMIN_NAME_TEXT = 'Tên đăng nhập 3–30 ký tự: chữ không dấu, số, dấu chấm, gạch ngang, gạch dưới.';
 
 /** Mọi yêu cầu từ trang quản trị. Trừ 2 bước đăng nhập, việc nào cũng cần mã phiên còn hạn. Trang đang tắt thì từ chối hết. */
 function adminApi_(data) {
@@ -1149,7 +1410,10 @@ function adminApi_(data) {
     return { ok: true };
   }
   if (!ADMIN_ACTIONS.hasOwnProperty(data.action)) return { ok: false, error: ADMIN_BAD };
-  return ADMIN_ACTIONS[data.action](data, session.user);
+  // Quyền đọc lại mỗi lần: admin vừa đổi quyền thì áp dụng ngay ở lần bấm tiếp theo
+  const me = { user: session.user, role: session.role, perms: session.role === 'admin' ? null : adminPerms_(session.user) };
+  if (ADMIN_ONLY_ACTIONS.includes(data.action) && me.role !== 'admin') return { ok: false, error: ADMIN_NOT_ALLOWED };
+  return ADMIN_ACTIONS[data.action](data, session.user, me);
 }
 
 /**
@@ -1244,7 +1508,7 @@ function adminStart_(name, account, device, alerted) {
     adminRemember_(name, device.id);
   }
   adminLog_(name, 'Đăng nhập', '', device.known ? device.label : `${device.label} (trình duyệt mới)`, '', '');
-  return { ok: true, token, user: name };
+  return { ok: true, token, user: name, role: roleOf_(account) };
 }
 
 function adminLocked_(name) {
@@ -1391,6 +1655,7 @@ function adminSession_(token) {
     return null;
   }
   cache.put(key, JSON.stringify(session), adminIdle_());
+  session.role = roleOf_(account); // không lưu vào phiên: admin đổi vai trò thì có hiệu lực ngay
   return session;
 }
 
@@ -1406,6 +1671,129 @@ function adminAccounts_() {
   } catch (err) {
     return {};
   }
+}
+
+/** Vai trò của tài khoản: "manager", "seller", hoặc "admin" (cả tài khoản tạo từ trước khi có vai trò). */
+function roleOf_(account) {
+  return account && (account.role === 'manager' || account.role === 'seller') ? account.role : 'admin';
+}
+
+/** Quyền admin cấp cho manager, seller: { sheets: { id trang tính: { view, edit, add, del, cols? } }, order }. */
+function adminPerms_(name) {
+  let p = null;
+  try {
+    p = JSON.parse(PropertiesService.getScriptProperties().getProperty(ADMIN_PERMS_KEY + name) || 'null');
+  } catch (err) {
+    p = null;
+  }
+  return { sheets: p && p.sheets && typeof p.sheets === 'object' ? p.sheets : {}, order: Boolean(p && p.order === true) };
+}
+
+/** Tên, vai trò của người đang đăng nhập cho trang quản trị; `order`: seller được lên đơn trên trang Đặt hàng, In 3D. */
+function whoami_(me) {
+  return { user: me.user, role: me.role, label: ADMIN_ROLES[me.role], order: me.role === 'seller' && me.perms.order };
+}
+
+/** Tên các tài khoản seller: ô thả xuống ở cột Seller (chỉ admin thấy). */
+function sellerNames_() {
+  const accounts = adminAccounts_();
+  return Object.keys(accounts).filter((name) => roleOf_(accounts[name]) === 'seller').sort();
+}
+
+/** Cột tiền hoa hồng: tên cột có chữ "hoa hồng", ở bất kỳ trang nào. Manager không bao giờ thấy, chỉ admin sửa được. */
+function commissionCol_(label) {
+  return /(^| )hoa hong( |$)/.test(matchText_(label));
+}
+
+/** Tài khoản xem được trang tính này không (chưa xét từng cột). */
+function canSee_(me, sh) {
+  if (me.role === 'admin') return true;
+  if (ADMIN_ONLY_SHEETS.includes(sh.getName())) return false;
+  const id = String(sh.getSheetId());
+  return Object.prototype.hasOwnProperty.call(me.perms.sheets, id) && Boolean(me.perms.sheets[id]) && me.perms.sheets[id].view === true;
+}
+
+/**
+ * Tên các cột để cấp quyền xem: chữ ở dòng tiêu đề (như headRow_), cột không có tên thì "#A", "#B"… Admin đổi tên cột
+ * thì manager, seller không thấy cột đó nữa tới khi admin cho xem lại: cột mới không tự lộ ra ngoài ý admin.
+ */
+function columnKeys_(sh, rules) {
+  const cols = sh.getLastColumn();
+  if (!cols) return [];
+  const row = headRow_(sh, rules || adminRules_(sh));
+  const head = row ? sh.getRange(row, 1, 1, cols).getDisplayValues()[0] : [];
+  return Array.from({ length: cols }, (_, c) => {
+    const label = String(head[c] == null ? '' : head[c]).replace(/\s+/g, ' ').trim();
+    return { col: c + 1, key: label || `#${colName_(c + 1)}`, label: label || `Cột ${colName_(c + 1)}` };
+  });
+}
+
+/**
+ * Quyền của tài khoản với trang tính `sh` (null: không xem được): sửa, thêm, xoá dòng; các cột ẩn `hide` (không gửi dữ
+ * liệu đi); các cột chỉ xem `lock` ({ cột: lý do }); `own` > 0: chỉ các dòng có cột đó là tên seller (-1: trang thiếu
+ * cột Seller nên không có dòng nào). Seller không thêm, xoá dòng ở trang đơn: seller lên đơn ở trang Đặt hàng, In 3D.
+ */
+function sheetAccess_(me, sh, rules) {
+  if (me.role === 'admin') return { admin: true, edit: true, add: true, del: true, hide: new Set(), lock: {}, own: 0 };
+  if (!canSee_(me, sh)) return null;
+  const p = me.perms.sheets[String(sh.getSheetId())];
+  const shown = Array.isArray(p.cols) ? new Set(p.cols.map(matchText_)) : null;
+  const orders = OWN_ROW_SHEETS.includes(sh.getName());
+  const hide = new Set();
+  const lock = {};
+  columnKeys_(sh, rules).forEach(({ col, key, label }) => {
+    const money = commissionCol_(label);
+    if ((shown && !shown.has(matchText_(key))) || (money && me.role === 'manager')) hide.add(col);
+    else if (money || (orders && matchText_(label) === matchText_(SELLER_COL))) lock[col] = ADMIN_ONLY_EDIT;
+  });
+  const own = me.role === 'seller' && orders ? colOf_(sh, SELLER_COL) || -1 : 0;
+  const edit = p.edit === true;
+  return { admin: false, edit, add: edit && p.add === true && !own, del: edit && p.del === true && !own, hide, lock, own };
+}
+
+/** Luật trang tính (adminRules_) theo quyền của tài khoản: thêm cột chỉ xem, bỏ phần của cột ẩn, chỉ xem cả trang… */
+function restrict_(rules, access) {
+  if (!access || access.admin) return Object.assign({}, rules, { hide: [], own: false, viewOnly: false });
+  const visible = (col) => !access.hide.has(Number(col));
+  const locked = Object.keys(access.lock).map(Number);
+  const why = Object.assign({}, rules.why);
+  locked.forEach((col) => { if (!why[col]) why[col] = access.lock[col]; });
+  // Cột chỉ xem không gửi lựa chọn: VD seller không thấy tên các seller khác trong ô thả xuống cột Seller
+  const choices = {};
+  Object.keys(rules.choices).forEach((col) => { if (visible(col) && !access.lock[col]) choices[col] = rules.choices[col]; });
+  return Object.assign({}, rules, {
+    all: rules.all || !access.edit,
+    cols: rules.cols.concat(locked.filter((col) => !rules.cols.includes(col))),
+    why,
+    choices,
+    web: rules.web.filter(visible),
+    qty: rules.qty.filter((col) => choices[col]),
+    add: rules.add && access.add,
+    del: rules.del && access.del,
+    hide: [...access.hide].sort((a, b) => a - b),
+    own: Boolean(access.own),
+    viewOnly: !access.edit && !rules.all,
+  });
+}
+
+/** Ô của các cột ẩn thành rỗng: mã dòng (rowHash_) chỉ tính phần tài khoản thấy, không dò ngược ra được ô ẩn. */
+function maskRow_(values, hide) {
+  return hide && hide.size ? values.map((v, c) => (hide.has(c + 1) ? '' : v)) : values;
+}
+
+/** Dòng của seller `user`: ô ở cột `own` là tên tài khoản đó (không phân biệt hoa thường, dấu cách thừa). */
+function ownRow_(values, own, user) {
+  return own > 0 && String(values[own - 1] == null ? '' : values[own - 1]).trim().toLowerCase() === user;
+}
+
+/** Admin vừa bỏ quyền xem trang này: web tải lại, mở trang khác. */
+function sheetHidden_(name) {
+  return { ok: false, conflict: true, error: `Tài khoản của bạn không còn xem được trang tính "${String(name).slice(0, 100)}".` };
+}
+
+/** Muối mới cho mã băm mật khẩu. */
+function newSalt_() {
+  return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.getUuid()).slice(0, 16));
 }
 
 /** PBKDF2-HMAC-SHA256 có muối: lộ Script Properties cũng không đọc ngược ra được mật khẩu. */
@@ -1511,25 +1899,30 @@ function totpUri_(name, key) {
 }
 
 /**
- * Danh sách trang tính và nội dung trang đang mở (không có tên đó thì mở trang đầu tiên). Mở trang Tổng quan thì số liệu
- * được tính lại và gửi kèm (`dashboard`) để web vẽ biểu đồ. Lần đầu sau khi dán script, trang Tổng quan được tạo ở đầu.
+ * Danh sách trang tính tài khoản này xem được và nội dung trang đang mở (không có tên đó thì mở trang đầu tiên; không
+ * xem được trang nào thì `sheet` null). Mở trang Tổng quan thì số liệu được tính lại và gửi kèm (`dashboard`) để web vẽ
+ * biểu đồ. Lần đầu admin đăng nhập sau khi dán script, trang Tổng quan được tạo ở đầu.
  */
-function adminRead_(data, user) {
+function adminRead_(data, user, me) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let dashboard = ss.getSheetByName(DASHBOARD_SHEET) ? null : dashboardFor_(ss);
-  const sheets = ss.getSheets();
-  const sh = adminSheet_(data.sheet) || sheets[0];
-  const own = sh.getName() === DASHBOARD_SHEET;
+  const admin = me.role === 'admin';
+  let dashboard = admin && !ss.getSheetByName(DASHBOARD_SHEET) ? dashboardFor_(ss) : null;
+  const sheets = ss.getSheets().filter((s) => canSee_(me, s));
+  const wanted = adminSheet_(data.sheet);
+  const sh = wanted && canSee_(me, wanted) ? wanted : sheets[0] || null;
+  if (sh && admin && sh.getName() === COMMISSION_SHEET) syncCommission_(ss); // sản phẩm mới trên web có dòng ngay
+  const own = Boolean(sh) && sh.getName() === DASHBOARD_SHEET;
   if (own && !dashboard) dashboard = dashboardFor_(ss);
   // Trang cùng tên do shop tự tạo (không có ghi chú của script ở ô A1): hiện như trang tính thường
   if (!own || sh.getRange(1, 1).getNote() !== DASH_MARK) dashboard = null;
   return {
     ok: true,
     user,
-    url: ss.getUrl(),
-    log: ADMIN_LOG_SHEET,
+    me: whoami_(me),
+    url: admin ? ss.getUrl() : '', // người không phải admin không mở Google Sheet: không cần biết địa chỉ
+    log: admin ? ADMIN_LOG_SHEET : '',
     sheets: sheets.map((s) => ({ name: s.getName(), hidden: s.isSheetHidden() })),
-    sheet: sheetView_(sh),
+    sheet: sh ? sheetView_(sh, sheetAccess_(me, sh), user) : null,
     dashboard,
   };
 }
@@ -1647,17 +2040,20 @@ function lockText_(sh, row, col, reason) {
 /**
  * Nội dung một trang tính: chữ hiện như trên Sheet, chữ để sửa, màu nền, màu chữ, chữ đậm, ghi chú, ô tích, ô thả
  * xuống, ô gộp, độ rộng cột. Trang lớn hơn ADMIN_MAX_CELLS ô: chỉ gửi các dòng tiêu đề và các dòng cuối (mới nhất).
+ * `access` (sheetAccess_): cột ẩn không gửi gì; seller ở trang đơn chỉ nhận dòng tiêu đề và các đơn của `user`.
  */
-function sheetView_(sh) {
+function sheetView_(sh, access, user) {
   const ctx = gridContext_(sh);
   const rows = sh.getLastRow();
   const cols = sh.getLastColumn();
   const view = {
-    name: sh.getName(), id: sh.getSheetId(), rows, cols, frozen: sh.getFrozenRows(), rules: adminRules_(sh, true),
+    name: sh.getName(), id: sh.getSheetId(), rows, cols, frozen: sh.getFrozenRows(), rules: restrict_(adminRules_(sh, true), access),
     dec: ctx.dec, images: tryGet_(() => sh.getImages().length) || 0, formulas: false,
     widths: [], kinds: [], merges: [], lists: [], rowNums: [], hashes: [], cells: [], webRows: [],
   };
   if (!rows || !cols) return view;
+  const hide = access ? access.hide : null;
+  const own = access ? access.own : 0;
   const head = Math.min(rows, Math.max(view.frozen, 1));
   const fit = Math.max(head + 1, Math.floor(ADMIN_MAX_CELLS / cols));
   // Trang mới nhất ở trên: các dòng đầu; trang khác: dòng tiêu đề và các dòng cuối
@@ -1665,26 +2061,26 @@ function sheetView_(sh) {
   const names = view.rules.web.length ? header_(sh).map(matchText_) : null;
   const kinds = [];
   parts.forEach(([from, to]) => {
-    gridRows_(sh.getRange(from, 1, to - from + 1, cols), ctx).forEach((r, i) => {
-      view.rowNums.push(from + i);
+    gridRows_(sh.getRange(from, 1, to - from + 1, cols), ctx, hide).forEach((r, i) => {
+      const at = from + i;
+      if (own && at > head && !ownRow_(r.values, own, user)) return;
+      view.rowNums.push(at);
       view.hashes.push(r.hash);
       view.cells.push(r.cells);
-      if (from + i > head) kinds.push(r.kinds);
-      if (names && from + i > 1 && webRow_(sh, shownOf_(r.cells), names)) view.webRows.push(from + i);
+      if (at > head) kinds.push(r.kinds);
+      if (names && at > 1 && webRow_(sh, r.shown, names)) view.webRows.push(at);
     });
   });
   view.kinds = Array.from({ length: cols }, (_, c) => majorityKind_(kinds.map((k) => k[c])));
   view.widths = tryGet_(() => Array.from({ length: cols }, (_, c) => sh.getColumnWidth(c + 1))) || [];
+  // Chỉ xem đơn của mình: bỏ ô gộp ở phần dữ liệu (các dòng không liền nhau); ô gộp chạm cột ẩn cũng bỏ
   view.merges = (tryGet_(() => sh.getRange(1, 1, rows, cols).getMergedRanges()) || [])
-    .map((m) => [m.getRow(), m.getColumn(), m.getNumRows(), m.getNumColumns()]);
+    .map((m) => [m.getRow(), m.getColumn(), m.getNumRows(), m.getNumColumns()])
+    .filter(([r, c, nr, nc]) => (!own || r + nr - 1 <= head) && !(hide && [...hide].some((h) => h >= c && h < c + nc)));
   view.lists = ctx.lists;
   view.formulas = ctx.formulas;
+  if (own) view.rows = view.rowNums[view.rowNums.length - 1] || 0;
   return view;
-}
-
-/** Chữ hiện của các ô một dòng (gridRows_), ô trống là "". */
-function shownOf_(cells) {
-  return cells.map((cell) => (cell && cell.d) || '');
 }
 
 /** Múi giờ, dấu thập phân theo vùng của Sheet (VD vi_VN: 1,5) và các danh sách thả xuống đã gặp khi đọc. */
@@ -1698,8 +2094,11 @@ function gridContext_(sh) {
   };
 }
 
-/** Các dòng của `range`; ô trống hẳn (không chữ, màu, ghi chú) là null cho dữ liệu gửi đi gọn. */
-function gridRows_(range, ctx) {
+/**
+ * Các dòng của `range`; ô trống hẳn (không chữ, màu, ghi chú) là null cho dữ liệu gửi đi gọn. Cột trong `hide` (số cột)
+ * cũng là null và không tính vào mã dòng. `values`, `shown` (giá trị, chữ hiện đủ mọi cột) chỉ để script dùng, không gửi đi.
+ */
+function gridRows_(range, ctx, hide) {
   const values = range.getValues();
   const shown = range.getDisplayValues();
   const formulas = range.getFormulas();
@@ -1712,10 +2111,14 @@ function gridRows_(range, ctx) {
     const v = list && String(list[r][c] || '').toLowerCase();
     return v && /^#[0-9a-f]{6}$/.test(v) && v !== plain ? v : '';
   };
+  const hidden = (c) => Boolean(hide) && hide.has(c + 1);
   return values.map((row, r) => ({
-    hash: rowHash_(row),
-    kinds: row.map(cellKind_),
+    hash: rowHash_(maskRow_(row, hide)),
+    kinds: row.map((value, c) => (hidden(c) ? '' : cellKind_(value))),
+    values: row,
+    shown: shown[r],
     cells: row.map((value, c) => {
+      if (hidden(c)) return null;
       const cell = {};
       const text = shown[r][c];
       const formula = formulas[r][c];
@@ -1896,19 +2299,23 @@ function rowHash_(row) {
  * Sửa các ô của một dòng. Web gửi kèm mã của dòng lúc tải: dòng đã đổi (VD vừa sửa trên Sheet, vừa xoá dòng phía
  * trên) thì không ghi gì. Sửa cột "Mã tải code" (hoặc mã đơn, tên, SĐT) ở trang "Đơn hàng" thì gán mã như khi gõ trên Sheet.
  */
-function adminEdit_(data, user) {
+function adminEdit_(data, user, me) {
   const sh = adminSheet_(data.sheet);
   if (!sh) return sheetGone_(data.sheet);
   const row = Number(data.row);
   const items = Array.isArray(data.cells) ? data.cells : [];
   if (!Number.isInteger(row) || row < 1 || !items.length || items.length > 500) return { ok: false, error: ADMIN_BAD };
-  const rules = adminRules_(sh);
+  const access = sheetAccess_(me, sh);
+  if (!access) return sheetHidden_(data.sheet);
+  if (!access.edit) return { ok: false, error: 'Tài khoản của bạn chỉ xem được trang tính này.' };
+  const rules = restrict_(adminRules_(sh), access);
   return withDocLock_(() => {
     const width = sh.getLastColumn();
     if (row > sh.getLastRow()) return { ok: false, conflict: true, error: ADMIN_CONFLICT };
     const range = sh.getRange(row, 1, 1, width);
     const values = range.getValues()[0];
-    if (rowHash_(values) !== data.hash) return { ok: false, conflict: true, error: ADMIN_CONFLICT };
+    if (rowHash_(maskRow_(values, access.hide)) !== data.hash) return { ok: false, conflict: true, error: ADMIN_CONFLICT };
+    if (access.own && !ownRow_(values, access.own, user)) return { ok: false, conflict: true, error: ADMIN_CONFLICT };
     const ctx = gridContext_(sh);
     const formulas = range.getFormulas()[0];
     const shown = range.getDisplayValues()[0];
@@ -1917,7 +2324,7 @@ function adminEdit_(data, user) {
     const changes = [];
     for (const item of items) {
       const col = Number(item && item.col);
-      if (!Number.isInteger(col) || col < 1 || col > width) return { ok: false, error: ADMIN_BAD };
+      if (!Number.isInteger(col) || col < 1 || col > width || access.hide.has(col)) return { ok: false, error: ADMIN_BAD };
       const lock = cellKind_(values[col - 1]) === 'o' ? 'chỉ sửa được trên Google Sheet.' : adminLock_(rules, row, col, web, formulas[col - 1]);
       if (lock) return { ok: false, error: lockText_(sh, row, col, lock) };
       const cell = sh.getRange(row, col);
@@ -1928,14 +2335,14 @@ function adminEdit_(data, user) {
     changes.forEach((ch) => (ch.next.formula !== undefined ? ch.cell.setFormula(ch.next.formula) : ch.cell.setValue(ch.next.value)));
     const linked = changes.some((ch) => watchesCodes_(sh, ch.col, ch.col)) ? linkCodes_(sh, row, row) || {} : null;
     if (changes.some((ch) => watchesProfit_(sh, ch.col, ch.col))) syncProfit_(sh, row, row);
-    const fresh = gridRows_(sh.getRange(row, 1, 1, sh.getLastColumn()), ctx)[0];
+    const fresh = gridRows_(sh.getRange(row, 1, 1, sh.getLastColumn()), ctx, access.hide)[0];
     changes.forEach((ch) => {
       const cell = fresh.cells[ch.col - 1];
       adminLog_(user, 'Sửa ô', sh.getName(), `${colName_(ch.col)}${row}`, ch.before, cell ? (cell.f ? cell.e : cell.d) || '' : '');
     });
     return {
       ok: true, saved: changes.length,
-      row: { hash: fresh.hash, cells: fresh.cells, lists: ctx.lists, web: Boolean(names) && webRow_(sh, shownOf_(fresh.cells), names) },
+      row: { hash: fresh.hash, cells: fresh.cells, lists: ctx.lists, web: Boolean(names) && webRow_(sh, fresh.shown, names) },
       reload: Boolean(linked), message: linked && linked.issue ? linked.issue : '',
     };
   });
@@ -1945,16 +2352,20 @@ function adminEdit_(data, user) {
  * Thêm một dòng (ô theo thứ tự cột): trang trong NEWEST_FIRST ngay dưới dòng tiêu đề, trang khác ở cuối. Ô tích, ô thả
  * xuống, định dạng lấy theo dòng dữ liệu kề bên (dòng đầu hoặc dòng cuối hiện có).
  */
-function adminAppend_(data, user) {
+function adminAppend_(data, user, me) {
   const sh = adminSheet_(data.sheet);
   if (!sh) return sheetGone_(data.sheet);
-  const rules = adminRules_(sh);
-  if (!rules.add) return { ok: false, error: 'Trang tính này không thêm dòng trên web được.' };
+  const access = sheetAccess_(me, sh);
+  if (!access) return sheetHidden_(data.sheet);
+  const rules = restrict_(adminRules_(sh), access);
+  if (!rules.add) {
+    return { ok: false, error: access.admin ? 'Trang tính này không thêm dòng trên web được.' : 'Tài khoản của bạn không thêm dòng ở trang tính này được.' };
+  }
   const input = Array.isArray(data.values) ? data.values : [];
   return withDocLock_(() => {
     const width = sh.getLastColumn();
     const last = sh.getLastRow();
-    if (!width || input.length > width || rowHash_(sh.getRange(1, 1, 1, width).getValues()[0]) !== data.head) {
+    if (!width || input.length > width || rowHash_(maskRow_(sh.getRange(1, 1, 1, width).getValues()[0], access.hide)) !== data.head) {
       return { ok: false, conflict: true, error: 'Các cột vừa thay đổi trên Google Sheet nên chưa thêm dòng. Đã tải lại: kiểm tra rồi làm lại.' };
     }
     const ctx = gridContext_(sh);
@@ -1974,6 +2385,7 @@ function adminAppend_(data, user) {
         row.push('');
         continue;
       }
+      if (access.hide.has(c + 1)) return { ok: false, error: ADMIN_BAD };
       if (!editable_(rules, last + 1, c + 1)) {
         const why = rules.why[c + 1];
         return { ok: false, error: why ? `Cột ${colName_(c + 1)} (${head[c] || header_(sh)[c]}): ${why}` : `Cột ${colName_(c + 1)} chỉ sửa được trên Google Sheet.` };
@@ -2003,17 +2415,21 @@ function adminAppend_(data, user) {
 }
 
 /** Xoá một dòng: ghi đủ nội dung vào "Nhật ký quản trị" trước (để chép lại khi lỡ tay), ghi được rồi mới xoá. */
-function adminDelete_(data, user) {
+function adminDelete_(data, user, me) {
   const sh = adminSheet_(data.sheet);
   if (!sh) return sheetGone_(data.sheet);
-  const rules = adminRules_(sh);
+  const access = sheetAccess_(me, sh);
+  if (!access) return sheetHidden_(data.sheet);
+  const rules = restrict_(adminRules_(sh), access);
   const row = Number(data.row);
-  if (!rules.del) return { ok: false, error: 'Trang tính này không xoá dòng trên web được.' };
+  if (!rules.del) {
+    return { ok: false, error: access.admin ? 'Trang tính này không xoá dòng trên web được.' : 'Tài khoản của bạn không xoá dòng ở trang tính này được.' };
+  }
   if (!Number.isInteger(row) || row < (rules.header ? 2 : 1)) return { ok: false, error: ADMIN_BAD };
   return withDocLock_(() => {
     if (row > sh.getLastRow()) return { ok: false, conflict: true, error: ADMIN_CONFLICT };
     const range = sh.getRange(row, 1, 1, sh.getLastColumn());
-    if (rowHash_(range.getValues()[0]) !== data.hash) return { ok: false, conflict: true, error: ADMIN_CONFLICT };
+    if (rowHash_(maskRow_(range.getValues()[0], access.hide)) !== data.hash) return { ok: false, conflict: true, error: ADMIN_CONFLICT };
     const formulas = range.getFormulas()[0];
     const head = rules.header ? header_(sh) : [];
     const text = range.getDisplayValues()[0]
@@ -2042,6 +2458,289 @@ function adminLog_(user, action, sheet, where, before, after) {
   }
 }
 
+/** Việc "phien": ai đang đăng nhập. Trang Đặt hàng, In 3D hỏi khi seller mở, để báo đơn sẽ ghi tên seller. Phiên được gia hạn. */
+function adminWho_(data, user, me) {
+  return Object.assign({ ok: true }, whoami_(me));
+}
+
+/** Đổi mật khẩu của chính mình (mọi vai trò), cần mật khẩu hiện tại. Đổi xong mọi nơi đang đăng nhập bị đăng xuất. */
+function adminPassword_(data, user) {
+  const old = typeof data.old === 'string' ? data.old.slice(0, 200) : '';
+  const pass = typeof data.pass === 'string' ? data.pass : '';
+  if (pass.length < ADMIN_MIN_PASSWORD || pass.length > 200) return { ok: false, error: `Mật khẩu mới cần ít nhất ${ADMIN_MIN_PASSWORD} ký tự.` };
+  if (adminLocked_(user)) return { ok: false, error: ADMIN_LOCKED };
+  const account = adminAccounts_()[user];
+  // Sai mật khẩu hiện tại tính như đăng nhập sai: ai mượn được phiên đang mở cũng không dò được mật khẩu
+  if (!account || !sameText_(passwordHash_(old, account.salt), account.hash)) {
+    adminFailed_(user, true, false);
+    return { ok: false, error: adminLocked_(user) ? ADMIN_LOCKED : 'Mật khẩu hiện tại chưa đúng.' };
+  }
+  const salt = newSalt_();
+  const hash = passwordHash_(pass, salt);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const accounts = adminAccounts_();
+    if (!accounts.hasOwnProperty(user)) return { ok: false, login: true, error: 'Tài khoản này vừa bị xoá.' };
+    Object.assign(accounts[user], { salt, hash, ver: randomKey_().slice(0, 12) });
+    PropertiesService.getScriptProperties().setProperty(ADMIN_ACCOUNTS_KEY, JSON.stringify(accounts));
+  } finally {
+    lock.releaseLock();
+  }
+  adminLog_(user, 'Đổi mật khẩu', '', user, '', '');
+  return { ok: true };
+}
+
+/**
+ * Việc "hoa-hong": hoa hồng seller ở trang Đơn hàng và In 3D, theo từng seller: đang chờ (đơn chưa giao xong), chưa trả
+ * (đơn đã giao), đã trả (đã tích "Đã trả hoa hồng"); đơn huỷ không tính. Admin: mọi seller và các đơn cần làm (chưa trả,
+ * chưa có hoa hồng). Seller: của mình và mọi đơn mình lên. Manager không xem được.
+ */
+function adminCommission_(data, user, me) {
+  if (me.role === 'manager') return { ok: false, error: ADMIN_NOT_ALLOWED };
+  const admin = me.role === 'admin';
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const tz = ss.getSpreadsheetTimeZone();
+  const sellers = new Map();
+  const of = (name) => {
+    if (!sellers.has(name)) sellers.set(name, { name, orders: 0, sales: 0, wait: 0, due: 0, paid: 0, missing: 0, cancelled: 0 });
+    return sellers.get(name);
+  };
+  (admin ? sellerNames_() : [user]).forEach(of);
+  const orders = [];
+  [[ORDER_SHEET, 'Mã đơn', 'Tổng (₫)', 'Sản phẩm'], [PRINT_SHEET, 'Mã', 'Tạm tính (₫)', 'Loại']].forEach(([name, codeCol, totalCol, whatCol]) => {
+    const sh = ss.getSheetByName(name);
+    if (!sh || sh.getLastRow() < 2) return;
+    const head = header_(sh);
+    const at = (col) => head.indexOf(col);
+    const c = {
+      seller: at(SELLER_COL), amount: at(COMMISSION_COL), paid: at(COMMISSION_PAID_COL), status: at(ORDER_STATUS_COL),
+      code: at(codeCol), total: at(totalCol), what: at(whatCol), time: at('Thời gian'), customer: at('Họ tên'),
+    };
+    if (c.seller < 0) return;
+    const dec = gridContext_(sh).dec;
+    const cell = (row, i) => (i < 0 || row[i] == null ? '' : row[i]);
+    sh.getRange(2, 1, sh.getLastRow() - 1, head.length).getValues().forEach((row, i) => {
+      const seller = String(cell(row, c.seller)).trim().toLowerCase();
+      if (!seller || (!admin && seller !== user)) return;
+      const s = of(seller); // admin: cả seller đã xoá tài khoản mà còn đơn
+      const raw = cell(row, c.amount);
+      const amount = typeof raw === 'number' ? raw : numberFrom_(String(raw), dec);
+      const status = String(cell(row, c.status)).trim();
+      const state = commissionState_(status, paidCell_(cell(row, c.paid)));
+      if (state === 'cancelled') {
+        s.cancelled++;
+      } else {
+        s.orders++;
+        s.sales += Number(cell(row, c.total)) || 0;
+        if (amount === null) s.missing++;
+        else s[state] += amount;
+      }
+      // Admin chỉ cần các đơn phải làm: trả hoa hồng, ghi hoa hồng còn thiếu
+      if (admin && (state === 'cancelled' || state === 'paid' || (state === 'wait' && amount !== null))) return;
+      const time = cell(row, c.time);
+      orders.push({
+        sheet: name, row: i + 2, seller, code: String(cell(row, c.code)), customer: String(cell(row, c.customer)),
+        what: String(cell(row, c.what)).split('\n')[0].slice(0, 80), total: Number(cell(row, c.total)) || 0,
+        status, amount, state, at: time instanceof Date ? time.getTime() : 0,
+        time: time instanceof Date ? Utilities.formatDate(time, tz, 'dd/MM/yyyy') : String(time),
+      });
+    });
+  });
+  orders.sort((a, b) => b.at - a.at);
+  const limit = admin ? 200 : 300;
+  const out = {
+    ok: true, me: whoami_(me), updated: adminNow_(),
+    sellers: [...sellers.values()].sort((a, b) => a.name.localeCompare(b.name)),
+    orders: orders.slice(0, limit), more: Math.max(0, orders.length - limit),
+  };
+  if (admin) {
+    const sh = syncCommission_(ss);
+    const products = Math.max(0, sh.getLastRow() - 1);
+    out.rates = { sheet: COMMISSION_SHEET, products, missing: Math.max(0, products - commissionRates_(ss).size) };
+  }
+  return out;
+}
+
+/** Hoa hồng của một đơn đang ở đâu: "paid" đã trả, "cancelled" đơn huỷ, "due" đã giao chưa trả, "wait" chờ đơn giao xong. */
+function commissionState_(status, paid) {
+  const s = matchText_(status);
+  if (paid) return 'paid';
+  if (s === 'huy' || s === 'da huy' || s === 'hoan hang') return 'cancelled';
+  return s === 'da giao' ? 'due' : 'wait';
+}
+
+/** Ô "Đã trả hoa hồng": ô tích đã tích, hoặc gõ tay "x", "có", "đã trả". */
+function paidCell_(value) {
+  return value === true || /^(true|x|co|da tra)$/.test(matchText_(value));
+}
+
+// Quyền gợi ý khi tạo tài khoản, admin chỉnh lại được: manager quản lý đơn; seller xem đơn mình lên, tình trạng, hoa hồng
+const MANAGER_SHEETS = [ORDER_SHEET, PRINT_SHEET, LEAD_SHEET];
+const SELLER_SHEET_COLS = {
+  [ORDER_SHEET]: ['Thời gian', 'Mã đơn', 'Họ tên', 'SĐT', 'Địa chỉ', 'Sản phẩm', 'Tổng (₫)', 'Ghi chú', ORDER_STATUS_COL, COMMISSION_COL, COMMISSION_PAID_COL],
+  [PRINT_SHEET]: ['Thời gian', 'Mã', 'Loại', 'Họ tên', 'SĐT', 'Địa chỉ', 'Nội dung', 'Số lượng', 'Tạm tính (₫)', 'Ghi chú', PRINT_STATUS_COL,
+    COMMISSION_COL, COMMISSION_PAID_COL],
+};
+
+function defaultPerms_(role, ss) {
+  const sheets = {};
+  ss.getSheets().forEach((s) => {
+    const id = String(s.getSheetId());
+    if (role === 'manager' && MANAGER_SHEETS.includes(s.getName())) sheets[id] = { view: true, edit: true, add: true };
+    if (role === 'seller' && SELLER_SHEET_COLS.hasOwnProperty(s.getName())) sheets[id] = { view: true, cols: SELLER_SHEET_COLS[s.getName()] };
+  });
+  return { sheets, order: role === 'seller' };
+}
+
+/** Quyền admin gửi lên, chỉ giữ phần hợp lệ: trang tính có thật (trừ trang chỉ admin), cờ đúng/sai, tên cột ngắn. */
+function cleanPerms_(raw, ss, role) {
+  const src = raw && typeof raw === 'object' && raw.sheets && typeof raw.sheets === 'object' ? raw.sheets : {};
+  const sheets = {};
+  ss.getSheets().forEach((s) => {
+    const id = String(s.getSheetId());
+    if (ADMIN_ONLY_SHEETS.includes(s.getName()) || !Object.prototype.hasOwnProperty.call(src, id)) return;
+    const p = src[id];
+    if (!p || p.view !== true) return;
+    const out = { view: true };
+    if (p.edit === true) {
+      out.edit = true;
+      const own = role === 'seller' && OWN_ROW_SHEETS.includes(s.getName());
+      if (p.add === true && !own) out.add = true;
+      if (p.del === true && !own) out.del = true;
+    }
+    if (Array.isArray(p.cols)) {
+      out.cols = [...new Set(p.cols.filter((k) => typeof k === 'string' && k.trim()).map((k) => k.trim().slice(0, 100)))].slice(0, 200);
+    }
+    sheets[id] = out;
+  });
+  return { sheets, order: role === 'seller' && Boolean(raw && raw.order === true) };
+}
+
+/** Quyền viết gọn cho nhật ký, email: "Seller · Đơn hàng: xem (11 cột) · In 3D: xem, sửa · được lên đơn". */
+function permsText_(role, perms, ss) {
+  if (!perms) return ADMIN_ROLES[role];
+  // Theo thứ tự trang tính trong Sheet (id trang là số ngẫu nhiên)
+  const parts = ss.getSheets().filter((s) => Object.prototype.hasOwnProperty.call(perms.sheets, String(s.getSheetId()))).map((s) => {
+    const p = perms.sheets[String(s.getSheetId())];
+    const can = ['xem', p.edit && 'sửa', p.add && 'thêm dòng', p.del && 'xoá dòng'].filter(Boolean).join(', ');
+    return `${s.getName()}: ${can}${p.cols ? ` (${p.cols.length} cột)` : ''}`;
+  });
+  return [ADMIN_ROLES[role], ...(parts.length ? parts : ['chưa xem được trang tính nào']), ...(perms.order ? ['được lên đơn'] : [])].join(' · ');
+}
+
+/** Việc "tai-khoan" (chỉ admin): các tài khoản (không có mật khẩu, khoá mã 2 bước), các trang tính và cột để cấp quyền. */
+function adminAccountList_(data, user) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const accounts = adminAccounts_();
+  return {
+    ok: true,
+    accounts: Object.keys(accounts).sort().map((name) => {
+      const role = roleOf_(accounts[name]);
+      return { name, role, totp: Boolean(accounts[name].totp), perms: role === 'admin' ? null : adminPerms_(name), self: name === user };
+    }),
+    sheets: ss.getSheets().filter((s) => !ADMIN_ONLY_SHEETS.includes(s.getName())).map((s) => ({
+      id: String(s.getSheetId()), name: s.getName(), own: OWN_ROW_SHEETS.includes(s.getName()),
+      cols: columnKeys_(s).map(({ key, label }) => ({ key, label, money: commissionCol_(label) })),
+    })),
+    roles: ADMIN_ROLES,
+    defaults: { manager: defaultPerms_('manager', ss), seller: defaultPerms_('seller', ss) },
+    min: ADMIN_MIN_PASSWORD,
+  };
+}
+
+/**
+ * Việc "luu-tai-khoan" (chỉ admin): tạo hoặc sửa tài khoản: vai trò, quyền, mật khẩu mới (để trống: giữ mật khẩu cũ).
+ * Đổi mật khẩu hay vai trò thì người đó bị đăng xuất. Không tự đổi vai trò, mật khẩu của mình ở đây, không để web hết
+ * admin. Ghi nhật ký; tạo tài khoản, đổi vai trò, đặt mật khẩu mới thì báo email.
+ */
+function adminAccountSave_(data, user) {
+  const name = String(data.name == null ? '' : data.name).trim().toLowerCase();
+  const role = ADMIN_ROLES.hasOwnProperty(data.role) ? data.role : '';
+  const pass = typeof data.pass === 'string' ? data.pass : '';
+  const isNew = data.isNew === true;
+  if (!ADMIN_NAME_RE.test(name)) return { ok: false, error: ADMIN_NAME_TEXT };
+  if (!role) return { ok: false, error: ADMIN_BAD };
+  if (pass && (pass.length < ADMIN_MIN_PASSWORD || pass.length > 200)) return { ok: false, error: `Mật khẩu cần ít nhất ${ADMIN_MIN_PASSWORD} ký tự.` };
+  if (isNew && !pass) return { ok: false, error: 'Tài khoản mới cần mật khẩu.' };
+  if (name === user && pass) return { ok: false, error: 'Đổi mật khẩu của chính bạn ở mục "Đổi mật khẩu" (cần mật khẩu hiện tại).' };
+  if (name === user && role !== 'admin') return { ok: false, error: 'Không tự đổi vai trò của chính mình được: nhờ một admin khác.' };
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const perms = role === 'admin' ? null : cleanPerms_(data.perms, ss, role);
+  if (perms && JSON.stringify(perms).length > 8000) return { ok: false, error: 'Quyền quá dài để lưu: bớt các cột chọn riêng.' };
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  let before = '';
+  let was = '';
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const accounts = adminAccounts_();
+    const exists = accounts.hasOwnProperty(name);
+    if (isNew && exists) return { ok: false, error: `Đã có tài khoản "${name}".` };
+    if (!isNew && !exists) return { ok: false, conflict: true, error: `Không còn tài khoản "${name}" (có thể vừa bị xoá).` };
+    const old = exists ? accounts[name] : {};
+    was = exists ? roleOf_(old) : '';
+    before = exists ? permsText_(was, was === 'admin' ? null : adminPerms_(name), ss) : '';
+    const admins = Object.keys(accounts).filter((n) => roleOf_(accounts[n]) === 'admin').length;
+    if (was === 'admin' && role !== 'admin' && admins < 2) return { ok: false, error: 'Đây là tài khoản admin cuối cùng: cần một admin khác trước.' };
+    const next = Object.assign({}, old);
+    if (role === 'admin') delete next.role;
+    else next.role = role;
+    if (pass) {
+      next.salt = newSalt_();
+      next.hash = passwordHash_(pass, next.salt);
+    }
+    if (pass || was !== role) next.ver = randomKey_().slice(0, 12);
+    accounts[name] = next;
+    const text = JSON.stringify(accounts);
+    if (text.length > 8500) return { ok: false, error: 'Đã quá nhiều tài khoản để lưu: xoá bớt tài khoản không dùng.' };
+    props.setProperty(ADMIN_ACCOUNTS_KEY, text);
+    if (perms) props.setProperty(ADMIN_PERMS_KEY + name, JSON.stringify(perms));
+    else props.deleteProperty(ADMIN_PERMS_KEY + name);
+    if (pass) props.deleteProperty(ADMIN_DEVICES_KEY + name);
+  } finally {
+    lock.releaseLock();
+  }
+  const after = permsText_(role, perms, ss) + (pass ? ' · đặt mật khẩu mới' : '');
+  adminLog_(user, isNew ? 'Tạo tài khoản' : 'Sửa tài khoản', '', name, before, after);
+  if (isNew || pass || was !== role) {
+    adminAlert_(`tk:${name}:${Date.now()}`, `SmartCarTech: tài khoản quản trị "${name}" vừa được ${isNew ? 'tạo' : 'sửa'}`, [
+      `Admin "${user}" vừa ${isNew ? 'tạo' : 'sửa'} tài khoản "${name}" trên trang quản trị lúc ${adminNow_()}: ${after}.`,
+      'Nếu không phải bạn hay người bạn tin: mở Google Sheet → menu SmartCarTech → "Tài khoản trang quản trị…" để xoá tài khoản lạ, đổi mật khẩu admin. Muốn chặn ngay: menu SmartCarTech → "Bật hoặc tắt trang quản trị…".',
+    ]);
+  }
+  return adminAccountList_(data, user);
+}
+
+/** Việc "xoa-tai-khoan" (chỉ admin): không tự xoá mình. Người đang đăng nhập bằng tài khoản đó bị đăng xuất. */
+function adminAccountRemove_(data, user) {
+  const name = String(data.name == null ? '' : data.name).trim().toLowerCase();
+  if (!ADMIN_NAME_RE.test(name)) return { ok: false, error: ADMIN_BAD };
+  if (name === user) return { ok: false, error: 'Không tự xoá tài khoản của chính mình được.' };
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  let before = '';
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const accounts = adminAccounts_();
+    if (!accounts.hasOwnProperty(name)) return { ok: false, conflict: true, error: `Không còn tài khoản "${name}".` };
+    const role = roleOf_(accounts[name]);
+    before = permsText_(role, role === 'admin' ? null : adminPerms_(name), ss);
+    delete accounts[name];
+    props.setProperty(ADMIN_ACCOUNTS_KEY, JSON.stringify(accounts));
+    [ADMIN_PERMS_KEY, ADMIN_DEVICES_KEY].forEach((key) => props.deleteProperty(key + name));
+    CacheService.getScriptCache().remove(`qt:cai-ma:${name}`);
+  } finally {
+    lock.releaseLock();
+  }
+  adminLog_(user, 'Xoá tài khoản', '', name, before, '');
+  adminAlert_(`tk:${name}:${Date.now()}`, `SmartCarTech: tài khoản quản trị "${name}" vừa bị xoá`, [
+    `Admin "${user}" vừa xoá tài khoản "${name}" (${before}) trên trang quản trị lúc ${adminNow_()}.`,
+  ]);
+  return adminAccountList_(data, user);
+}
+
 /** 1 → "A", 27 → "AA" */
 function colName_(n) {
   let s = '';
@@ -2066,34 +2765,45 @@ function showAdminAccounts() {
   SpreadsheetApp.getUi().showModalDialog(page, 'Tài khoản trang quản trị');
 }
 
-/** Cửa sổ tài khoản gọi: các tài khoản và đã bật mã 2 bước chưa (không có mật khẩu hay khoá). */
+/** Cửa sổ tài khoản gọi: các tài khoản, vai trò và đã bật mã 2 bước chưa (không có mật khẩu hay khoá). */
 function listAdminAccounts() {
   const accounts = adminAccounts_();
-  return Object.keys(accounts).sort().map((name) => ({ name, totp: Boolean(accounts[name].totp) }));
+  return Object.keys(accounts).sort().map((name) => ({ name, totp: Boolean(accounts[name].totp), role: roleOf_(accounts[name]) }));
 }
 
 /**
  * Tạo tài khoản, hoặc đổi mật khẩu nếu tên đã có: mọi nơi đang đăng nhập bằng tài khoản đó bị đăng xuất. Mã 2 bước
  * vẫn giữ. Đổi mật khẩu (VD vì nghi bị lộ) cũng quên các trình duyệt đã biết: lần sau trình duyệt nào cũng báo email.
+ * `role` (admin, manager, seller; không gửi: giữ như cũ, tài khoản mới là admin). Manager, seller chưa có quyền thì nhận
+ * quyền gợi ý (defaultPerms_); chỉnh chi tiết trên trang quản trị bằng tài khoản admin.
  */
-function saveAdminAccount(name, password) {
+function saveAdminAccount(name, password, role) {
   const user = String(name == null ? '' : name).trim().toLowerCase();
   const pass = String(password == null ? '' : password);
-  if (!/^[a-z0-9][a-z0-9._-]{2,29}$/.test(user)) {
-    throw new Error('Tên đăng nhập 3–30 ký tự: chữ không dấu, số, dấu chấm, gạch ngang, gạch dưới.');
-  }
+  if (!ADMIN_NAME_RE.test(user)) throw new Error(ADMIN_NAME_TEXT);
   if (pass.length < ADMIN_MIN_PASSWORD || pass.length > 200) throw new Error(`Mật khẩu cần ít nhất ${ADMIN_MIN_PASSWORD} ký tự.`);
+  if (role != null && !ADMIN_ROLES.hasOwnProperty(role)) throw new Error('Vai trò không hợp lệ.');
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     const props = PropertiesService.getScriptProperties();
     const accounts = adminAccounts_();
     const changed = accounts.hasOwnProperty(user);
-    const salt = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.getUuid()).slice(0, 16));
-    accounts[user] = Object.assign({}, changed ? accounts[user] : {}, { salt, hash: passwordHash_(pass, salt), ver: randomKey_().slice(0, 12) });
+    const salt = newSalt_();
+    const next = Object.assign({}, changed ? accounts[user] : {}, { salt, hash: passwordHash_(pass, salt), ver: randomKey_().slice(0, 12) });
+    const was = changed ? roleOf_(accounts[user]) : '';
+    if (role === 'admin') delete next.role;
+    else if (role) next.role = role;
+    accounts[user] = next;
     props.setProperty(ADMIN_ACCOUNTS_KEY, JSON.stringify(accounts));
     props.deleteProperty(ADMIN_DEVICES_KEY + user);
-    adminLog_('Google Sheet', changed ? 'Đổi mật khẩu' : 'Tạo tài khoản', '', user, '', '');
+    const now = roleOf_(next);
+    if (now === 'admin') props.deleteProperty(ADMIN_PERMS_KEY + user);
+    else if (!props.getProperty(ADMIN_PERMS_KEY + user)) {
+      props.setProperty(ADMIN_PERMS_KEY + user, JSON.stringify(defaultPerms_(now, SpreadsheetApp.getActiveSpreadsheet())));
+    }
+    const what = changed ? (was === now ? 'Đổi mật khẩu' : `Đổi mật khẩu, vai trò ${ADMIN_ROLES[was]} → ${ADMIN_ROLES[now]}`) : 'Tạo tài khoản';
+    adminLog_('Google Sheet', what, '', user, '', changed ? '' : ADMIN_ROLES[now]);
   } finally {
     lock.releaseLock();
   }
@@ -2111,7 +2821,7 @@ function removeAdminAccount(name) {
       delete accounts[user];
       const props = PropertiesService.getScriptProperties();
       props.setProperty(ADMIN_ACCOUNTS_KEY, JSON.stringify(accounts));
-      props.deleteProperty(ADMIN_DEVICES_KEY + user);
+      [ADMIN_DEVICES_KEY, ADMIN_PERMS_KEY].forEach((key) => props.deleteProperty(key + user));
       CacheService.getScriptCache().remove(`qt:cai-ma:${user}`);
       adminLog_('Google Sheet', 'Xoá tài khoản', '', user, '', '');
     }
@@ -2213,8 +2923,9 @@ function adminStatus_() {
   const names = Object.keys(accounts).sort();
   if (!names.length) return ['✗ Chưa có tài khoản trang quản trị: menu SmartCarTech → Tài khoản trang quản trị… để tạo.'];
   const plain = names.filter((name) => !accounts[name].totp);
+  const label = (name) => (roleOf_(accounts[name]) === 'admin' ? name : `${name} – ${ADMIN_ROLES[roleOf_(accounts[name])].toLowerCase()}`);
   const lines = [
-    `✓ Trang quản trị ${SITE_URL}/quan-tri.html: ${names.length} tài khoản (${names.join(', ')}).`,
+    `✓ Trang quản trị ${SITE_URL}/quan-tri.html: ${names.length} tài khoản (${names.map(label).join(', ')}).`,
     plain.length
       ? `• Chưa bật mã 2 bước: ${plain.join(', ')}. Nên bật: menu SmartCarTech → Tài khoản trang quản trị… → "Bật mã 2 bước".`
       : '✓ Mọi tài khoản trang quản trị đã bật mã 2 bước.',
@@ -2488,6 +3199,8 @@ function applyCustomerPlan_(ss, plan) {
     CUSTOMER_MONEY_COLS.filter((name) => plan.newCols.includes(name))
       .forEach((name) => os.getRange(2, col(name), os.getMaxRows() - 1, 1).setNumberFormat('#,##0'));
   }
+  // Đã có cột Lợi nhuận sau hoa hồng: các dòng vừa gộp có lợi nhuận cũng có công thức của cột đó
+  syncProfit_(os, 2, os.getLastRow(), true);
   // Dòng chèn vào có thể mang màu đỏ báo lỗi của ô bên cạnh ở cột "Mã tải code": tô lại cả cột như mỗi lần sửa
   if (head.includes(ORDER_KEY_COL)) linkCodes_(os, 0, -1);
   adminLog_('Google Sheet', `Gộp ${CUSTOMER_SHEET}`, ORDER_SHEET, '', '', customerPlanLines_(plan).join('\n'));
@@ -3377,8 +4090,8 @@ h2 { margin: 18px 0 8px; font-size: 14px; }
 .acct small.is-on { color: #1D6B3A; }
 .tools { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 label { display: block; margin: 12px 0 4px; font-size: 13px; font-weight: 600; }
-input { width: 100%; padding: 9px 10px; border: 1px solid #A9B3BB; border-radius: 6px; font: inherit; }
-input:focus { outline: 2px solid #0B6E8A; outline-offset: 0; border-color: #0B6E8A; }
+input, select { width: 100%; padding: 9px 10px; border: 1px solid #A9B3BB; border-radius: 6px; font: inherit; background: #fff; }
+input:focus, select:focus { outline: 2px solid #0B6E8A; outline-offset: 0; border-color: #0B6E8A; }
 .actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
 .btn { padding: 9px 22px; border: 0; border-radius: 8px; background: #04080C; color: #fff; font: 600 14px 'Be Vietnam Pro', Arial, sans-serif; cursor: pointer; }
 .btn:disabled { opacity: 0.5; cursor: progress; }
@@ -3432,6 +4145,12 @@ input:focus { outline: 2px solid #0B6E8A; outline-offset: 0; border-color: #0B6E
 <form id="form" novalidate>
   <label for="name">Tên đăng nhập</label>
   <input id="name" maxlength="30" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="VD: admin">
+  <label for="role">Vai trò</label>
+  <select id="role">
+    <option value="admin">Admin: xem, sửa mọi thứ, quản lý tài khoản</option>
+    <option value="manager">Manager: quản lý đơn, không thấy hoa hồng</option>
+    <option value="seller">Seller: lên đơn, xem đơn và hoa hồng của mình</option>
+  </select>
   <label for="pass">Mật khẩu mới</label>
   <input id="pass" type="password" maxlength="200" autocomplete="new-password">
   <label for="pass2">Nhập lại mật khẩu</label>
@@ -3444,6 +4163,7 @@ input:focus { outline: 2px solid #0B6E8A; outline-offset: 0; border-color: #0B6E
   <p class="status" id="status" role="status"></p>
 </form>
 <p class="help">Đổi mật khẩu: nhập tên đã có và mật khẩu mới. Mọi nơi đang đăng nhập bằng tài khoản đó sẽ bị đăng xuất.</p>
+<p class="help">Manager, seller xem được trang tính nào, cột nào: đăng nhập trang quản trị bằng tài khoản admin, mở mục <b>Tài khoản</b>.</p>
 </div>
 
 <script type="application/json" id="data">__DATA__</script>
@@ -3452,7 +4172,9 @@ input:focus { outline: 2px solid #0B6E8A; outline-offset: 0; border-color: #0B6E
 (function () {
   var data = JSON.parse(document.getElementById('data').textContent);
   var NAME_RE = /^[a-z0-9][a-z0-9._-]{2,29}$/;
+  var ROLES = { admin: 'Admin', manager: 'Manager', seller: 'Seller' };
   var setup = null; // { name, key, uri }: đang bật mã 2 bước cho tài khoản này
+  var known = {};   // tên → vai trò của các tài khoản đang có: gõ tên đã có thì chọn sẵn vai trò của tài khoản đó
 
   function el(id) { return document.getElementById(id); }
   function show(node, text, isError) {
@@ -3488,6 +4210,8 @@ input:focus { outline: 2px solid #0B6E8A; outline-offset: 0; border-color: #0B6E
   function render(accounts) {
     var list = el('list');
     list.textContent = '';
+    known = {};
+    accounts.forEach(function (a) { known[a.name] = a.role || 'admin'; });
     if (!accounts.length) {
       var empty = document.createElement('li');
       empty.className = 'empty';
@@ -3503,7 +4227,7 @@ input:focus { outline: 2px solid #0B6E8A; outline-offset: 0; border-color: #0B6E
       b.textContent = a.name;
       var state = document.createElement('small');
       state.className = a.totp ? 'is-on' : '';
-      state.textContent = a.totp ? 'Đã bật mã 2 bước' : 'Chưa bật mã 2 bước';
+      state.textContent = (ROLES[a.role] || ROLES.admin) + ' · ' + (a.totp ? 'Đã bật mã 2 bước' : 'Chưa bật mã 2 bước');
       info.appendChild(b);
       info.appendChild(state);
       var tools = document.createElement('div');
@@ -3631,6 +4355,10 @@ input:focus { outline: 2px solid #0B6E8A; outline-offset: 0; border-color: #0B6E
 
   el('page').textContent = data.page;
   el('pass').placeholder = 'Ít nhất ' + data.min + ' ký tự';
+  el('name').addEventListener('input', function () {
+    var name = el('name').value.trim().toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(known, name)) el('role').value = known[name];
+  });
   el('gen').addEventListener('click', function () {
     var p = strongPassword();
     el('pass').value = p;
@@ -3656,7 +4384,7 @@ input:focus { outline: 2px solid #0B6E8A; outline-offset: 0; border-color: #0B6E
       el('pass2').focus();
       return;
     }
-    run('saveAdminAccount', [name, el('pass').value], 'Đã lưu tài khoản ' + name + '. Đăng nhập tại ' + data.page, function () {
+    run('saveAdminAccount', [name, el('pass').value, el('role').value], 'Đã lưu tài khoản ' + name + '. Đăng nhập tại ' + data.page, function () {
       el('pass').value = '';
       el('pass2').value = '';
       el('generated').hidden = true;

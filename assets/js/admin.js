@@ -1,14 +1,17 @@
 /* SmartCarTech — Trang quản trị (quan-tri.html)
-   Chỉ admin: đăng nhập bằng tài khoản tạo trong Google Sheet (menu SmartCarTech → "Tài khoản trang quản trị…"),
-   rồi xem, sửa, thêm, xoá dòng của mọi trang tính trong Sheet của shop, kể cả các trang kế hoạch nhập từ Excel.
-   google-apps-script.gs kiểm tra phiên đăng nhập trước mỗi việc, và chỉ ghi khi dòng chưa bị đổi ở nơi khác
-   (web gửi kèm mã của dòng lúc tải). Web giữ mã phiên trong tab đang mở (sessionStorage): đóng tab là đăng xuất.
-   Tài khoản đã bật mã 2 bước: đúng mật khẩu thì script trả vé (`ticket`), web hỏi thêm mã 6 số trong ứng dụng xác minh.
+   Đăng nhập bằng tài khoản admin tạo (mục Tài khoản ở đây, hoặc menu SmartCarTech → "Tài khoản trang quản trị…" trong
+   Google Sheet), rồi xem, sửa, thêm, xoá dòng của các trang tính trong Sheet của shop theo vai trò:
+   - admin: mọi trang tính, mọi việc, quản lý tài khoản, xem hoa hồng của mọi seller;
+   - manager, seller: chỉ các trang tính, các cột admin cho. Manager không thấy cột hoa hồng; seller ở trang Đơn hàng,
+     In 3D chỉ thấy đơn mình lên, xem hoa hồng của mình và lên đơn ở trang Đặt hàng, In 3D trong cùng tab.
+   google-apps-script.gs kiểm tra phiên và quyền trước mỗi việc (cột ẩn không được gửi về trình duyệt), và chỉ ghi khi dòng
+   chưa bị đổi ở nơi khác (web gửi kèm mã của dòng lúc tải). Web giữ mã phiên trong tab đang mở (sessionStorage): đóng tab
+   là đăng xuất. Tài khoản đã bật mã 2 bước: đúng mật khẩu thì script trả vé (`ticket`), web hỏi thêm mã 6 số.
 */
-import { $, $$, esc, icon, toast, loadData, trapFocus, NO_COUNT_KEY } from './core.js';
+import { $, $$, esc, icon, toast, loadData, trapFocus, fmtPrice, NO_COUNT_KEY } from './core.js';
 import { renderDashboard, redrawDashboard } from './dashboard.js';
 
-const SESSION_KEY = 'sctech_admin_v1';
+const SESSION_KEY = 'sctech_admin_v1'; // core.js đọc cùng khoá: seller đang đăng nhập thì đơn gửi từ tab này ghi tên seller
 const SHEET_KEY = 'sctech_admin_sheet';
 const SIDE_KEY = 'sctech_admin_side_hidden';
 const DEVICE_KEY = 'sctech_admin_trinh_duyet'; // mã ngẫu nhiên của trình duyệt này: script chỉ báo email khi gặp trình duyệt lạ
@@ -16,11 +19,16 @@ const WIDE = window.matchMedia('(min-width: 1024px)'); // Giống style.css: t�
 const MAX_STICKY_ROWS = 2; // Dòng tiêu đề (hoặc tiêu đề + tên cột) đứng yên khi cuộn; nhiều hơn thì chiếm hết màn hình điện thoại
 const HEX = /^#[0-9a-f]{6}$/i;
 
+const ROLES = { admin: 'Admin', manager: 'Manager', seller: 'Seller' };
+
 const app = {
   endpoint: '',
   token: '',
   user: '',
-  doc: null,      // trả lời "doc" gần nhất: { user, url, log, sheets, sheet }
+  role: '',       // admin, manager, seller (script trả khi đăng nhập và trong mỗi lần "doc")
+  order: false,   // seller được lên đơn trên trang Đặt hàng, In 3D
+  view: '',       // mục đang mở thay cho trang tính: "hoa-hong", "tai-khoan" ('' = trang tính)
+  doc: null,      // trả lời "doc" gần nhất: { user, me, url, log, sheets, sheet (null: chưa được xem trang nào) }
   query: '',
   ticket: 0,      // lần tải gần nhất: kết quả của lần tải cũ (VD đã bấm sang trang khác) bị bỏ
   loadedAt: null,
@@ -75,7 +83,7 @@ function listIndex(sh, list) {
 
 /* ---------- Phiên đăng nhập ---------- */
 function saveSession() {
-  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token: app.token, user: app.user })); } catch { /* private mode */ }
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token: app.token, user: app.user, role: app.role })); } catch { /* private mode */ }
 }
 
 function readSession() {
@@ -84,6 +92,7 @@ function readSession() {
     if (s && typeof s.token === 'string') {
       app.token = s.token;
       app.user = String(s.user || '');
+      app.role = Object.hasOwn(ROLES, s.role) ? s.role : '';
     }
   } catch { /* private mode */ }
 }
@@ -275,32 +284,61 @@ async function onCode(e) {
 
 /** Đã đăng nhập (sau bước 1, hoặc bước 2 nếu có mã 2 bước): giữ phiên, mở trang tính hoặc quay lại việc đang làm. */
 function loggedIn(out) {
+  const again = els.login.classList.contains('is-modal');
+  // Đăng nhập lại bằng tài khoản khác (VD trên máy dùng chung): bắt đầu lại từ đầu, không giữ phần của người trước
+  const other = again && out.user !== app.user;
   app.token = out.token;
   app.user = out.user;
+  app.role = Object.hasOwn(ROLES, out.role) ? out.role : 'admin';
   saveSession();
-  const again = els.login.classList.contains('is-modal');
   hideLogin();
   showUser();
-  if (!again) {
-    loadSheet(lastSheet());
+  if (!again || other) {
+    closePanel();
+    closeDrawer();
+    if (other) {
+      // Không để lại danh sách trang tính, dữ liệu của người trước trong lúc tải phần của người mới
+      app.doc = null;
+      app.view = '';
+      clearToasts();
+      showMain('view');
+      els.grid.textContent = '';
+      els.tabs.textContent = '';
+      els.views.hidden = true;
+    }
+    openHome();
   } else if (panel) {
     toast('Đã đăng nhập lại. Bấm Lưu lần nữa để ghi phần đang sửa.', { timeout: 6000 });
     $('[data-ap-save]', panel.el)?.focus();
+  } else if (drawer) {
+    toast('Đã đăng nhập lại. Bấm Lưu lần nữa.', { timeout: 6000 });
+  } else if (app.view) {
+    openView(app.view);
   } else {
-    loadSheet(app.doc?.sheet.name, { keepScroll: true });
+    loadSheet(app.doc?.sheet?.name, { keepScroll: true });
   }
+}
+
+/** Trang mở đầu tiên: seller vào mục hoa hồng (đơn của mình, nút lên đơn); người khác vào trang tính mở lần trước. */
+function openHome() {
+  if (app.role === 'seller') openView('hoa-hong');
+  else loadSheet(lastSheet());
 }
 
 function showUser() {
   els.userName.textContent = app.user;
+  els.userRole.textContent = app.role ? `(${ROLES[app.role]})` : '';
   els.userBox.hidden = !app.user;
 }
 
 async function logout() {
   const token = app.token;
   closePanel();
+  closeDrawer();
+  clearToasts();
   clearSession();
   app.doc = null;
+  app.view = '';
   slideSide(false, false);
   showWork(false);
   els.userBox.hidden = true;
@@ -330,10 +368,13 @@ function bootError(text) {
   }
 }
 
-/** Mở trang tính `name` (không có thì trang đầu tiên). Trả true khi đã hiện dữ liệu. */
-async function loadSheet(name, { keepScroll = false } = {}) {
+/**
+ * Mở trang tính `name` (không có, hay tài khoản không xem được, thì trang đầu tiên tài khoản xem được). Trả true khi đã
+ * hiện dữ liệu. `quiet`: chỉ lấy danh sách trang tính, vai trò (trước khi mở mục Hoa hồng, Tài khoản), không vẽ lưới.
+ */
+async function loadSheet(name, { keepScroll = false, quiet = false } = {}) {
   const ticket = ++app.ticket;
-  setStatus('Đang tải trang tính…');
+  setStatus(quiet ? 'Đang tải…' : 'Đang tải trang tính…');
   els.grid.setAttribute('aria-busy', 'true');
   els.dash.setAttribute('aria-busy', 'true');
   const out = await api('doc', { sheet: name || '' });
@@ -347,24 +388,32 @@ async function loadSheet(name, { keepScroll = false } = {}) {
     return false;
   }
   setStatus('');
-  const same = app.doc && app.doc.sheet.name === out.sheet.name;
+  const same = !quiet && !app.view && app.doc?.sheet && out.sheet && app.doc.sheet.name === out.sheet.name;
   // Trang Tổng quan: số liệu, biểu đồ thay cho lưới ô
   const view = out.dashboard ? els.dash : els.grid;
   const scroll = keepScroll && same ? { top: view.scrollTop, left: view.scrollLeft } : null;
   if (!same) app.query = '';
   app.doc = out;
   app.user = out.user || app.user;
+  takeMe(out.me);
   app.loadedAt = new Date();
-  prepare(out.sheet);
-  rememberSheet(out.sheet.name);
+  if (out.sheet) {
+    prepare(out.sheet);
+    if (!quiet) rememberSheet(out.sheet.name);
+  }
   els.boot.hidden = true;
   showWork(true);
   showUser();
+  if (quiet) return true;
+  app.view = '';
+  renderViews();
   renderTabs();
   renderTools();
-  els.grid.hidden = Boolean(out.dashboard);
-  els.dash.hidden = !out.dashboard;
-  if (out.dashboard) {
+  showMain(out.sheet ? (out.dashboard ? 'dash' : 'grid') : 'view');
+  if (!out.sheet) {
+    els.view.innerHTML = `<p class="dash-empty">Tài khoản của bạn chưa được xem trang tính nào. Báo admin của shop để được cấp quyền.</p>`;
+    renderInfo(0, 0);
+  } else if (out.dashboard) {
     renderDashboard(els.dash, out.dashboard, { onOpenSheet: (sheet) => loadSheet(sheet) });
     renderInfo(0, 0);
   } else {
@@ -376,12 +425,33 @@ async function loadSheet(name, { keepScroll = false } = {}) {
   return true;
 }
 
+/** Vai trò script vừa báo (đổi vai trò thì script đã đăng xuất phiên cũ, đây chỉ để chắc chắn giao diện đúng). */
+function takeMe(me) {
+  if (!me || !Object.hasOwn(ROLES, me.role)) return;
+  const changed = me.role !== app.role;
+  app.role = me.role;
+  app.order = Boolean(me.order);
+  if (changed) saveSession();
+}
+
+/** Phần đang hiện ở khung chính: lưới trang tính, Tổng quan, hay một mục (Hoa hồng, Tài khoản, thông báo). */
+function showMain(kind) {
+  els.grid.hidden = kind !== 'grid';
+  els.dash.hidden = kind !== 'dash';
+  els.view.hidden = kind !== 'view';
+  if (kind !== 'dash') els.dash.textContent = '';
+  if (kind !== 'view') els.view.textContent = '';
+}
+
 /** Chỉ mục dòng, chữ để tìm, dòng tiêu đề cột của trang tính vừa tải. */
 function prepare(sh) {
   sh.index = new Map(sh.rowNums.map((r, i) => [r, i]));
   sh.text = sh.cells.map(rowText);
   sh.headerRow = headerRowOf(sh);
   sh.webRows = new Set(sh.webRows || []);
+  // Cột admin ẩn với tài khoản này: script không gửi nội dung, web không vẽ cột đó
+  sh.hidden = new Set(sh.rules.hide || []);
+  sh.shownCols = Array.from({ length: sh.cols }, (_, c) => c + 1).filter((c) => !sh.hidden.has(c));
   // Lựa chọn của script (VD Nền tảng: Shopee, Tiktok) cho ô chưa có ô thả xuống riêng trên Sheet
   sh.choice = Object.fromEntries(Object.entries(sh.rules.choices || {}).map(([col, list]) => [col, listIndex(sh, list)]));
   // Các dòng đầu đứng yên khi cuộn: tới dòng tiêu đề cột, nếu các dòng đó đều đang hiện
@@ -410,8 +480,22 @@ function headerRowOf(sh) {
 }
 
 /* ---------- Cột trang tính, công cụ ---------- */
+/** Mục Hoa hồng, Tài khoản (theo vai trò) và nút lên đơn của seller, ở đầu cột trái. */
+function renderViews() {
+  const items = [];
+  if (app.role === 'admin' || app.role === 'seller') items.push(['hoa-hong', 'cash', app.role === 'admin' ? 'Hoa hồng seller' : 'Đơn và hoa hồng của tôi']);
+  if (app.role === 'admin') items.push(['tai-khoan', 'shield', 'Tài khoản']);
+  // Mở ngay trong tab này: trang đặt hàng đọc phiên seller của tab (sessionStorage) để ghi tên seller vào đơn
+  const links = app.role === 'seller' && app.order ? [['san-pham.html', 'cart', 'Lên đơn bộ xe'], ['in-3d.html', 'bag', 'Lên đơn In 3D']] : [];
+  els.views.hidden = !items.length && !links.length;
+  els.views.innerHTML = [
+    ...items.map(([name, ic, label]) => `<button type="button" class="admin-tab admin-tab--view" data-view="${name}" aria-pressed="${app.view === name}">${icon(ic)}<span>${esc(label)}</span></button>`),
+    ...links.map(([href, ic, label]) => `<a class="admin-tab admin-tab--view" href="${href}">${icon(ic)}<span>${esc(label)}</span></a>`),
+  ].join('');
+}
+
 function renderTabs() {
-  const current = app.doc.sheet.name;
+  const current = app.view ? '' : app.doc.sheet?.name;
   const bar = els.tabs;
   const top = bar.scrollTop;
   const focused = bar.contains(document.activeElement);
@@ -460,32 +544,52 @@ function toggleSide() {
 
 function renderTools() {
   const sh = app.doc.sheet;
-  els.add.hidden = !sh.rules.add || !sh.cols;
-  const url = /^https:\/\/docs\.google\.com\//.test(app.doc.url || '') ? `${app.doc.url}#gid=${sh.id}` : '';
+  const grid = Boolean(sh) && !app.view;
+  els.add.hidden = !grid || !sh.rules.add || !sh.cols;
+  const url = grid && /^https:\/\/docs\.google\.com\//.test(app.doc.url || '') ? `${app.doc.url}#gid=${sh.id}` : '';
   els.open.hidden = !url;
   els.open.href = url || '#';
   if (els.search.value !== app.query) els.search.value = app.query;
-  els.searchBox.hidden = Boolean(app.doc.dashboard);
+  els.searchBox.hidden = !grid || Boolean(app.doc.dashboard);
+}
+
+/** Dòng tên, dòng thông tin ở đầu khung khi đang mở một mục (Hoa hồng, Tài khoản) thay cho trang tính. */
+function renderViewInfo(title, facts = '') {
+  els.info.innerHTML = `
+    <p class="admin-info__name" title="${esc(title)}">${esc(title)}</p>
+    <div class="admin-info__meta"><p class="admin-info__facts">${esc(facts)}</p></div>`;
+  els.notes.textContent = '';
+  els.notes.hidden = true;
 }
 
 function renderInfo(shown, total) {
   const sh = app.doc.sheet;
+  if (!sh) {
+    renderViewInfo('Trang quản trị', ROLES[app.role] ? `Tài khoản ${ROLES[app.role]}` : '');
+    return;
+  }
   const time = app.loadedAt ? app.loadedAt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
   const q = app.query.trim();
+  const unit = sh.rules.own ? 'đơn của bạn' : 'dòng';
   const facts = app.doc.dashboard ? [`số liệu lúc ${esc(app.doc.dashboard.updated)}`]
-    : [q ? `Đang lọc: ${shown}/${total} dòng có “${esc(q)}”` : `${total} dòng`, `${sh.cols} cột`, time && `tải lúc ${time}`].filter(Boolean);
+    : [q ? `Đang lọc: ${shown}/${total} ${unit} có “${esc(q)}”` : `${total} ${unit}`, `${sh.shownCols.length} cột`, time && `tải lúc ${time}`].filter(Boolean);
+  const admin = app.role === 'admin';
   const notes = [];
+  if (sh.rules.own) notes.push('Chỉ hiện các đơn bạn lên: đơn có cột Seller là tên tài khoản của bạn.');
+  if (sh.rules.viewOnly) notes.push('Tài khoản của bạn chỉ xem trang tính này. Cần sửa thì báo admin.');
+  if (sh.hidden.size) notes.push('Một số cột admin không cho tài khoản của bạn xem.');
   if (sh.rules.tip) notes.push(esc(sh.rules.tip));
-  else if (sh.rules.all) notes.push('Trang tính này chỉ xem trên web.');
-  if (sh.rules.header) notes.push('Dòng 1 là tên cột: script dựa vào đó để ghi đơn, nên chỉ đổi tên cột trên Google Sheet.');
-  if (sh.rules.cols.length) notes.push(`Cột ${sh.rules.cols.map(colName).join(', ')} do script tự điền: chỉ xem.`);
+  else if (sh.rules.all && !sh.rules.viewOnly) notes.push('Trang tính này chỉ xem trên web.');
+  if (sh.rules.header && admin) notes.push('Dòng 1 là tên cột: script dựa vào đó để ghi đơn, nên chỉ đổi tên cột trên Google Sheet.');
+  const locked = sh.rules.cols.filter((c) => !sh.hidden.has(c)).map(colName).join(', ');
+  if (locked && (admin || !sh.rules.all)) notes.push(`Cột ${locked} do script tự điền${admin ? '' : ' hoặc chỉ admin sửa'}: chỉ xem.`);
   if (sh.images) notes.push(`Có ${sh.images} hình ảnh đặt trên trang tính: xem trên Google Sheet.`);
-  if (app.doc.dashboard) notes.push('Trên Google Sheet, trang Tổng quan có cùng số liệu và biểu đồ của Google.');
+  if (app.doc.dashboard && admin) notes.push('Trên Google Sheet, trang Tổng quan có cùng số liệu và biểu đồ của Google.');
   const shownRows = sh.cells.length - sh.headRows;
-  if (!app.doc.dashboard && sh.rows - sh.headRows > shownRows) {
+  if (!app.doc.dashboard && !sh.rules.own && sh.rows - sh.headRows > shownRows) {
     notes.push(`Trang tính lớn: chỉ hiện ${shownRows} dòng ${sh.rules.top ? 'đầu (mới nhất)' : 'cuối'}, dòng cũ hơn xem trên Google Sheet.`);
   }
-  if (sh.rules.top) notes.push('Dòng mới nhất ở trên cùng: đơn, yêu cầu, mã, dòng thêm trên web đều chèn ngay dưới dòng tiêu đề.');
+  if (sh.rules.top && !sh.rules.own) notes.push('Dòng mới nhất ở trên cùng: đơn, yêu cầu, mã, dòng thêm trên web đều chèn ngay dưới dòng tiêu đề.');
   els.info.innerHTML = `
     <p class="admin-info__name" title="${esc(sh.name)}">${esc(sh.name)}</p>
     <div class="admin-info__meta">
@@ -551,7 +655,7 @@ function rowHtml(sh, i, merges) {
   const cells = sh.cells[i] || [];
   const out = [`<tr data-row="${r}"${panel && panel.row === r ? ' class="is-active"' : ''}>`,
     `<th scope="row"><button type="button" class="sheet__num" data-open="${r}" aria-label="Mở dòng ${r}">${r}</button></th>`];
-  for (let c = 1; c <= sh.cols; c++) {
+  for (const c of sh.shownCols) {
     const key = `${r}:${c}`;
     if (merges && merges.covered.has(key)) continue;
     out.push(cellHtml(cells[c - 1], c, merges && merges.spans.get(key)));
@@ -574,9 +678,12 @@ function renderGrid() {
   // Cột đã chỉnh độ rộng trên Sheet (VD trang nhập từ Excel): giữ đúng tỷ lệ. Cột mặc định (100px): rộng theo chữ
   const widths = sh.widths.length === sh.cols && sh.widths.some((w) => w !== 100)
     ? sh.widths.map((w) => Math.round(clamp(w, 40, 480))) : null;
-  const cols = Array.from({ length: sh.cols }, (_, c) => c + 1);
+  const cols = sh.shownCols;
+  // Seller chỉ thấy đơn của mình: các dòng không liền nhau, không có "dòng cũ hơn" để xem trên Google Sheet
+  const gaps = !q && !sh.rules.own;
+  const span = cols.length + 1;
 
-  const html = [widths ? `<table class="sheet sheet--fixed" style="width:${widths.reduce((a, b) => a + b, 52)}px">` : '<table class="sheet">',
+  const html = [widths ? `<table class="sheet sheet--fixed" style="width:${cols.reduce((a, c) => a + widths[c - 1], 52)}px">` : '<table class="sheet">',
     `<colgroup><col class="sheet__numcol">${cols.map((c) => (widths ? `<col style="width:${widths[c - 1]}px">` : '<col>')).join('')}</colgroup>`,
     '<thead><tr class="sheet__letters"><th class="sheet__corner" scope="col"><span class="sr-only">Dòng</span></th>',
     ...cols.map((c) => `<th scope="col">${colName(c)}</th>`), '</tr>'];
@@ -585,18 +692,19 @@ function renderGrid() {
   let prev = sh.headRows ? sh.rowNums[sh.headRows - 1] : 0;
   body.forEach((i) => {
     const r = sh.rowNums[i];
-    if (!q && r > prev + 1) {
-      html.push(`<tr class="sheet__gap"><td colspan="${sh.cols + 1}">… ${r - prev - 1} dòng cũ hơn: xem trên Google Sheet</td></tr>`);
+    if (gaps && r > prev + 1) {
+      html.push(`<tr class="sheet__gap"><td colspan="${span}">… ${r - prev - 1} dòng cũ hơn: xem trên Google Sheet</td></tr>`);
     }
     html.push(rowHtml(sh, i, merges));
     prev = r;
   });
   // Trang mới nhất ở trên, quá lớn: các dòng cũ hơn nằm sau dòng cuối đang hiện
-  if (!q && body.length && prev < sh.rows) {
-    html.push(`<tr class="sheet__gap"><td colspan="${sh.cols + 1}">… ${sh.rows - prev} dòng cũ hơn: xem trên Google Sheet</td></tr>`);
+  if (gaps && body.length && prev < sh.rows) {
+    html.push(`<tr class="sheet__gap"><td colspan="${span}">… ${sh.rows - prev} dòng cũ hơn: xem trên Google Sheet</td></tr>`);
   }
   if (!body.length) {
-    html.push(`<tr class="sheet__gap"><td colspan="${sh.cols + 1}">${q ? 'Không có dòng nào khớp.' : 'Chưa có dòng dữ liệu nào.'}</td></tr>`);
+    const none = sh.rules.own ? 'Chưa có đơn nào bạn lên.' : 'Chưa có dòng dữ liệu nào.';
+    html.push(`<tr class="sheet__gap"><td colspan="${span}">${q ? 'Không có dòng nào khớp.' : none}</td></tr>`);
   }
   html.push('</tbody></table>');
   els.grid.innerHTML = html.join('');
@@ -659,7 +767,7 @@ function buildFields(sh, mode, row, i) {
   const covered = mode === 'edit' ? coveredCols(sh, row) : new Set();
   const template = mode === 'add' ? templateRow(sh) : [];
   const fields = [];
-  for (let c = 1; c <= sh.cols; c++) {
+  for (const c of sh.shownCols) {
     if (covered.has(c)) continue;
     const cell = cells[c - 1] || null;
     const label = labelOf(sh, c);
@@ -987,7 +1095,9 @@ async function onFail(out, typed) {
     setStatus(out.error, true);
     return;
   }
-  if (mode === 'add') openPanel('add', 0, 0, { notice: out.error, typed: notes });
+  // Admin vừa bỏ quyền xem trang này: web đã mở trang khác
+  if (app.doc.sheet?.name !== sheet) toast(out.error, { timeout: 8000 });
+  else if (mode === 'add') openPanel('add', 0, 0, { notice: out.error, typed: notes });
   else if (app.doc.sheet.index.has(row)) openPanel('edit', row, 0, { notice: out.error, typed: notes });
   else toast(out.error, { timeout: 8000 });
 }
@@ -998,9 +1108,10 @@ async function save() {
   const sh = app.doc.sheet;
   const { mode, row } = panel;
   if (mode === 'add') {
-    // Khi thêm dòng, khung có đủ mọi cột theo thứ tự: values[c - 1] là ô của cột c
-    const values = panel.fields.map((f) => fieldValue(f) ?? '');
-    const typed = panel.fields.map((f, k) => ({ col: f.col, value: values[k], preset: values[k] === f.original }))
+    // values[c - 1] là ô của cột c; cột admin ẩn với tài khoản này không có trong khung, gửi rỗng
+    const values = Array.from({ length: sh.cols }, () => '');
+    panel.fields.forEach((f) => { values[f.col - 1] = fieldValue(f) ?? ''; });
+    const typed = panel.fields.map((f) => ({ col: f.col, value: values[f.col - 1], preset: values[f.col - 1] === f.original }))
       .filter((x) => x.value !== '' && x.value !== false);
     if (!typed.some((x) => !x.preset)) {
       panelError('Dòng mới còn trống: điền ít nhất một ô (ngoài các ô điền sẵn).');
@@ -1059,6 +1170,586 @@ async function doDelete() {
   loadSheet(sh.name, { keepScroll: true });
 }
 
+/* ---------- Mục Hoa hồng, Tài khoản (thay cho lưới trang tính) ---------- */
+const VIEWS = {
+  'hoa-hong': { action: 'hoa-hong', render: (out) => renderCommission(out) },
+  'tai-khoan': { action: 'tai-khoan', render: (out) => renderAccounts(out) },
+};
+const STATES = { wait: 'Đang chờ', due: 'Chưa trả', paid: 'Đã trả', cancelled: 'Đơn huỷ' };
+const MIN_PASSWORD = 10; // Giống ADMIN_MIN_PASSWORD trong google-apps-script.gs (script kiểm tra lại)
+
+/** "1.250.000 ₫", kể cả 0 ₫ (fmtPrice của trang bán hàng ghi "Liên hệ" khi chưa có giá). */
+const vnd = (n) => `${Math.round(Number(n) || 0).toLocaleString('vi-VN')} ₫`;
+
+/** Mở một mục thay cho trang tính. Trả true khi đã hiện. */
+async function openView(name) {
+  if (!Object.hasOwn(VIEWS, name)) return false;
+  if (!app.doc && !(await loadSheet('', { quiet: true }))) return false;
+  const ticket = ++app.ticket;
+  closePanel();
+  setStatus('Đang tải…');
+  els.view.setAttribute('aria-busy', 'true');
+  const out = await api(VIEWS[name].action);
+  if (ticket !== app.ticket) return false;
+  els.view.removeAttribute('aria-busy');
+  if (!out.ok) {
+    if (!out.login) setStatus(out.error || 'Chưa tải được. Thử lại sau ít phút.', true);
+    return false;
+  }
+  setStatus('');
+  takeMe(out.me);
+  app.view = name;
+  app.loadedAt = new Date();
+  showWork(true);
+  showUser();
+  renderViews();
+  renderTabs();
+  renderTools();
+  showMain('view');
+  VIEWS[name].render(out);
+  els.view.scrollTop = 0;
+  return true;
+}
+
+/** Bảng số liệu của một mục: `cols` [{ label, num }], ô đã là HTML an toàn (chữ đã qua esc). */
+function viewTable(id, cols, rows) {
+  return `
+    <div class="dash-table-wrap" role="region" tabindex="0" aria-labelledby="${id}">
+      <table class="dash-table admin-table">
+        <thead><tr>${cols.map((c) => `<th scope="col"${c.num ? '' : ' class="is-text"'}>${esc(c.label)}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map((r) => `<tr>${r.map((cell, i) => (i ? `<td${cols[i].num ? '' : ' class="is-text"'}>${cell}</td>` : `<th scope="row">${cell}</th>`)).join('')}</tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+}
+
+function kpiHtml(label, value, note) {
+  return `
+    <article class="dash-kpi">
+      <h3 class="dash-kpi__label">${esc(label)}</h3>
+      <p class="dash-kpi__value">${esc(value)}</p>
+      <p class="dash-kpi__note">${esc(note)}</p>
+    </article>`;
+}
+
+/**
+ * Hoa hồng seller (script tính từ trang Đơn hàng, In 3D). Admin: tổng của mọi seller, từng seller, các đơn cần làm (chưa
+ * trả, chưa có hoa hồng) kèm nút mở đơn. Seller: nút lên đơn, hoa hồng của mình và mọi đơn mình lên.
+ */
+function renderCommission(out) {
+  const admin = app.role === 'admin';
+  const sum = (key) => out.sellers.reduce((s, x) => s + (Number(x[key]) || 0), 0);
+  const amount = (o) => (o.amount === null ? 'Chưa có' : esc(vnd(o.amount)));
+  const chip = (o) => `<span class="admin-chip is-${o.state}">${esc(STATES[o.state] || '')}</span>`;
+  const sell = admin ? '' : app.order ? `
+    <section class="dash-card admin-sell" aria-labelledby="hh-sell">
+      <h2 class="dash-card__title" id="hh-sell">Lên đơn cho khách</h2>
+      <p class="admin-sell__text">Mở trang đặt hàng ngay trong tab này rồi điền thông tin khách đưa. Đầu trang có dòng “Đang lên đơn bằng tài khoản seller <strong>${esc(app.user)}</strong>”: đơn gửi đi tự ghi tên bạn và tự tính hoa hồng.</p>
+      <div class="admin-sell__actions">
+        <a class="btn btn--primary btn--sm" href="san-pham.html">${icon('cart')} Lên đơn bộ xe</a>
+        <a class="btn btn--ghost btn--sm" href="in-3d.html">${icon('bag')} Lên đơn In 3D</a>
+      </div>
+    </section>` : '<p class="dash-card admin-sell__text">Tài khoản của bạn chưa được lên đơn trên web: báo admin của shop.</p>';
+  const kpis = `
+    <section class="dash__kpis" aria-labelledby="hh-kpis">
+      <h2 class="dash__caption" id="hh-kpis">${admin ? `Hoa hồng của ${out.sellers.length} seller` : 'Hoa hồng của bạn'}, đơn huỷ không tính</h2>
+      ${kpiHtml('Chưa trả', vnd(sum('due')), 'Đơn đã giao, shop chưa trả hoa hồng')}
+      ${kpiHtml('Đang chờ', vnd(sum('wait')), 'Đơn chưa giao xong')}
+      ${kpiHtml('Đã trả', vnd(sum('paid')), 'Shop đã trả hoa hồng')}
+      ${kpiHtml('Chưa có hoa hồng', `${sum('missing')} đơn`, admin ? 'Sản phẩm chưa có mức: ghi tay vào đơn' : 'Shop sẽ ghi hoa hồng cho các đơn này')}
+    </section>`;
+  const sellers = !admin ? '' : `
+    <section class="dash-card dash-tables" aria-labelledby="hh-sellers">
+      <h2 class="dash-card__title" id="hh-sellers">Theo seller</h2>
+      ${out.sellers.length ? viewTable('hh-sellers', [{ label: 'Seller' }, { label: 'Đơn', num: true }, { label: 'Doanh số', num: true }, { label: 'Chưa trả', num: true },
+        { label: 'Đang chờ', num: true }, { label: 'Đã trả', num: true }, { label: 'Chưa có hoa hồng', num: true }],
+      out.sellers.map((s) => [esc(s.name), s.orders, esc(vnd(s.sales)), esc(vnd(s.due)), esc(vnd(s.wait)), esc(vnd(s.paid)), s.missing]))
+        : '<p class="dash-empty">Chưa có tài khoản seller nào: tạo ở mục Tài khoản.</p>'}
+    </section>`;
+  const cols = admin
+    ? [{ label: 'Ngày' }, { label: 'Seller' }, { label: 'Mã' }, { label: 'Khách' }, { label: 'Sản phẩm' }, { label: 'Trạng thái đơn' },
+      { label: 'Hoa hồng', num: true }, { label: 'Đơn' }]
+    : [{ label: 'Ngày' }, { label: 'Mã' }, { label: 'Khách' }, { label: 'Sản phẩm' }, { label: 'Tổng', num: true }, { label: 'Trạng thái đơn' },
+      { label: 'Hoa hồng', num: true }, { label: 'Hoa hồng đã' }];
+  const rows = out.orders.map((o) => (admin
+    ? [esc(o.time), esc(o.seller), esc(o.code), esc(o.customer), esc(o.what), esc(o.status || '–'), amount(o),
+      `<button type="button" class="btn btn--ghost btn--sm" data-goto-sheet="${esc(o.sheet)}" data-goto-row="${o.row}">Mở đơn</button>`]
+    : [esc(o.time), esc(o.code), esc(o.customer), esc(o.what), esc(vnd(o.total)), esc(o.status || '–'), amount(o), chip(o)]));
+  const none = admin ? 'Không có đơn nào cần trả hay cần ghi hoa hồng.' : 'Chưa có đơn nào. Bấm Lên đơn ở trên để lên đơn đầu tiên.';
+  const orders = `
+    <section class="dash-card dash-tables" aria-labelledby="hh-orders">
+      <h2 class="dash-card__title" id="hh-orders">${admin ? 'Đơn cần làm: chưa trả hoặc chưa có hoa hồng' : 'Đơn của tôi'}</h2>
+      ${rows.length ? viewTable('hh-orders', cols, rows) : `<p class="dash-empty">${none}</p>`}
+      ${out.more ? `<p class="dash__foot">Còn ${out.more} đơn cũ hơn: xem ở trang Đơn hàng, In 3D.</p>` : ''}
+    </section>`;
+  const rates = admin && out.rates ? `Mức hoa hồng mỗi sản phẩm ở trang <button type="button" class="link-inline" data-goto-sheet="${esc(out.rates.sheet)}">${esc(out.rates.sheet)}</button>${out.rates.missing
+    ? `: còn ${out.rates.missing}/${out.rates.products} sản phẩm chưa có mức.` : ': đủ mức cho mọi sản phẩm.'} Trả hoa hồng xong thì mở đơn, tích “Đã trả hoa hồng”. ` : '';
+  els.view.innerHTML = `
+    <div class="dash__grid">
+      ${sell}${kpis}${sellers}${orders}
+      <p class="dash__foot">${rates}Hoa hồng tính khi đơn giao xong (trạng thái Đã giao); đơn huỷ không có hoa hồng. Số liệu lúc ${esc(out.updated)}.</p>
+    </div>`;
+  renderViewInfo(admin ? 'Hoa hồng seller' : 'Đơn và hoa hồng của tôi', `${out.orders.length} đơn · số liệu lúc ${out.updated}`);
+}
+
+/** Mục Tài khoản (chỉ admin): danh sách, bấm một tài khoản để sửa vai trò, quyền, đặt mật khẩu mới. */
+function renderAccounts(out) {
+  app.accounts = out;
+  els.view.innerHTML = `
+    <div class="dash__grid">
+      <section class="dash-card admin-accounts" aria-labelledby="ac-title">
+        <div class="admin-accounts__head">
+          <h2 class="dash-card__title" id="ac-title">Tài khoản trang quản trị</h2>
+          <button type="button" class="btn btn--primary btn--sm" data-ac-new>${icon('plus')} Thêm tài khoản</button>
+        </div>
+        <ul class="admin-accounts__list" role="list">${out.accounts.map((a) => `
+          <li><button type="button" class="admin-account" data-ac-open="${esc(a.name)}">
+            <span class="admin-account__text">
+              <span class="admin-account__top"><strong>${esc(a.name)}</strong>${a.self ? ' (bạn)' : ''}
+                <span class="admin-chip">${esc(ROLES[a.role] || a.role)}</span>${a.totp ? '' : '<span class="admin-chip is-wait">chưa bật mã 2 bước</span>'}</span>
+              <span class="admin-account__perms">${esc(permsSummary(a, out.sheets))}</span>
+            </span>
+            ${icon('chevron-right')}
+          </button></li>`).join('')}
+        </ul>
+      </section>
+      <p class="dash__foot">Admin xem, sửa được mọi thứ và quản lý tài khoản. Manager, seller chỉ xem được các trang tính, các cột bạn chọn: manager không bao giờ thấy cột hoa hồng, seller chỉ thấy đơn của mình. Mã 2 bước bật trong Google Sheet: menu SmartCarTech → Tài khoản trang quản trị…; mọi lần tạo, sửa, xoá tài khoản được ghi ở Nhật ký quản trị.</p>
+    </div>`;
+  renderViewInfo('Tài khoản', `${out.accounts.length} tài khoản`);
+}
+
+/** "Đơn hàng: xem, sửa · In 3D: xem · được lên đơn" */
+function permsSummary(a, sheets) {
+  if (a.role === 'admin') return 'Xem, sửa mọi thứ, quản lý tài khoản';
+  const own = a.perms?.sheets || {};
+  const parts = sheets.filter((s) => Object.hasOwn(own, s.id) && own[s.id]?.view).map((s) => {
+    const p = own[s.id];
+    return `${s.name}: ${['xem', p.edit && 'sửa', p.add && 'thêm dòng', p.del && 'xoá dòng'].filter(Boolean).join(', ')}${Array.isArray(p.cols) ? ` (${p.cols.length} cột)` : ''}`;
+  });
+  if (a.role === 'seller') parts.push(a.perms?.order ? 'được lên đơn' : 'chưa được lên đơn');
+  return parts.length ? parts.join(' · ') : 'Chưa xem được trang tính nào';
+}
+
+/** Quyền ở một trang tính trong khung sửa tài khoản: xem, sửa, thêm, xoá dòng, và các cột được xem. */
+function sheetPermHtml(s, p, role) {
+  const own = role === 'seller' && s.own;
+  const view = Boolean(p && p.view);
+  const edit = view && Boolean(p.edit);
+  const all = !view || !Array.isArray(p.cols);
+  const shown = new Set(all ? [] : p.cols);
+  const flag = (name, label, on, off) => `<label class="check"><input type="checkbox" data-flag="${name}"${on ? ' checked' : ''}${off ? ' disabled' : ''}> <span>${label}</span></label>`;
+  const cols = s.cols.map((c) => {
+    const blocked = role === 'manager' && c.money;
+    return `<label class="check"><input type="checkbox" data-col-key="${esc(c.key)}"${!blocked && (all || shown.has(c.key)) ? ' checked' : ''}${blocked || all ? ' disabled' : ''}${blocked ? ' data-blocked' : ''}> <span>${esc(c.label)}${blocked ? ' (manager không xem được)' : ''}</span></label>`;
+  }).join('');
+  return `
+    <div class="admin-perm" data-sheet-id="${esc(s.id)}">
+      <p class="admin-perm__name">${esc(s.name)}${own ? ' <span class="admin-perm__note">chỉ đơn của seller này</span>' : ''}</p>
+      <div class="admin-perm__flags">
+        ${flag('view', 'Xem', view, false)}
+        ${flag('edit', 'Sửa', edit, !view)}
+        ${flag('add', 'Thêm dòng', edit && p.add, !edit || own)}
+        ${flag('del', 'Xoá dòng', edit && p.del, !edit || own)}
+        <button type="button" class="admin-perm__more" data-cols-toggle aria-expanded="false"${view && s.cols.length ? '' : ' hidden'}></button>
+      </div>
+      <div class="admin-perm__cols" data-cols hidden>
+        <label class="check"><input type="checkbox" data-cols-all${all ? ' checked' : ''}> <span>Mọi cột, kể cả cột thêm sau này</span></label>
+        <div class="admin-perm__list">${cols}</div>
+      </div>
+    </div>`;
+}
+
+/** Phần quyền của khung sửa tài khoản theo vai trò (admin: không cần chọn). */
+function permsHtml(role, perms, sheets) {
+  if (role === 'admin') {
+    return `<p class="admin-field__hint">${icon('info', 'icon--sm')}<span>Admin xem, sửa được mọi trang tính, mọi cột, xem hoa hồng của mọi seller và quản lý tài khoản.</span></p>`;
+  }
+  const seller = role === 'seller';
+  const own = perms?.sheets || {};
+  return `
+    ${seller ? `<label class="check admin-perm__order"><input type="checkbox" data-ac-order${perms?.order ? ' checked' : ''}> <span>Được lên đơn trên trang Đặt hàng, In 3D: đơn ghi tên seller, tự tính hoa hồng</span></label>` : ''}
+    <fieldset class="admin-perms">
+      <legend class="field__label">Trang tính được xem</legend>
+      <p class="admin-field__hint">${seller ? 'Ở Đơn hàng, In 3D, seller chỉ thấy đơn mình lên và không thêm, xoá dòng.' : 'Manager không bao giờ thấy các cột hoa hồng, ở mọi trang tính.'} Nhật ký quản trị, Hoa hồng seller chỉ admin xem được.</p>
+      ${sheets.map((s) => sheetPermHtml(s, Object.hasOwn(own, s.id) ? own[s.id] : null, role)).join('')}
+    </fieldset>`;
+}
+
+/** Chữ trên nút cột của một trang: "Cột: tất cả" hoặc "Cột: 11/20". */
+function syncPerm(box) {
+  const flag = (name) => $(`[data-flag="${name}"]`, box);
+  const view = flag('view').checked;
+  const edit = view && flag('edit').checked;
+  const own = Boolean($('.admin-perm__note', box));
+  flag('edit').disabled = !view;
+  if (!view) flag('edit').checked = false;
+  ['add', 'del'].forEach((name) => {
+    flag(name).disabled = !edit || own;
+    if (!edit || own) flag(name).checked = false;
+  });
+  const all = $('[data-cols-all]', box).checked;
+  const keys = $$('[data-col-key]', box);
+  keys.forEach((x) => {
+    const blocked = x.hasAttribute('data-blocked');
+    x.disabled = blocked || all;
+    if (all && !blocked) x.checked = true;
+  });
+  const more = $('[data-cols-toggle]', box);
+  more.hidden = !view || !keys.length;
+  more.textContent = all ? 'Cột: mọi cột' : `Cột: ${keys.filter((x) => x.checked).length}/${keys.length}`;
+  if (!view) {
+    $('[data-cols]', box).hidden = true;
+    more.setAttribute('aria-expanded', 'false');
+  }
+}
+
+/** Quyền đang chọn trong khung: { sheets: { id: { view, edit, add, del, cols? } }, order }. */
+function readPerms(el) {
+  const sheets = {};
+  $$('[data-sheet-id]', el).forEach((box) => {
+    const on = (name) => $(`[data-flag="${name}"]`, box).checked;
+    if (!on('view')) return;
+    const p = { view: true };
+    if (on('edit')) {
+      p.edit = true;
+      if (on('add')) p.add = true;
+      if (on('del')) p.del = true;
+    }
+    if (!$('[data-cols-all]', box).checked) p.cols = $$('[data-col-key]', box).filter((x) => x.checked).map((x) => x.dataset.colKey);
+    sheets[box.dataset.sheetId] = p;
+  });
+  return { sheets, order: Boolean($('[data-ac-order]', el)?.checked) };
+}
+
+/** 15 ký tự ngẫu nhiên (khoảng 87 bit), bỏ các chữ dễ nhầm 0/O, 1/l/I. Giống cửa sổ tài khoản trong Google Sheet. */
+function strongPassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  const s = Array.from(crypto.getRandomValues(new Uint32Array(15)), (n) => chars[n % chars.length]).join('');
+  return `${s.slice(0, 5)}-${s.slice(5, 10)}-${s.slice(10)}`;
+}
+
+/** Khung sửa tài khoản `name` (null: thêm tài khoản). */
+function openAccount(name) {
+  const data = app.accounts;
+  const a = name ? data.accounts.find((x) => x.name === name) : null;
+  if (name && !a) return;
+  const self = Boolean(a?.self);
+  const start = a ? a.role : 'seller';
+  const roleOptions = Object.entries({
+    admin: 'Admin: xem, sửa mọi thứ, quản lý tài khoản',
+    manager: 'Manager: quản lý đơn, không thấy hoa hồng',
+    seller: 'Seller: lên đơn, xem đơn và hoa hồng của mình',
+  }).map(([value, label]) => `<option value="${value}"${value === start ? ' selected' : ''}>${esc(label)}</option>`).join('');
+  const el = openDrawer({
+    title: a ? `Tài khoản ${a.name}` : 'Thêm tài khoản',
+    sub: a ? `${ROLES[a.role]} · ${a.totp ? 'đã bật mã 2 bước' : 'chưa bật mã 2 bước'}` : 'Tạo xong, gửi tên đăng nhập và mật khẩu cho người dùng',
+    saveLabel: a ? 'Lưu thay đổi' : 'Tạo tài khoản',
+    danger: a && !self ? 'Xoá tài khoản' : '',
+    body: `
+      <div class="admin-fields">
+        <div class="field admin-field">
+          <label class="field__label" for="ac-name">Tên đăng nhập</label>
+          ${a ? `<p class="admin-field__value" id="ac-name">${esc(a.name)}</p>` : `<input class="field__input" id="ac-name" maxlength="30" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="VD: lan.seller" aria-describedby="ac-name-hint">
+          <p class="admin-field__hint" id="ac-name-hint">3–30 ký tự: chữ không dấu, số, dấu chấm, gạch ngang, gạch dưới.</p>`}
+        </div>
+        <div class="field admin-field">
+          <label class="field__label" for="ac-role">Vai trò</label>
+          <select class="field__input" id="ac-role"${self ? ' disabled aria-describedby="ac-role-hint"' : ''}>${roleOptions}</select>
+          ${self ? '<p class="admin-field__hint" id="ac-role-hint">Không tự đổi vai trò của chính mình: nhờ một admin khác.</p>' : ''}
+        </div>
+        ${self ? '' : `<div class="field admin-field">
+          <label class="field__label" for="ac-pass">${a ? 'Đặt mật khẩu mới' : 'Mật khẩu'}</label>
+          <div class="admin-newpass">
+            <input class="field__input" id="ac-pass" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="200" placeholder="${a ? 'Để trống: giữ mật khẩu cũ' : `Ít nhất ${data.min} ký tự`}" aria-describedby="ac-pass-hint">
+            <button type="button" class="btn btn--ghost btn--sm" data-ac-gen>Tạo mật khẩu</button>
+          </div>
+          <p class="admin-field__hint" id="ac-pass-hint">${a ? 'Đặt mật khẩu mới thì người đó bị đăng xuất ở mọi nơi. ' : ''}Chép mật khẩu gửi cho người dùng trước khi bấm ${a ? 'Lưu' : 'Tạo tài khoản'}: sau đó không xem lại được.</p>
+        </div>`}
+        <div class="admin-field" data-ac-perms>${permsHtml(start, a ? a.perms : data.defaults[start], data.sheets)}</div>
+      </div>`,
+    onSave: () => saveAccount(a),
+    onDanger: () => drawerConfirm(`Xoá hẳn tài khoản “${a.name}”? Người đó bị đăng xuất ngay, đơn cũ vẫn giữ tên seller.`, 'Xoá tài khoản', () => removeAccount(a.name)),
+  });
+  $$('[data-sheet-id]', el).forEach(syncPerm);
+  el.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.id === 'ac-role') {
+      // Đổi vai trò: quyền gợi ý của vai trò mới (giữ quyền đang có nếu quay về vai trò cũ của tài khoản)
+      const role = t.value;
+      $('[data-ac-perms]', el).innerHTML = permsHtml(role, a && a.role === role ? a.perms : data.defaults[role], data.sheets);
+      $$('[data-sheet-id]', el).forEach(syncPerm);
+      return;
+    }
+    const box = t.closest('[data-sheet-id]');
+    if (box) syncPerm(box);
+  });
+  el.addEventListener('click', (e) => {
+    const t = e.target.closest('button');
+    if (!t || drawer?.busy) return;
+    if (t.matches('[data-ac-gen]')) {
+      $('#ac-pass', el).value = strongPassword();
+      $('#ac-pass', el).select();
+    } else if (t.matches('[data-cols-toggle]')) {
+      const box = t.closest('[data-sheet-id]');
+      const open = t.getAttribute('aria-expanded') !== 'true';
+      $('[data-cols]', box).hidden = !open;
+      t.setAttribute('aria-expanded', String(open));
+    }
+  });
+}
+
+async function saveAccount(a) {
+  const el = drawer.el;
+  const name = a ? a.name : $('#ac-name', el).value.trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9._-]{2,29}$/.test(name)) {
+    drawerError('Tên đăng nhập 3–30 ký tự: chữ không dấu, số, dấu chấm, gạch ngang, gạch dưới.');
+    $('#ac-name', el).focus();
+    return;
+  }
+  const role = $('#ac-role', el).value;
+  const pass = $('#ac-pass', el)?.value || '';
+  if ((!a || pass) && pass.length < app.accounts.min) {
+    drawerError(`Mật khẩu cần ít nhất ${app.accounts.min} ký tự: bấm “Tạo mật khẩu” để có mật khẩu mạnh.`);
+    $('#ac-pass', el).focus();
+    return;
+  }
+  drawerBusy(true, 'Đang lưu…');
+  const out = await api('luu-tai-khoan', { isNew: !a, name, role, pass, perms: role === 'admin' ? null : readPerms(el) });
+  drawerBusy(false);
+  if (!out.ok) {
+    if (!out.login) drawerError(out.error || 'Chưa lưu được. Thử lại sau ít phút.');
+    return;
+  }
+  closeDrawer();
+  renderAccounts(out);
+  toast(a ? `Đã lưu tài khoản ${name}.` : `Đã tạo tài khoản ${name}: gửi tên đăng nhập và mật khẩu cho người dùng.`, { timeout: 6000 });
+}
+
+async function removeAccount(name) {
+  drawerBusy(true, 'Đang xoá…', '[data-ad-danger]');
+  const out = await api('xoa-tai-khoan', { name });
+  drawerBusy(false, '', '[data-ad-danger]');
+  if (!out.ok) {
+    if (!out.login) drawerError(out.error || 'Chưa xoá được. Thử lại sau ít phút.');
+    return;
+  }
+  closeDrawer();
+  renderAccounts(out);
+  toast(`Đã xoá tài khoản ${name}.`);
+}
+
+/** Khung đổi mật khẩu của chính mình (mọi vai trò). Đổi xong script đăng xuất mọi nơi: web về khung đăng nhập. */
+function openPassword() {
+  openDrawer({
+    title: 'Đổi mật khẩu',
+    sub: `Tài khoản ${app.user}`,
+    saveLabel: 'Đổi mật khẩu',
+    body: `
+      <div class="admin-fields">
+        <input type="text" name="username" autocomplete="username" value="${esc(app.user)}" hidden>
+        <div class="field admin-field">
+          <label class="field__label" for="pw-old">Mật khẩu hiện tại</label>
+          <input class="field__input" id="pw-old" type="password" autocomplete="current-password" maxlength="200">
+        </div>
+        <div class="field admin-field">
+          <label class="field__label" for="pw-new">Mật khẩu mới</label>
+          <input class="field__input" id="pw-new" type="password" autocomplete="new-password" maxlength="200" aria-describedby="pw-hint">
+          <p class="admin-field__hint" id="pw-hint">Ít nhất ${MIN_PASSWORD} ký tự. Đổi xong, mọi nơi đang đăng nhập bằng tài khoản này bị đăng xuất.</p>
+        </div>
+        <div class="field admin-field">
+          <label class="field__label" for="pw-again">Nhập lại mật khẩu mới</label>
+          <input class="field__input" id="pw-again" type="password" autocomplete="new-password" maxlength="200">
+        </div>
+      </div>`,
+    onSave: async () => {
+      const el = drawer.el;
+      const [old, pass, again] = ['#pw-old', '#pw-new', '#pw-again'].map((id) => $(id, el));
+      if (!old.value) {
+        drawerError('Nhập mật khẩu hiện tại.');
+        old.focus();
+        return;
+      }
+      if (pass.value.length < MIN_PASSWORD) {
+        drawerError(`Mật khẩu mới cần ít nhất ${MIN_PASSWORD} ký tự.`);
+        pass.focus();
+        return;
+      }
+      if (pass.value !== again.value) {
+        drawerError('Hai lần nhập mật khẩu mới chưa giống nhau.');
+        again.focus();
+        return;
+      }
+      drawerBusy(true, 'Đang đổi…');
+      const out = await api('doi-mat-khau', { old: old.value, pass: pass.value });
+      drawerBusy(false);
+      if (!out.ok) {
+        if (!out.login) drawerError(out.error || 'Chưa đổi được. Thử lại sau ít phút.');
+        old.select();
+        return;
+      }
+      signedOut('Đã đổi mật khẩu. Đăng nhập lại bằng mật khẩu mới.');
+    },
+  });
+}
+
+/* Khung bên phải cho Tài khoản, Đổi mật khẩu: giống khung sửa dòng nhưng không gắn với trang tính */
+let drawer = null; // { el, overlay, busy, opener, onSave, onDanger, onConfirm }
+
+function openDrawer({ title, sub = '', body, saveLabel = 'Lưu', danger = '', onSave, onDanger }) {
+  closeDrawer();
+  closePanel();
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  const el = document.createElement('aside');
+  el.className = 'drawer drawer--wide admin-panel';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-modal', 'true');
+  el.setAttribute('aria-labelledby', 'ad-title');
+  el.innerHTML = `
+    <div class="drawer__head">
+      <div class="admin-panel__titles">
+        <h2 class="drawer__title" id="ad-title">${esc(title)}</h2>
+        ${sub ? `<p class="admin-panel__sub">${esc(sub)}</p>` : ''}
+      </div>
+      <button type="button" class="icon-btn" data-ad-close aria-label="Đóng">${icon('close')}</button>
+    </div>
+    <form class="drawer__body admin-panel__body" data-ad-form novalidate>${body}<button type="submit" hidden></button></form>
+    <div class="drawer__foot admin-panel__foot">
+      <div class="send-error" data-ad-error hidden tabindex="-1"></div>
+      <div class="admin-confirm" data-ad-confirm hidden>
+        <p data-ad-confirm-text></p>
+        <div class="admin-confirm__actions">
+          <button type="button" class="btn btn--sm btn--danger" data-ad-confirm-ok></button>
+          <button type="button" class="btn btn--ghost btn--sm" data-ad-confirm-no>Quay lại</button>
+        </div>
+      </div>
+      <div class="admin-panel__actions" data-ad-actions>
+        ${danger ? `<button type="button" class="btn btn--ghost btn--sm admin-panel__delete" data-ad-danger>${icon('trash')} ${esc(danger)}</button>` : ''}
+        <button type="button" class="btn btn--ghost btn--sm" data-ad-close>Huỷ</button>
+        <button type="button" class="btn btn--primary btn--sm" data-ad-save>${esc(saveLabel)}</button>
+      </div>
+    </div>`;
+  drawer = { el, overlay, busy: false, opener: document.activeElement, onSave, onDanger, onConfirm: null };
+  document.body.append(overlay, el);
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b || !drawer || drawer.busy) return;
+    if (b.matches('[data-ad-close]')) closeDrawer();
+    else if (b.matches('[data-ad-save]')) drawer.onSave?.();
+    else if (b.matches('[data-ad-danger]')) drawer.onDanger?.();
+    else if (b.matches('[data-ad-confirm-ok]')) {
+      const fn = drawer.onConfirm;
+      drawerConfirm('');
+      fn?.();
+    } else if (b.matches('[data-ad-confirm-no]')) drawerConfirm('');
+  });
+  $('[data-ad-form]', el).addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (drawer && !drawer.busy) drawer.onSave?.();
+  });
+  el.addEventListener('input', () => {
+    const box = $('[data-ad-error]', el);
+    if (!box.hidden) box.hidden = true;
+  });
+  el.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (!drawer?.busy) closeDrawer();
+    } else {
+      trapFocus(el, e);
+    }
+  });
+  overlay.addEventListener('click', () => { if (!drawer?.busy) closeDrawer(); });
+  document.documentElement.style.overflow = 'hidden';
+  requestAnimationFrame(() => {
+    overlay.classList.add('is-open');
+    el.classList.add('is-open');
+    ($('input:not([hidden]):not([disabled]), select:not([disabled])', el) || $('[data-ad-close]', el)).focus({ preventScroll: true });
+  });
+  return el;
+}
+
+function closeDrawer() {
+  if (!drawer) return;
+  const d = drawer;
+  drawer = null;
+  d.overlay.classList.remove('is-open');
+  d.el.classList.remove('is-open');
+  setTimeout(() => {
+    d.overlay.remove();
+    d.el.remove();
+  }, 300);
+  document.documentElement.style.overflow = '';
+  if (d.opener?.isConnected) d.opener.focus({ preventScroll: true });
+}
+
+function drawerError(text) {
+  const box = $('[data-ad-error]', drawer.el);
+  box.hidden = !text;
+  box.innerHTML = text ? `<p class="send-error__text">${icon('info', 'icon--md')}<span>${esc(text)}</span></p>` : '';
+  if (text) box.focus();
+}
+
+function drawerConfirm(text, okLabel = '', onOk = null) {
+  const box = $('[data-ad-confirm]', drawer.el);
+  drawer.onConfirm = onOk;
+  box.hidden = !text;
+  $('[data-ad-actions]', drawer.el).hidden = Boolean(text);
+  if (!text) return;
+  $('[data-ad-confirm-text]', box).textContent = text;
+  $('[data-ad-confirm-ok]', box).textContent = okLabel;
+  $('[data-ad-confirm-no]', box).focus();
+}
+
+function drawerBusy(on, label = '', which = '[data-ad-save]') {
+  drawer.busy = on;
+  $$('button, input, select', drawer.el).forEach((x) => {
+    if (on) {
+      x.dataset.wasDisabled = x.disabled ? '1' : '';
+      x.disabled = true;
+    } else {
+      x.disabled = x.dataset.wasDisabled === '1';
+    }
+  });
+  const btn = $(which, drawer.el);
+  if (!btn) return;
+  if (on) {
+    btn.dataset.label = btn.innerHTML;
+    btn.textContent = label;
+    btn.setAttribute('aria-busy', 'true');
+  } else {
+    if (btn.dataset.label) btn.innerHTML = btn.dataset.label;
+    btn.removeAttribute('aria-busy');
+  }
+}
+
+/** Thông báo của người vừa đăng xuất không hiện tiếp cho người đăng nhập sau trên cùng máy. */
+function clearToasts() {
+  $$('.toast').forEach((t) => t.remove());
+}
+
+/** Phiên vừa hết hiệu lực ở mọi nơi (VD vừa đổi mật khẩu): về khung đăng nhập với lời nhắn. */
+function signedOut(message) {
+  closePanel();
+  closeDrawer();
+  clearToasts();
+  clearSession();
+  app.doc = null;
+  app.view = '';
+  slideSide(false, false);
+  showWork(false);
+  els.userBox.hidden = true;
+  showLogin(message, false, false);
+}
+
+/** Bấm "Mở đơn", "Hoa hồng seller" trong mục Hoa hồng: mở trang tính đó, mở khung của dòng nếu có. */
+async function gotoSheet(sheet, row) {
+  if (!(await loadSheet(sheet))) return;
+  if (row && app.doc.sheet?.name === sheet && app.doc.sheet.index.has(row)) {
+    $(`tr[data-row="${row}"]`, els.grid)?.scrollIntoView({ block: 'center' });
+    openPanel('edit', row);
+  }
+}
+
 /* ---------- Khởi động ---------- */
 function bind() {
   els.boot = $('[data-admin-boot]');
@@ -1079,9 +1770,12 @@ function bind() {
   els.status = $('[data-admin-status]');
   els.grid = $('[data-admin-grid]');
   els.dash = $('[data-admin-dash]');
+  els.view = $('[data-admin-view]');
+  els.views = $('[data-admin-views]');
   els.searchBox = els.search.closest('.admin-search');
   els.userBox = $('[data-admin-user]');
   els.userName = $('[data-admin-name]');
+  els.userRole = $('[data-admin-role]');
 
   els.loginForm.addEventListener('submit', onLogin);
   els.codeForm.addEventListener('submit', onCode);
@@ -1098,7 +1792,24 @@ function bind() {
     $('use', btn).setAttribute('href', `assets/img/icons.svg#i-${show ? 'eye-off' : 'eye'}`);
   });
   $('[data-admin-logout]').addEventListener('click', logout);
-  $('[data-admin-reload]').addEventListener('click', () => loadSheet(app.doc?.sheet.name, { keepScroll: true }));
+  $('[data-admin-password]').addEventListener('click', openPassword);
+  $('[data-admin-reload]').addEventListener('click', () => {
+    if (app.view) openView(app.view);
+    else loadSheet(app.doc?.sheet?.name, { keepScroll: true });
+  });
+  els.views.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-view]');
+    if (!b) return;
+    if (els.side.classList.contains('is-open')) slideSide(false);
+    if (b.getAttribute('aria-pressed') !== 'true') openView(b.dataset.view);
+  });
+  els.view.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.matches('[data-goto-sheet]')) gotoSheet(b.dataset.gotoSheet, Number(b.dataset.gotoRow) || 0);
+    else if (b.matches('[data-ac-new]')) openAccount(null);
+    else if (b.matches('[data-ac-open]')) openAccount(b.dataset.acOpen);
+  });
   els.add.addEventListener('click', () => openPanel('add'));
   try { els.work.classList.toggle('is-collapsed', Boolean(localStorage.getItem(SIDE_KEY))); } catch { /* private mode */ }
   syncMenu();
@@ -1131,7 +1842,7 @@ function bind() {
     clearTimeout(timer);
     timer = setTimeout(() => {
       app.query = els.search.value;
-      if (app.doc && !app.doc.dashboard) renderGrid();
+      if (app.doc?.sheet && !app.doc.dashboard && !app.view) renderGrid();
     }, 150);
   });
   els.grid.addEventListener('click', (e) => {
@@ -1145,7 +1856,7 @@ function bind() {
     if (tr) openPanel('edit', Number(tr.dataset.row), Number(td.dataset.col));
   });
   window.addEventListener('resize', () => {
-    if (app.doc && !app.doc.dashboard) stickHead();
+    if (app.doc?.sheet && !app.doc.dashboard && !app.view) stickHead();
   });
   // Biểu đồ vẽ theo độ rộng khung: vẽ lại khi khung đổi cỡ (xoay máy, ẩn hiện cột trái)
   new ResizeObserver(() => { if (!els.dash.hidden) redrawDashboard(); }).observe(els.dash);
@@ -1172,8 +1883,8 @@ async function start() {
     showLogin();
     return;
   }
-  // Tab này còn phiên đăng nhập: mở thẳng trang tính (phiên hết hạn thì api() hiện khung đăng nhập)
-  await loadSheet(lastSheet());
+  // Tab này còn phiên đăng nhập: mở thẳng trang tính, hay mục hoa hồng của seller (phiên hết hạn thì api() hiện khung đăng nhập)
+  openHome();
 }
 
 // Không cho trang khác nhúng trang quản trị vào khung (chống bấm nhầm qua lớp phủ)
