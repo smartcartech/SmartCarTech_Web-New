@@ -247,6 +247,11 @@ Mở `smartcartech.vn/quan-tri.html`, đăng nhập, rồi xem và sửa dữ li
 - **Thêm dòng**: VD đơn Shopee, đơn Zalo. Ở Đơn hàng, Tư vấn, In 3D, Task Tracking: dòng mới nằm trên cùng, ngay dưới dòng tiêu đề (trang có dòng cố định thì dưới các dòng cố định; có dòng tên bảng ở trên thì dưới dòng tên cột); trang khác: cuối trang tính. Ô thả xuống, ô tích lấy theo dòng kề bên.
 - **Xoá dòng**: nút ở cuối khung, bấm thêm một lần để xác nhận.
 - Ô tìm kiếm lọc các dòng có chữ đó, không cần gõ dấu: gõ "binh" tìm được "Bình".
+- **Chuyển trang nhanh:** mỗi lần tải, script phải đọc cả trang tính trên Google Sheet nên mất vài giây. Vì vậy:
+  - Trang đã mở trong tab này hiện ngay khi bấm lại, rồi web tải bản mới ở dưới (dòng "Đang cập nhật dữ liệu mới nhất…"). Có gì khác thì tự vẽ lại, giữ chỗ đang cuộn. Đang mở khung sửa một dòng thì không vẽ lại; lưu vẫn được kiểm tra như thường.
+  - Mở xong trang đầu tiên, web tải ngầm 8 trang hay mở nhất trên máy đó (`PREFETCH_MAX` trong `assets/js/admin.js`), để lần đầu bấm sang cũng hiện ngay. Người dùng đang chờ một trang thì phần tải ngầm nhường.
+  - Bấm **Tải lại** để lấy bản mới nhất ngay. Rê chuột vào chữ "tải lúc …" để xem script mất bao lâu.
+  - Đăng xuất hay đổi tài khoản thì mọi trang đã nhớ bị bỏ.
 - Ghi đúng kiểu như khi gõ trên Sheet: SĐT giữ số 0 ở đầu, mã đơn dài giữ dạng chữ, ô số nhận "2.980.000", ô ngày nhận "31/10/2026 14:30".
 
 **Dữ liệu được giữ an toàn:**
@@ -381,6 +386,8 @@ Nhật ký quản trị và trang Hoa hồng seller chỉ admin xem được. M�
 ### Trang Tổng quan và khách truy cập
 
 Trang tính **Tổng quan** (trang đầu tiên của Sheet, script tự tạo) gom số liệu kinh doanh, có biểu đồ. Trên trang quản trị, mở trang này thì thấy thẻ số, biểu đồ vẽ riêng cho web (xem được trên điện thoại) và bảng.
+
+Tính lại Tổng quan khá lâu, nên trang quản trị dùng lại số liệu vừa tính nếu chưa quá 10 phút (`DASH_REFRESH_MINUTES`) và chưa có gì đổi: đơn mới, lượt xem mới, sửa, thêm, xoá dòng ở Đơn hàng, In 3D, Tư vấn (trên web hay trên Google Sheet), gộp Customer Infor. Có một trong các việc đó thì lần mở sau tính lại. Bấm **Tải lại** để tính lại ngay.
 
 - **Tháng này, tính tới hôm nay** so với cùng kỳ tháng trước (từ ngày 1 tới cùng ngày): lợi nhuận, doanh thu, số đơn, khách truy cập, tỷ lệ đặt hàng.
 - **Biểu đồ**: doanh thu và lợi nhuận 12 tháng gần nhất; số đơn theo nền tảng (Website, Shopee, TikTok, Khác, In 3D); khách truy cập 30 ngày gần nhất. Trên web: rê chuột, chạm hoặc dùng phím ← → trên biểu đồ để xem số từng tháng, từng ngày.

@@ -245,6 +245,7 @@ function saveOrder_(data) {
     orderCells_(sh, added, ORDER_STATUSES, Boolean(seller.name));
     syncProfit_(sh, added, added); // đơn không có seller: manager nhận hoa hồng (nếu admin đã bật)
   });
+  dashStale_();
   notify_(`Đơn mới #${code} – ${name}`, [
     `${name} – ${phone}`, address, '', ...products, '',
     `Tổng: ${money_(total)} ₫`, `Ghi chú: ${note}`, ...sellerLines_(seller.name, pct),
@@ -329,6 +330,7 @@ function saveLead_(data) {
 
   const sh = getSheet_(SpreadsheetApp.getActiveSpreadsheet(), LEAD_SHEET, LEAD_HEADER);
   addRow_(sh, { 'Thời gian': new Date(), 'Họ tên': name, 'SĐT': phone, 'Nội dung': message });
+  dashStale_();
   notify_(`Yêu cầu tư vấn – ${name}`, `${name} – ${phone}\n\n${message}`);
   return 'ok';
 }
@@ -362,6 +364,7 @@ function savePrint_(data) {
       { [PRINT_STATUS_COL]: PRINT_STATUSES[0] }, receivedCell_(sh, row.cells['Tạm tính (₫)']), sellerCells_(seller.name, pct)));
     orderCells_(sh, added, PRINT_STATUSES, Boolean(seller.name));
   });
+  dashStale_();
   notify_(`${row.title} #${code} – ${name}`, [`${name} – ${phone}`, ...row.email, ...sellerLines_(seller.name, pct)].join('\n'));
   return 'ok';
 }
@@ -1153,8 +1156,13 @@ function onEdit(e) {
   if (!e || !e.range) return;
   const sh = e.range.getSheet();
   const name = sh.getName();
-  if (e.range.getLastRow() < 2 || ![ORDER_SHEET, PRINT_SHEET, COMMISSION_SHEET].includes(name)) return;
+  if (e.range.getLastRow() < 2 || ![ORDER_SHEET, PRINT_SHEET, COMMISSION_SHEET, LEAD_SHEET].includes(name)) return;
+  if (name === LEAD_SHEET) {
+    dashStale_(sh); // Tư vấn: chỉ Tổng quan cần biết
+    return;
+  }
   const [rowFrom, rowTo, colFrom, colTo] = [e.range.getRow(), e.range.getLastRow(), e.range.getColumn(), e.range.getLastColumn()];
+  dashStale_(sh);
   if (name === COMMISSION_SHEET) {
     withDocLock_(() => fixRates_(sh, rowFrom, rowTo, colFrom, colTo));
     return;
@@ -1646,6 +1654,7 @@ const ADMIN_NAME_TEXT = 'Tên đăng nhập 3–30 ký tự: chữ không dấu,
 
 /** Mọi yêu cầu từ trang quản trị. Trừ 2 bước đăng nhập, việc nào cũng cần mã phiên còn hạn. Trang đang tắt thì từ chối hết. */
 function adminApi_(data) {
+  const started = Date.now();
   if (PropertiesService.getScriptProperties().getProperty(ADMIN_OFF_KEY)) return { ok: false, login: true, off: true, error: ADMIN_OFF_TEXT };
   if (data.action === 'dang-nhap') return adminLogin_(data);
   if (data.action === 'ma-2-buoc') return adminCode_(data);
@@ -1659,7 +1668,9 @@ function adminApi_(data) {
   // Quyền đọc lại mỗi lần: admin vừa đổi quyền thì áp dụng ngay ở lần bấm tiếp theo
   const me = { user: session.user, role: session.role, perms: session.role === 'admin' ? null : adminPerms_(session.user) };
   if (ADMIN_ONLY_ACTIONS.includes(data.action) && me.role !== 'admin') return { ok: false, error: ADMIN_NOT_ALLOWED };
-  return ADMIN_ACTIONS[data.action](data, session.user, me);
+  const out = ADMIN_ACTIONS[data.action](data, session.user, me);
+  if (data.action === 'doc' && out && out.ok) out.ms = Date.now() - started; // web hiện khi rê chuột vào dòng "tải lúc"
+  return out;
 }
 
 /**
@@ -2168,41 +2179,93 @@ function totpUri_(name, key) {
 
 /**
  * Danh sách trang tính tài khoản này xem được và nội dung trang đang mở (không có tên đó thì mở trang đầu tiên; không
- * xem được trang nào thì `sheet` null). Mở trang Tổng quan thì số liệu được tính lại và gửi kèm (`dashboard`) để web vẽ
- * biểu đồ. Lần đầu admin đăng nhập sau khi dán script, trang Tổng quan được tạo ở đầu.
+ * xem được trang nào thì `sheet` null). Mở trang Tổng quan thì gửi kèm số liệu (`dashboard`) để web vẽ biểu đồ, không gửi
+ * lưới ô của trang đó. Lần đầu admin đăng nhập sau khi dán script, trang Tổng quan được tạo ở đầu.
+ * Cho nhanh: `list: false` (web đã có danh sách trang tính) thì không đọc lại từng trang; `fresh` (bấm Tải lại) thì không
+ * dùng số liệu Tổng quan, độ rộng cột đã nhớ.
  */
 function adminRead_(data, user, me) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const admin = me.role === 'admin';
-  let dashboard = admin && !ss.getSheetByName(DASHBOARD_SHEET) ? dashboardFor_(ss) : null;
-  const sheets = ss.getSheets().filter((s) => canSee_(me, s));
+  const fresh = data.fresh === true;
+  let dashboard = admin && !ss.getSheetByName(DASHBOARD_SHEET) ? dashboardFor_(ss, true) : null;
   const wanted = adminSheet_(data.sheet);
-  const sh = wanted && canSee_(me, wanted) ? wanted : sheets[0] || null;
+  let sh = wanted && canSee_(me, wanted) ? wanted : null;
+  // Trang muốn mở không còn, hay không được xem: gửi lại cả danh sách để web vẽ lại cột trang tính
+  const sheets = data.list === false && sh ? null : ss.getSheets().filter((s) => canSee_(me, s));
+  if (!sh) sh = sheets[0] || null;
   if (sh && admin && sh.getName() === COMMISSION_SHEET) syncCommission_(ss); // sản phẩm mới trên web có dòng ngay
   const own = Boolean(sh) && sh.getName() === DASHBOARD_SHEET;
-  if (own && !dashboard) dashboard = dashboardFor_(ss);
+  if (own && !dashboard) dashboard = dashboardFor_(ss, fresh);
   // Trang cùng tên do shop tự tạo (không có ghi chú của script ở ô A1): hiện như trang tính thường
   if (!own || sh.getRange(1, 1).getNote() !== DASH_MARK) dashboard = null;
-  return {
+  const access = sh ? sheetAccess_(me, sh) : null;
+  const out = {
     ok: true,
     user,
     me: whoami_(me),
     url: admin ? ss.getUrl() : '', // người không phải admin không mở Google Sheet: không cần biết địa chỉ
     log: admin ? ADMIN_LOG_SHEET : '',
-    sheets: sheets.map((s) => ({ name: s.getName(), hidden: s.isSheetHidden() })),
-    sheet: sh ? sheetView_(sh, sheetAccess_(me, sh), user) : null,
+    sheet: !sh ? null : dashboard ? sheetStub_(sh, access) : sheetView_(sh, access, user, fresh),
     dashboard,
   };
+  if (sheets) out.sheets = sheets.map((s) => ({ name: s.getName(), hidden: s.isSheetHidden() }));
+  return out;
 }
 
-/** Số liệu Tổng quan cho trang quản trị: tính lại và ghi trang trong Sheet; Sheet đang bận thì chỉ tính, không ghi. */
-function dashboardFor_(ss) {
+/**
+ * Số liệu Tổng quan cho trang quản trị. Vừa tính trong DASH_REFRESH_MINUTES phút mà chưa có đơn mới, chưa ai sửa trang
+ * nguồn (dashStale_) thì dùng luôn: không tính, ghi lại trang (việc lâu nhất khi mở Tổng quan). `fresh`: tính lại.
+ * Sheet đang bận thì chỉ tính, không ghi.
+ */
+function dashboardFor_(ss, fresh) {
+  if (!fresh) {
+    const kept = dashCached_();
+    if (kept) return kept;
+  }
   try {
     return refreshDashboard_(ss);
   } catch (err) {
     console.warn(err);
     return dashboardData_(ss, new Date());
   }
+}
+
+const DASH_CACHE_KEY = 'tong-quan:so-lieu';            // CacheService: số liệu Tổng quan vừa tính
+const DASH_SOURCES = [ORDER_SHEET, PRINT_SHEET, LEAD_SHEET]; // Trang Tổng quan tính từ các trang này (và lượt xem)
+
+function dashCached_() {
+  try {
+    return JSON.parse(CacheService.getScriptCache().get(DASH_CACHE_KEY) || 'null');
+  } catch (err) {
+    return null;
+  }
+}
+
+function dashKeep_(data) {
+  try {
+    CacheService.getScriptCache().put(DASH_CACHE_KEY, JSON.stringify(data), DASH_REFRESH_MINUTES * 60);
+  } catch (err) {
+    console.warn(err); // VD quá 100 KB: lần sau tính lại như trước
+  }
+}
+
+/** Có đơn mới hay vừa sửa trang nguồn (`sh`; bỏ trống: chắc chắn đổi): lần mở Tổng quan tới tính lại. */
+function dashStale_(sh) {
+  if (sh && !DASH_SOURCES.includes(sh.getName())) return;
+  try {
+    CacheService.getScriptCache().remove(DASH_CACHE_KEY);
+  } catch (err) {
+    console.warn(err);
+  }
+}
+
+/** Trang Tổng quan trên trang quản trị: web vẽ từ `dashboard`, không cần lưới ô (đọc lưới ô của trang đó khá lâu). */
+function sheetStub_(sh, access) {
+  return {
+    name: sh.getName(), id: sh.getSheetId(), rows: 0, cols: 0, frozen: 0, rules: restrict_(adminRules_(sh), access),
+    dec: ',', images: 0, formulas: false, widths: [], kinds: [], merges: [], lists: [], rowNums: [], hashes: [], cells: [], webRows: [],
+  };
 }
 
 function adminSheet_(name) {
@@ -2323,7 +2386,7 @@ function lockText_(sh, row, col, reason) {
  * xuống, ô gộp, độ rộng cột. Trang lớn hơn ADMIN_MAX_CELLS ô: chỉ gửi các dòng tiêu đề và các dòng cuối (mới nhất).
  * `access` (sheetAccess_): cột ẩn không gửi gì; seller ở trang đơn chỉ nhận dòng tiêu đề và các đơn của `user`.
  */
-function sheetView_(sh, access, user) {
+function sheetView_(sh, access, user, fresh) {
   const ctx = gridContext_(sh);
   const rows = sh.getLastRow();
   const cols = sh.getLastColumn();
@@ -2353,7 +2416,7 @@ function sheetView_(sh, access, user) {
     });
   });
   view.kinds = Array.from({ length: cols }, (_, c) => majorityKind_(kinds.map((k) => k[c])));
-  view.widths = tryGet_(() => Array.from({ length: cols }, (_, c) => sh.getColumnWidth(c + 1))) || [];
+  view.widths = columnWidths_(sh, cols, fresh);
   // Chỉ xem đơn của mình: bỏ ô gộp ở phần dữ liệu (các dòng không liền nhau); ô gộp chạm cột ẩn cũng bỏ
   view.merges = (tryGet_(() => sh.getRange(1, 1, rows, cols).getMergedRanges()) || [])
     .map((m) => [m.getRow(), m.getColumn(), m.getNumRows(), m.getNumColumns()])
@@ -2362,6 +2425,32 @@ function sheetView_(sh, access, user) {
   view.formulas = ctx.formulas;
   if (own) view.rows = view.rowNums[view.rowNums.length - 1] || 0;
   return view;
+}
+
+/**
+ * Độ rộng các cột (px) của trang tính. Mỗi cột một lần hỏi Google Sheet nên khá lâu: nhớ 30 phút cho mỗi trang (số cột
+ * đổi thì đọc lại); `fresh` (bấm Tải lại) thì đọc lại.
+ */
+function columnWidths_(sh, cols, fresh) {
+  const cache = CacheService.getScriptCache();
+  const key = `qt:rong:${sh.getSheetId()}`;
+  if (!fresh) {
+    try {
+      const kept = JSON.parse(cache.get(key) || 'null');
+      if (Array.isArray(kept) && kept.length === cols) return kept;
+    } catch (err) {
+      // đọc lại bên dưới
+    }
+  }
+  const widths = tryGet_(() => Array.from({ length: cols }, (_, c) => sh.getColumnWidth(c + 1))) || [];
+  if (widths.length) {
+    try {
+      cache.put(key, JSON.stringify(widths), 1800);
+    } catch (err) {
+      console.warn(err);
+    }
+  }
+  return widths;
 }
 
 /** Múi giờ, dấu thập phân theo vùng của Sheet (VD vi_VN: 1,5) và các danh sách thả xuống đã gặp khi đọc. */
@@ -2615,6 +2704,7 @@ function adminEdit_(data, user, me) {
       if (!sameCell_(values[col - 1], formulas[col - 1], next)) changes.push({ cell, col, next, before: formulas[col - 1] || shown[col - 1] });
     }
     changes.forEach((ch) => (ch.next.formula !== undefined ? ch.cell.setFormula(ch.next.formula) : ch.cell.setValue(ch.next.value)));
+    if (changes.length) dashStale_(sh);
     if (sh.getName() === COMMISSION_SHEET) fixRates_(sh, row, row, 1, width);
     const linked = changes.some((ch) => watchesCodes_(sh, ch.col, ch.col)) ? linkCodes_(sh, row, row) || {} : null;
     if (changes.some((ch) => watchesProfit_(sh, ch.col, ch.col))) syncProfit_(sh, row, row);
@@ -2695,6 +2785,7 @@ function adminAppend_(data, user, me) {
     }
     if (watchesCodes_(sh, 1, width)) linkCodes_(sh, added, added);
     syncProfit_(sh, added, added);
+    dashStale_(sh);
     adminLog_(user, 'Thêm dòng', sh.getName(), `Dòng ${added}`, '', text.join('\n'));
     return { ok: true, row: added };
   });
@@ -2728,6 +2819,7 @@ function adminDelete_(data, user, me) {
     // Google Sheet không cho xoá hết các dòng không cố định: thêm 1 dòng trống ở cuối trước
     if (sh.getMaxRows() <= sh.getFrozenRows() + 1) sh.insertRowAfter(sh.getMaxRows());
     sh.deleteRow(row);
+    dashStale_(sh);
     return { ok: true };
   });
 }
@@ -3360,6 +3452,7 @@ function mergeCustomerInfo() {
     ui.alert(title, done.error, ui.ButtonSet.OK);
     return;
   }
+  dashStale_(); // nhiều đơn mới: Tổng quan tính lại lần mở tới
   ss.getSheetByName(ORDER_SHEET).activate();
   ui.alert(title, ['Đã gộp xong.', ...customerPlanLines_(done), '',
     `Kiểm tra lại trang "${ORDER_SHEET}". Đúng rồi thì xoá trang "${CUSTOMER_SHEET}", mục này trong menu tự mất ở lần mở sau.`,
@@ -3672,6 +3765,7 @@ function countVisit_(data) {
   if (month) c.m++;
   if (year) c.y++;
   props.setProperty(key, JSON.stringify(c));
+  dashStale_(); // Tổng quan hiện ngay lượt vừa đếm
 }
 
 /** Số đếm của 1 ngày (chữ JSON trong Script Properties) → { v, d, m, y }; thiếu hoặc hỏng thì là 0. */
@@ -3931,6 +4025,7 @@ function refreshDashboard_(ss) {
     const data = dashboardData_(ss, now);
     writeDashboard_(ss, data);
     PropertiesService.getScriptProperties().setProperty(DASH_UPDATED_KEY, String(Date.now()));
+    dashKeep_(data);
     return data;
   });
 }

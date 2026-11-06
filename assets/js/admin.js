@@ -13,6 +13,11 @@ import { renderDashboard, redrawDashboard } from './dashboard.js';
 
 const SESSION_KEY = 'sctech_admin_v1'; // core.js đọc cùng khoá: seller đang đăng nhập thì đơn gửi từ tab này ghi tên seller
 const SHEET_KEY = 'sctech_admin_sheet';
+const VISITS_KEY = 'sctech_admin_visits'; // + ":tên": số lần mở mỗi trang tính, để tải trước trang hay mở
+const CACHE_MAX = 16;            // Số trang tính nhớ trong tab: quá thì bỏ trang lâu nhất chưa mở lại
+const PREFETCH_MAX = 8;          // Mở xong trang đầu: tải trước bấy nhiêu trang hay mở nhất
+const LIST_MAX_AGE = 5 * 60000;  // Danh sách trang tính cũ hơn bấy nhiêu thì xin lại (VD vừa thêm trang trên Google Sheet)
+const DASH_NAME = 'Tổng quan';   // Giống DASHBOARD_SHEET trong google-apps-script.gs
 const SIDE_KEY = 'sctech_admin_side_hidden';
 const DEVICE_KEY = 'sctech_admin_trinh_duyet'; // mã ngẫu nhiên của trình duyệt này: script chỉ báo email khi gặp trình duyệt lạ
 const WIDE = window.matchMedia('(min-width: 1024px)'); // Giống style.css: từ cỡ này cột trang tính luôn nằm bên trái
@@ -35,6 +40,14 @@ const app = {
   notesOpen: false,
   step2: null,    // đang chờ mã 2 bước: { ticket, user }
   codeBusy: false,
+  cache: new Map(),    // trang đã mở, đã tải trước trong tab này: tên → trả lời "doc" (bấm lại thì hiện ngay)
+  inflight: new Map(), // tên trang → lần tải đang chạy
+  sheets: null,        // danh sách trang tính mới nhất script gửi (các lần tải sau không xin lại, xem LIST_MAX_AGE)
+  listAt: 0,           // lúc nhận danh sách đó
+  counts: null,        // [số dòng đang hiện, tổng số dòng] của lần vẽ dòng thông tin gần nhất
+  gen: 0,              // đổi khi đăng xuất, đổi tài khoản: kết quả tải của phiên trước bị bỏ
+  prefetched: false,   // đã tải trước các trang hay mở (mỗi lần đăng nhập một lần)
+  waiting: 0,          // số lần tải người dùng đang chờ (tải ngầm nhường các lần này)
 };
 const els = {};
 let panel = null; // khung xem / sửa một dòng đang mở
@@ -135,7 +148,7 @@ function deviceKey() {
  * Gửi một việc tới Google Apps Script. Không ném lỗi: luôn trả { ok, error?, … }.
  * Phiên hết hạn (`login`) thì hiện khung đăng nhập lại, nội dung đang sửa vẫn giữ nguyên.
  */
-async function api(action, body = {}) {
+async function api(action, body = {}, { background = false } = {}) {
   let text = '';
   try {
     // text/plain giữ yêu cầu ở dạng đơn giản: Apps Script không cần bước CORS preflight
@@ -160,11 +173,16 @@ async function api(action, body = {}) {
         : 'Google Apps Script trả lời không đúng dạng. Thử lại sau ít phút.',
     };
   }
-  if (out.login) {
-    clearSession();
-    showLogin(out.error, true);
-  }
+  // Tải ngầm (tải trước trang hay mở) gặp phiên hết hạn: để lần bấm tiếp theo của người dùng hiện khung đăng nhập
+  if (out.login && !background) needLogin(out);
   return out;
+}
+
+/** Phiên hết hạn (hay trang quản trị vừa tắt): khung đăng nhập nổi lên, nội dung đang sửa không mất. */
+function needLogin(out) {
+  if (els.login.classList.contains('is-modal') && !app.token) return;
+  clearSession();
+  showLogin(out.error, true);
 }
 
 /* ---------- Đăng nhập ---------- */
@@ -305,6 +323,7 @@ function loggedIn(out) {
     closeDrawer();
     if (other) {
       // Không để lại danh sách trang tính, dữ liệu của người trước trong lúc tải phần của người mới
+      resetCache();
       app.doc = null;
       app.view = '';
       clearToasts();
@@ -322,7 +341,7 @@ function loggedIn(out) {
   } else if (app.view) {
     openView(app.view);
   } else {
-    loadSheet(app.doc?.sheet?.name, { keepScroll: true });
+    loadSheet(app.doc?.sheet?.name, { keepScroll: true, wait: true });
   }
 }
 
@@ -344,6 +363,7 @@ async function logout() {
   closeDrawer();
   clearToasts();
   clearSession();
+  resetCache();
   app.doc = null;
   app.view = '';
   slideSide(false, false);
@@ -375,26 +395,188 @@ function bootError(text) {
   }
 }
 
+/* ---------- Nhớ trang đã mở, tải trước trang hay mở: chuyển trang không phải chờ script ---------- */
+/** Bỏ mọi trang đã nhớ, lần tải đang chạy, lượt tải trước (đăng xuất, đổi tài khoản: không giữ dữ liệu của người trước). */
+function resetCache() {
+  app.gen++;
+  app.cache.clear();
+  app.inflight.clear();
+  app.sheets = null;
+  app.listAt = 0;
+  app.prefetched = false;
+}
+
+/** Dấu vân tay của trả lời "doc" (trước khi prepare): bản mới giống hệt bản đang hiện thì không vẽ lại. */
+function fingerprint(out) {
+  const s = JSON.stringify([out.sheet, out.dashboard, out.me, out.url]);
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return `${s.length}:${h >>> 0}`;
+}
+
+/** Nhớ trả lời của một trang (trang mở lại gần nhất ở cuối; quá CACHE_MAX trang thì bỏ trang lâu nhất). */
+function keep(name, out) {
+  app.cache.delete(name);
+  app.cache.set(name, out);
+  while (app.cache.size > CACHE_MAX) app.cache.delete(app.cache.keys().next().value);
+}
+
+/**
+ * Gọi "doc" cho trang `name`. Trang đó đang được tải (VD tải trước) thì dùng chung lần tải đó. Danh sách trang tính chỉ
+ * xin lại khi đã cũ (LIST_MAX_AGE) hay `fresh` (bấm Tải lại: script cũng không dùng số liệu đã nhớ). Trả lời tốt được nhớ.
+ */
+function fetchDoc(name, { fresh = false, background = false } = {}) {
+  const key = name || '';
+  if (!fresh && app.inflight.has(key)) return app.inflight.get(key);
+  const gen = app.gen;
+  const body = { sheet: key };
+  if (!fresh && app.sheets && Date.now() - app.listAt < LIST_MAX_AGE) body.list = false;
+  if (fresh) body.fresh = true;
+  const job = api('doc', body, { background }).then((out) => {
+    if (app.inflight.get(key) === job) app.inflight.delete(key);
+    if (gen !== app.gen || !out.ok) return out;
+    if (out.sheets) {
+      app.sheets = out.sheets;
+      app.listAt = Date.now();
+    } else {
+      out.sheets = app.sheets || [];
+    }
+    out.at = new Date();
+    out.fp = fingerprint(out);
+    if (out.sheet) keep(out.sheet.name, out);
+    return out;
+  });
+  app.inflight.set(key, job);
+  return job;
+}
+
+/** Số lần mở mỗi trang tính trên trình duyệt này (theo tài khoản): tải trước trang hay mở nhất. */
+function visits() {
+  try { return JSON.parse(localStorage.getItem(`${VISITS_KEY}:${app.user}`) || '{}') || {}; } catch { return {}; }
+}
+
+function countVisit(name) {
+  try {
+    const v = visits();
+    v[name] = (Number(v[name]) || 0) + 1;
+    localStorage.setItem(`${VISITS_KEY}:${app.user}`, JSON.stringify(v));
+  } catch { /* private mode */ }
+}
+
+/**
+ * Mở xong trang đầu tiên: tải ngầm các trang hay mở (tối đa PREFETCH_MAX, 2 trang một lúc), để bấm sang là hiện ngay.
+ * Không tải trước Tổng quan (script tính số liệu lúc mở) và trang đang ẩn trên Google Sheet. Mỗi lần đăng nhập một lần.
+ */
+function prefetch() {
+  if (app.prefetched || !app.sheets?.length) return;
+  app.prefetched = true;
+  const gen = app.gen;
+  const count = visits();
+  const order = new Map(app.sheets.map((s, i) => [s.name, i]));
+  const queue = app.sheets.filter((s) => !s.hidden && s.name !== DASH_NAME).map((s) => s.name)
+    .sort((a, b) => (Number(count[b]) || 0) - (Number(count[a]) || 0) || order.get(a) - order.get(b))
+    .slice(0, PREFETCH_MAX);
+  const next = () => {
+    if (gen !== app.gen || !app.token) return;
+    // Người dùng đang chờ một trang: trang đó đi trước, tải ngầm đợi xong mới tiếp
+    if (app.waiting) {
+      setTimeout(next, 300);
+      return;
+    }
+    const name = queue.shift();
+    if (name === undefined) return;
+    if (app.cache.has(name)) next();
+    else fetchDoc(name, { background: true }).then(next, next);
+  };
+  setTimeout(() => { next(); next(); }, 1500);
+}
+
+const REFRESH_TEXT = 'Đang cập nhật dữ liệu mới nhất…';
+
+/** Đang hiện bản đã nhớ và chờ bản mới: dòng báo nhỏ, lưới vẫn dùng được. */
+function refreshing(on) {
+  [els.grid, els.dash].forEach((el) => el.toggleAttribute('data-refreshing', on));
+  if (on) setStatus(REFRESH_TEXT);
+  else if (els.status.textContent === REFRESH_TEXT) setStatus('');
+}
+
 /**
  * Mở trang tính `name` (không có, hay tài khoản không xem được, thì trang đầu tiên tài khoản xem được). Trả true khi đã
  * hiện dữ liệu. `quiet`: chỉ lấy danh sách trang tính, vai trò (trước khi mở mục Hoa hồng, Tài khoản), không vẽ lưới.
+ * Trang đã mở trong tab này thì hiện ngay bản đã nhớ, rồi tải bản mới ở dưới (khác thì vẽ lại, giữ chỗ đang cuộn). `wait`:
+ * chờ bản mới (VD vừa thêm, xoá dòng); `fresh`: bấm Tải lại.
  */
-async function loadSheet(name, { keepScroll = false, quiet = false } = {}) {
+async function loadSheet(name, { keepScroll = false, quiet = false, wait = false, fresh = false } = {}) {
   const ticket = ++app.ticket;
-  setStatus(quiet ? 'Đang tải…' : 'Đang tải trang tính…');
-  els.grid.setAttribute('aria-busy', 'true');
-  els.dash.setAttribute('aria-busy', 'true');
-  const out = await api('doc', { sheet: name || '' });
+  const kept = !quiet && !wait && !fresh && name ? app.cache.get(name) : null;
+  if (kept) {
+    // Bấm từ một trang đang tải dở sang trang đã nhớ: bỏ trạng thái "đang tải" (lưới mờ) của lần trước
+    els.grid.removeAttribute('aria-busy');
+    els.dash.removeAttribute('aria-busy');
+    showDoc(kept, { keepScroll });
+    countVisit(kept.sheet.name);
+    refreshing(true);
+  } else {
+    refreshing(false);
+    setStatus(quiet ? 'Đang tải…' : 'Đang tải trang tính…');
+    els.grid.setAttribute('aria-busy', 'true');
+    els.dash.setAttribute('aria-busy', 'true');
+  }
+  app.waiting++;
+  const out = await fetchDoc(name, { fresh }).finally(() => { app.waiting--; });
   if (ticket !== app.ticket) return false;
+  if (kept) {
+    refreshing(false);
+    if (!out.ok) {
+      if (out.login && app.token) needLogin(out);
+      if (!out.login) setStatus(`Chưa tải được bản mới nhất (${out.error || 'thử lại sau ít phút'}): đang xem dữ liệu tải lúc ${timeText(kept.at)}.`, true);
+      return true;
+    }
+    // Không đổi gì: giữ bản đang hiện (đã có các dòng vừa sửa); đang sửa một dòng: không vẽ lại dưới tay người dùng
+    if (out.fp === kept.fp && out.sheet?.name === kept.sheet.name) {
+      kept.at = out.at;
+      app.loadedAt = out.at;
+      keep(kept.sheet.name, kept);
+      if (!app.view) renderInfoAgain();
+      return true;
+    }
+    if (panel || drawer) return true;
+    if (out.sheet?.name !== kept.sheet.name) app.cache.delete(kept.sheet.name); // trang đó vừa đổi tên, bị xoá hay không còn được xem
+    showDoc(out, { keepScroll: out.sheet?.name === kept.sheet.name });
+    prefetch();
+    return true;
+  }
   els.grid.removeAttribute('aria-busy');
   els.dash.removeAttribute('aria-busy');
   if (!out.ok) {
-    if (out.login) setStatus('');
+    // Trang này đang được tải ngầm thì lần tải đó không hiện khung đăng nhập: hiện ở đây
+    if (out.login) {
+      setStatus('');
+      if (app.token) needLogin(out);
+    }
     else if (app.doc) setStatus(out.error || 'Chưa tải được trang tính. Thử lại sau ít phút.', true);
     else bootError(out.error || 'Chưa tải được Google Sheet. Thử lại sau ít phút.');
     return false;
   }
   setStatus('');
+  showDoc(out, { keepScroll, quiet });
+  if (!quiet && out.sheet) countVisit(out.sheet.name);
+  prefetch();
+  return true;
+}
+
+/** "11:43" */
+const timeText = (date) => (date ? date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '');
+
+/** Vẽ lại dòng thông tin trang đang mở (giờ tải) mà không vẽ lại lưới. */
+function renderInfoAgain() {
+  const sh = app.doc?.sheet;
+  if (!sh) return;
+  renderInfo(...(app.counts || [0, 0]));
+}
+
+/** Hiện một trả lời "doc" (vừa tải hay đã nhớ): trang tính, Tổng quan, hay báo chưa được xem trang nào. */
+function showDoc(out, { keepScroll = false, quiet = false } = {}) {
   const same = !quiet && !app.view && app.doc?.sheet && out.sheet && app.doc.sheet.name === out.sheet.name;
   // Trang Tổng quan: số liệu, biểu đồ thay cho lưới ô
   const view = out.dashboard ? els.dash : els.grid;
@@ -403,7 +585,7 @@ async function loadSheet(name, { keepScroll = false, quiet = false } = {}) {
   app.doc = out;
   app.user = out.user || app.user;
   takeMe(out.me);
-  app.loadedAt = new Date();
+  app.loadedAt = out.at || new Date();
   if (out.sheet) {
     prepare(out.sheet);
     if (!quiet) rememberSheet(out.sheet.name);
@@ -411,7 +593,7 @@ async function loadSheet(name, { keepScroll = false, quiet = false } = {}) {
   els.boot.hidden = true;
   showWork(true);
   showUser();
-  if (quiet) return true;
+  if (quiet) return;
   app.view = '';
   renderViews();
   renderTabs();
@@ -429,7 +611,6 @@ async function loadSheet(name, { keepScroll = false, quiet = false } = {}) {
   }
   view.scrollTop = scroll ? scroll.top : 0;
   view.scrollLeft = scroll ? scroll.left : 0;
-  return true;
 }
 
 /** Vai trò script vừa báo (đổi vai trò thì script đã đăng xuất phiên cũ, đây chỉ để chắc chắn giao diện đúng). */
@@ -508,7 +689,7 @@ function renderTabs() {
   const bar = els.tabs;
   const top = bar.scrollTop;
   const focused = bar.contains(document.activeElement);
-  bar.innerHTML = app.doc.sheets.map((s) => `
+  bar.innerHTML = (app.sheets || app.doc.sheets).map((s) => `
     <button type="button" class="admin-tab${s.hidden ? ' is-hidden' : ''}" data-sheet="${esc(s.name)}" aria-pressed="${s.name === current}"${s.hidden ? ' title="Trang tính đang ẩn trên Google Sheet"' : ''}>${esc(s.name.trim() || '(không tên)')}</button>`).join('');
   // Vẽ lại làm danh sách nhảy về đầu: giữ chỗ đang cuộn, trang đang mở bị khuất thì cuộn tới
   bar.scrollTop = top;
@@ -572,16 +753,18 @@ function renderViewInfo(title, facts = '') {
 }
 
 function renderInfo(shown, total) {
+  app.counts = [shown, total];
   const sh = app.doc.sheet;
   if (!sh) {
     renderViewInfo('Trang quản trị', ROLES[app.role] ? `Tài khoản ${ROLES[app.role]}` : '');
     return;
   }
-  const time = app.loadedAt ? app.loadedAt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
+  const time = timeText(app.loadedAt);
+  const took = typeof app.doc.ms === 'number' ? ` title="Script trả lời sau ${(app.doc.ms / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} giây"` : '';
   const q = app.query.trim();
   const unit = sh.rules.own ? 'đơn của bạn' : 'dòng';
   const facts = app.doc.dashboard ? [`số liệu lúc ${esc(app.doc.dashboard.updated)}`]
-    : [q ? `Đang lọc: ${shown}/${total} ${unit} có “${esc(q)}”` : `${total} ${unit}`, `${sh.shownCols.length} cột`, time && `tải lúc ${time}`].filter(Boolean);
+    : [q ? `Đang lọc: ${shown}/${total} ${unit} có “${esc(q)}”` : `${total} ${unit}`, `${sh.shownCols.length} cột`, time && `<span${took}>tải lúc ${time}</span>`].filter(Boolean);
   const admin = app.role === 'admin';
   const notes = [];
   if (sh.rules.own) notes.push('Chỉ hiện các đơn bạn lên: đơn có cột Seller là tên tài khoản của bạn.');
@@ -1100,7 +1283,7 @@ async function onFail(out, typed) {
   const { mode, row, sheet } = panel;
   const notes = describe(typed);
   closePanel();
-  if (!(await loadSheet(sheet, { keepScroll: true }))) {
+  if (!(await loadSheet(sheet, { keepScroll: true, wait: true }))) {
     setStatus(out.error, true);
     return;
   }
@@ -1134,8 +1317,9 @@ async function save() {
       return;
     }
     closePanel();
+    app.cache.delete(DASH_NAME);
     toast(`Đã thêm dòng ${out.row} vào “${sh.name}”.`);
-    if (await loadSheet(sh.name, { keepScroll: true })) {
+    if (await loadSheet(sh.name, { keepScroll: true, wait: true })) {
       $(`tr[data-row="${out.row}"]`, els.grid)?.scrollIntoView({ block: 'center' });
     }
     return;
@@ -1154,13 +1338,16 @@ async function save() {
     return;
   }
   closePanel();
-  if (out.saved) mergeRow(sh, row, out.row);
+  if (out.saved) {
+    mergeRow(sh, row, out.row);
+    app.cache.delete(DASH_NAME);
+  }
   renderGrid();
   if (out.message) toast(`Đã lưu dòng ${row}. Lưu ý: ${out.message}`, { timeout: 9000 });
   else toast(out.saved ? `Đã lưu dòng ${row}.` : 'Nội dung giống hệt trên Sheet: không có gì thay đổi.');
   // Công thức ở dòng khác có thể đổi theo; gán mã tải code đổi màu ô ở dòng khác
   if (out.saved && (out.reload || sh.formulas || (out.row && out.row.cells.length > sh.cols))) {
-    loadSheet(sh.name, { keepScroll: true });
+    loadSheet(sh.name, { keepScroll: true, wait: true });
   }
 }
 
@@ -1175,8 +1362,9 @@ async function doDelete() {
     return;
   }
   closePanel();
+  app.cache.delete(DASH_NAME);
   toast(`Đã xoá dòng ${row}. Nội dung được lưu ở trang “${app.doc.log}”.`, { timeout: 6000 });
-  loadSheet(sh.name, { keepScroll: true });
+  loadSheet(sh.name, { keepScroll: true, wait: true });
 }
 
 /* ---------- Mục Hoa hồng, Tài khoản (thay cho lưới trang tính) ---------- */
@@ -1874,7 +2062,7 @@ function bind() {
   $('[data-admin-password]').addEventListener('click', openPassword);
   $('[data-admin-reload]').addEventListener('click', () => {
     if (app.view) openView(app.view);
-    else loadSheet(app.doc?.sheet?.name, { keepScroll: true });
+    else loadSheet(app.doc?.sheet?.name, { keepScroll: true, fresh: true });
   });
   els.views.addEventListener('click', (e) => {
     const b = e.target.closest('[data-view]');
