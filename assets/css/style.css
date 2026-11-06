@@ -2874,6 +2874,8 @@ a.contact-item:hover .contact-item__value { color: var(--c-accent); }
 .admin-perm__cols { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--c-line); }
 .admin-perm__list { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0 12px; }
 .admin-perm__order { align-items: center; margin-bottom: 16px; }
+.admin-pct { margin-bottom: 18px; }
+.admin-pct__row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
 
 /* Seller đang lên đơn cho khách (đã đăng nhập trang quản trị trong cùng tab): dải báo ở đầu trang bán hàng */
 .seller-bar { background: rgba(24, 229, 254, 0.1); border-bottom: 1px solid var(--accent-45); }

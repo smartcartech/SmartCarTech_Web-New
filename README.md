@@ -255,10 +255,10 @@ Mở `smartcartech.vn/quan-tri.html`, đăng nhập, rồi xem và sửa dữ li
 - Dòng 1 (tên cột) của các trang Đơn hàng, Tư vấn, In 3D, Mã tải code chỉ sửa được trên Sheet, vì script tìm cột theo tên để ghi đơn.
 - Trang Mã tải code không thêm, xoá dòng trên web được, vì mã đã in trên thẻ. Cột Mã tải code, Mã đơn, Khách hàng chỉ xem. Tạo mã, in thẻ vẫn làm ở menu SmartCarTech. Muốn ngừng một mã: tích ô Khoá.
 - Ô script tự tính, tự ghi chỉ xem trên trang quản trị (trên Google Sheet vẫn sửa được khi thật cần):
-  - **Lợi nhuận** ở trang Đơn hàng, mọi dòng: script tự tính bằng Doanh thu sau điều chỉnh trừ Chi phí. Muốn lợi nhuận đổi thì sửa 2 cột đó.
+  - **Lợi nhuận** ở trang Đơn hàng, In 3D, mọi dòng: script tự tính bằng Doanh thu sau điều chỉnh trừ Chi phí. Muốn lợi nhuận đổi thì sửa 2 cột đó.
   - **Lợi nhuận sau hoa hồng**: script tự tính bằng Lợi nhuận trừ Hoa hồng (₫) (xem *Hoa hồng* bên dưới).
-  - **Đơn đặt trên website** (Nền tảng là Website, hoặc trống mà mã đơn dạng SC…): Thời gian, Mã đơn, Nền tảng, Sản phẩm, Tổng (₫), Kiểm tra. Họ tên, SĐT, Địa chỉ, Ghi chú (khách gõ, có thể sai) và các cột shop tự điền vẫn sửa được. Đơn shop tự thêm (Shopee, Tiktok) thì sửa được hết, trừ Lợi nhuận.
-  - **Yêu cầu đặt ở trang In 3D** (mã dạng IN…): Thời gian, Mã, Loại, Kiểm tra. Nội dung, Số lượng, Tạm tính vẫn sửa được, vì shop chốt lại với khách và báo giá in theo file.
+  - **Đơn đặt trên website** (Nền tảng là Website, hoặc trống mà mã đơn dạng SC…): Thời gian, Mã đơn, Nền tảng, Sản phẩm, Tổng (₫), Kiểm tra, và **Doanh thu sau điều chỉnh** (tự tính bằng Tiền thu người nhận trừ Phí ship (đơn web), xem *Phí ship, doanh thu đơn web* bên dưới). Họ tên, SĐT, Địa chỉ, Ghi chú (khách gõ, có thể sai) và các cột shop tự điền vẫn sửa được. Đơn shop tự thêm (Shopee, Tiktok) thì sửa được hết, trừ Lợi nhuận và Phí ship (đơn web) (chỉ dành cho đơn web).
+  - **Yêu cầu đặt ở trang In 3D** (mã dạng IN…): Thời gian, Mã, Loại, Kiểm tra, Doanh thu sau điều chỉnh (tự tính như đơn web). Nội dung, Số lượng, Tạm tính vẫn sửa được, vì shop chốt lại với khách và báo giá in theo file.
   - Trang **Mã tải code**: Tải lần đầu, Tải gần nhất, File tải gần nhất, Đã in. *Số lần tải* vẫn sửa được để đặt lại về 0 khi khách hết lượt.
   - **Ô công thức** ở mọi trang: hiện kết quả và công thức; đổi công thức thì sửa trên Google Sheet.
 - Sửa cột Mã tải code (hoặc Mã đơn, Họ tên, SĐT) ở trang Đơn hàng trên web thì script gán mã y như khi gõ trên Sheet.
@@ -316,17 +316,19 @@ Web lên trước khi triển khai script mới thì trang quản trị báo "ch
 
 Mỗi tài khoản có một vai trò:
 
-- **Admin**: xem, sửa mọi thứ, quản lý tài khoản, xem hoa hồng của mọi seller. Tài khoản tạo từ trước khi có vai trò đều là admin.
-- **Manager**: giúp quản lý đơn. Chỉ xem được các trang tính, các cột admin cho. Không bao giờ thấy cột hoa hồng (mọi cột có chữ "hoa hồng", ở mọi trang tính), không có mục Hoa hồng, Tài khoản.
+- **Admin**: xem, sửa mọi thứ, quản lý tài khoản, xem hoa hồng của mọi seller, manager và lợi nhuận của shop sau khi trả hoa hồng. Tài khoản tạo từ trước khi có vai trò đều là admin.
+- **Manager**: giúp quản lý đơn. Chỉ xem được các trang tính, các cột admin cho. Không bao giờ thấy cột hoa hồng trên trang tính (mọi cột có chữ "hoa hồng", ở mọi trang tính, kể cả % hoa hồng). Admin cho manager % hoa hồng thì manager có mục **Hoa hồng của tôi**: các đơn mình nhận hoa hồng. Không có mục Tài khoản.
 - **Seller**: tự tìm khách rồi lên đơn trên web. Ở Đơn hàng, In 3D chỉ thấy đơn mình lên, không thêm, xoá dòng ở đó; xem tình trạng đơn và hoa hồng của mình.
 
-Nhật ký quản trị và trang Hoa hồng seller chỉ admin xem được. Mọi quyền do script kiểm tra ở mỗi lần bấm: cột bị ẩn, đơn của người khác không được gửi về trình duyệt, nên xem mã nguồn trang cũng không thấy. Seller xem được Hoa hồng (₫), Đã trả hoa hồng của đơn mình nhưng không sửa được; cột Seller cũng chỉ admin sửa.
+Nhật ký quản trị và trang Hoa hồng seller chỉ admin xem được. Mọi quyền do script kiểm tra ở mỗi lần bấm: cột bị ẩn, đơn của người khác không được gửi về trình duyệt, nên xem mã nguồn trang cũng không thấy. Seller xem được Doanh thu sau điều chỉnh, % hoa hồng, Hoa hồng (₫), Đã trả hoa hồng của đơn mình; các cột hoa hồng chỉ admin sửa, cột Seller, Manager cũng vậy.
 
 **Tạo, sửa tài khoản** (đăng nhập bằng tài khoản admin → mục **Tài khoản** ở đầu cột trái):
 
 1. Bấm **Thêm tài khoản**, nhập tên đăng nhập, chọn vai trò, bấm *Tạo mật khẩu* rồi chép lại.
-2. Chọn trang tính được xem và việc được làm ở trang đó: *Xem*, *Sửa*, *Thêm dòng*, *Xoá dòng*. Bấm *Cột* để chỉ cho xem một số cột, hoặc để *Mọi cột, kể cả cột thêm sau này*. Vai trò mới có sẵn quyền gợi ý: manager xem, sửa, thêm dòng ở Đơn hàng, In 3D, Tư vấn; seller xem đơn của mình ở Đơn hàng, In 3D (các cột khách, sản phẩm, tổng, trạng thái, hoa hồng) và được lên đơn.
-3. Bấm **Tạo tài khoản**, gửi tên đăng nhập và mật khẩu cho người đó. Họ tự đổi mật khẩu ở nút ổ khoá cạnh tên mình.
+2. Chọn trang tính được xem và việc được làm ở trang đó: *Xem*, *Sửa*, *Thêm dòng*, *Xoá dòng*. Bấm *Cột* để chỉ cho xem một số cột, hoặc để *Mọi cột, kể cả cột thêm sau này*. Vai trò mới có sẵn quyền gợi ý: manager xem, sửa, thêm dòng ở Đơn hàng, In 3D, Tư vấn; seller xem đơn của mình ở Đơn hàng, In 3D (các cột khách, sản phẩm, tổng, trạng thái, doanh thu, % và hoa hồng) và được lên đơn.
+3. **Được nhập "Phí ship (đơn web)"**: mặc định chỉ admin nhập phí ship. Tích ô này thì manager, seller đó nhập được phí ship của đơn web (seller: đơn của mình), kể cả khi trang tính đó chỉ cho xem: các cột khác vẫn chỉ xem.
+4. Manager: ô **% hoa hồng** và **Tính cho đơn từ ngày** (xem *Hoa hồng của manager* bên dưới). Để trống: không nhận hoa hồng.
+5. Bấm **Tạo tài khoản**, gửi tên đăng nhập và mật khẩu cho người đó. Họ tự đổi mật khẩu ở nút ổ khoá cạnh tên mình.
 
 - Đổi quyền có hiệu lực ngay ở lần bấm tiếp theo của người đó. Đổi vai trò hay đặt mật khẩu mới thì người đó bị đăng xuất.
 - Không tự đổi vai trò, không tự xoá tài khoản của mình, và web luôn còn ít nhất 1 admin. Mất hết admin (VD quên mật khẩu): tạo lại trong Google Sheet, menu SmartCarTech → Tài khoản trang quản trị…, vai trò Admin.
@@ -337,23 +339,44 @@ Nhật ký quản trị và trang Hoa hồng seller chỉ admin xem được. M�
 **Seller lên đơn:**
 
 1. Seller đăng nhập trang quản trị, bấm **Lên đơn bộ xe** hoặc **Lên đơn In 3D**: trang bán hàng mở ngay trong tab đó, đầu trang có dòng "Đang lên đơn cho khách bằng tài khoản seller …".
-2. Chọn sản phẩm, điền thông tin khách đưa rồi gửi như khách đặt. Đơn được ghi ở Đơn hàng hoặc In 3D: cột **Seller** là tên seller, **Hoa hồng (₫)** tự tính, **Đã trả hoa hồng** chưa tích. Email báo đơn ghi tên seller và hoa hồng.
+2. Chọn sản phẩm, điền thông tin khách đưa rồi gửi như khách đặt. Đơn được ghi ở Đơn hàng hoặc In 3D: cột **Seller** là tên seller, **% hoa hồng** theo sản phẩm, **Đã trả hoa hồng** chưa tích; **Hoa hồng (₫)** tự tính khi đơn có Doanh thu sau điều chỉnh. Email báo đơn ghi tên seller và %.
 
 - Phải mở trang bán hàng trong cùng tab với trang quản trị: ở tab khác, máy khác, đơn là đơn khách tự đặt, không có tên seller.
 - Phiên seller hết hạn (3 giờ không dùng) thì dòng đầu trang báo đăng nhập lại. Đơn gửi lúc đó không được ghi, để seller đăng nhập lại rồi gửi lại, không mất hoa hồng.
 - Admin bỏ tích *Được lên đơn* của seller nào thì đơn seller đó gửi không được ghi.
 
-**Hoa hồng:**
+**Phí ship, doanh thu đơn web:**
 
-- Mức hoa hồng ở trang tính **Hoa hồng seller** (script tạo, chỉ admin xem): mỗi sản phẩm trên web một dòng (các bộ xe, bảng tên 1 tầng, 2 tầng, giá đỡ), admin điền cột *Hoa hồng mỗi sản phẩm (₫)*, chung cho mọi seller. Sản phẩm mới trên web tự có dòng (mức để trống) khi mở trang này hoặc chạy *Kiểm tra cài đặt*. Trang Affiliate cũ nhập từ Excel không được dùng: chép mức sang trang này.
-- Hoa hồng của đơn = mức × số lượng, cộng các sản phẩm trong đơn. Sản phẩm chưa có mức, hay đơn in theo file (chưa có giá), thì ô Hoa hồng để trống: admin tự ghi vào đơn. Đổi mức chỉ áp dụng cho đơn mới.
-- Trang Đơn hàng có thêm cột **Trạng thái** (Mới, Đã xác nhận, Đang giao, Đã giao, Huỷ; `ORDER_STATUSES` trong script): đơn web mới ghi "Mới", manager cập nhật ở ô thả xuống. In 3D dùng cột Trạng thái sẵn có.
-- Mục **Hoa hồng seller** (admin), **Đơn và hoa hồng của tôi** (seller): *Chưa trả* là đơn Đã giao mà chưa tích Đã trả hoa hồng, *Đang chờ* là đơn chưa giao xong, *Đã trả*; đơn Huỷ không tính. Admin thấy từng seller và các đơn cần làm: bấm **Mở đơn**, tích **Đã trả hoa hồng** khi đã trả cho seller.
-- Cột **Lợi nhuận sau hoa hồng** ở trang Đơn hàng = Lợi nhuận trừ Hoa hồng (₫), tự tính như cột Lợi nhuận: đơn có lợi nhuận thì có số, đơn không có seller thì bằng Lợi nhuận, hoa hồng đổi thì tự tính lại. Đơn chưa có lợi nhuận thì để trống. Cột Lợi nhuận vẫn là Doanh thu sau điều chỉnh trừ Chi phí.
+- Trang Đơn hàng có cột **Phí ship (đơn web)** ngay trước Doanh thu sau điều chỉnh. Trang In 3D có cụm cột tiền giống vậy ở cuối: Tiền thu người nhận, Phí ship (đơn web), Doanh thu sau điều chỉnh, Chi phí, Lợi nhuận, Lợi nhuận sau hoa hồng.
+- Đơn web mới (khách tự đặt hay seller lên): **Tiền thu người nhận** ghi bằng tổng tiền đơn (sửa được khi khách trả khác). Nhập Phí ship (miễn ship thì gõ 0): **Doanh thu sau điều chỉnh** = Tiền thu người nhận − Phí ship, tự tính. Đổi một trong 2 ô thì doanh thu, lợi nhuận, hoa hồng tự tính lại.
+- Đơn Shopee, Tiktok: ô Phí ship (đơn web) để trống, trang quản trị không cho nhập; Doanh thu sau điều chỉnh gõ như trước.
+- Đơn web có từ trước bản này: số doanh thu đã gõ được giữ nguyên và vẫn sửa được. Muốn tính tự động thì xoá ô doanh thu đó, điền Tiền thu người nhận và Phí ship.
+
+**Hoa hồng seller:**
+
+- % hoa hồng ở trang tính **Hoa hồng seller** (script tạo, chỉ admin xem): mỗi sản phẩm trên web một dòng (các bộ xe, bảng tên 1 tầng, 2 tầng, giá đỡ), admin điền cột *% hoa hồng seller*, VD "10%" (gõ 10 cũng được: script ghi lại thành 10%), chung cho mọi seller. Sản phẩm mới trên web tự có dòng (để trống) khi mở trang này hoặc chạy *Kiểm tra cài đặt*.
+- Bản trước ghi số tiền mỗi sản phẩm: cột được đổi tên thành *% hoa hồng seller*, số tiền cũ giữ nguyên nhưng không dùng. *Kiểm tra cài đặt* báo còn bao nhiêu ô cần sửa thành %.
+- Đơn seller lên: % của sản phẩm ghi vào cột **% hoa hồng** của đơn (đơn nhiều sản phẩm: % chung theo tỷ trọng giá bán × số lượng, tới 0,01%). **Hoa hồng (₫) = % hoa hồng × Doanh thu sau điều chỉnh** của đơn, tự tính khi đơn có doanh thu. Sản phẩm chưa có %, hay đơn in theo file (chưa có giá), thì ô % để trống: admin ghi vào đơn.
+- Đổi % ở trang Hoa hồng seller chỉ áp dụng cho đơn mới; đơn đã có thì sửa ở cột % hoa hồng của đơn đó. Đơn seller của bản trước (đã ghi số tiền hoa hồng) giữ số tiền đó.
+
+**Hoa hồng của manager:**
+
+- Mục Tài khoản → mở tài khoản manager → điền **% hoa hồng** và **Tính cho đơn từ ngày** → Lưu. Manager nhận % đó × Doanh thu sau điều chỉnh của các đơn ở trang Đơn hàng **không có seller**, đặt từ ngày đó (đơn web và Shopee, Tiktok). Đơn In 3D không tính cho manager: chỉ seller nhận hoa hồng ở In 3D.
+- Lưu xong, các đơn từ ngày đó chưa có người nhận được ghi luôn tên manager ở cột **Manager** và % ở cột % hoa hồng; đơn mới tự ghi. Đổi % chỉ áp dụng cho đơn chưa ghi.
+- Mỗi lúc chỉ một manager nhận hoa hồng. Xoá % (để trống) thì đơn mới thôi tính; đơn đã ghi vẫn giữ hoa hồng.
+- Manager theo dõi ở mục **Hoa hồng của tôi** (chỉ các đơn mình nhận); trên trang tính vẫn không thấy cột hoa hồng của ai.
+
+**Mục Hoa hồng:**
+
+- Trang Đơn hàng có cột **Trạng thái** (Mới, Đã xác nhận, Đang giao, Đã giao, Huỷ; `ORDER_STATUSES` trong script): đơn web mới ghi "Mới", manager cập nhật ở ô thả xuống. In 3D dùng cột Trạng thái sẵn có.
+- **Hoa hồng, lợi nhuận** (admin), **Đơn và hoa hồng của tôi** (seller), **Hoa hồng của tôi** (manager): *Chưa trả* là đơn Đã giao mà chưa tích Đã trả hoa hồng, *Đang chờ* là đơn chưa giao xong, *Đã trả*; *Chưa tính được* là đơn chưa có % hay chưa có doanh thu; đơn Huỷ không tính.
+- Admin thấy từng người nhận (seller, manager) và các đơn cần làm: **Trả hoa hồng** (đơn đã giao), **Ghi %**, **Nhập doanh thu** (đơn đã giao mà chưa có doanh thu). Bấm **Mở đơn**, tích **Đã trả hoa hồng** khi đã trả.
+- Bảng **Lợi nhuận của shop sau khi trả hoa hồng** (admin): theo tháng đặt đơn, cả Đơn hàng và In 3D: Lợi nhuận, Hoa hồng (trả cho seller, manager), Lợi nhuận sau hoa hồng là số tiền shop thật sự kiếm được.
+- Cột **Lợi nhuận sau hoa hồng** ở trang Đơn hàng, In 3D = Lợi nhuận trừ Hoa hồng (₫), tự tính như cột Lợi nhuận: đơn có lợi nhuận thì có số, đơn không ai nhận hoa hồng thì bằng Lợi nhuận, hoa hồng đổi thì tự tính lại. Đơn chưa có lợi nhuận thì để trống.
 - Manager không thấy cột Lợi nhuận sau hoa hồng (tên có chữ "hoa hồng"): thấy cả 2 cột lợi nhuận thì trừ ra được hoa hồng. Trang Tổng quan chưa có lợi nhuận sau hoa hồng, vì trang đó cấp cho manager được.
-- Các cột Trạng thái, Seller, Hoa hồng (₫), Đã trả hoa hồng được thêm vào cuối trang Đơn hàng, In 3D khi mở Google Sheet sau khi dán script; các đơn cũ để trống. Trang Đơn hàng có thêm cột Lợi nhuận sau hoa hồng ở cuối (khi đã có cột Lợi nhuận): lần đầu thêm, mọi đơn đã có lợi nhuận được tính luôn.
+- Các cột mới được thêm khi mở Google Sheet sau khi dán script: Phí ship (đơn web) chèn trước Doanh thu sau điều chỉnh (Google Sheet tự dời công thức theo), Trạng thái, Seller, Hoa hồng (₫), Đã trả hoa hồng, Lợi nhuận sau hoa hồng, Manager, % hoa hồng ở cuối trang. Ô của đơn cũ không bị sửa.
 
-**Cài đặt (sau khi dán script mới):** tải lại Google Sheet (các cột mới được thêm), chạy **Kiểm tra cài đặt…** (tạo trang Hoa hồng seller), điền mức hoa hồng, triển khai phiên bản mới, rồi tạo tài khoản manager, seller ở mục Tài khoản.
+**Cài đặt (sau khi dán script mới):** tải lại Google Sheet (các cột mới được thêm), chạy **Kiểm tra cài đặt…** (tạo trang Hoa hồng seller, báo ô % cần sửa), điền % hoa hồng ở trang Hoa hồng seller, triển khai phiên bản mới, rồi tạo tài khoản manager, seller ở mục Tài khoản (manager nhận hoa hồng: điền %).
 
 ### Trang Tổng quan và khách truy cập
 
