@@ -285,23 +285,24 @@ const SEND_FAILED = {
   busy: 'Đang có quá nhiều lượt gửi, vui lòng đợi khoảng 10 phút rồi bấm gửi lại',
   invalid: 'Shop chưa nhận được thông tin này (có thể sản phẩm vừa được cập nhật), vui lòng tải lại trang rồi gửi lại',
   error: 'Vui lòng thử lại sau ít phút',
-  // Đơn do seller lên (sellerSession): script không ghi để seller đăng nhập lại rồi gửi lại, không mất hoa hồng
-  'seller-login': 'Phiên đăng nhập seller đã hết hạn nên đơn chưa được ghi. Bấm “Trang quản trị” ở đầu trang, đăng nhập lại ngay trong tab này rồi quay lại bấm gửi',
-  'seller-off': 'Tài khoản seller này chưa được admin cho lên đơn trên web nên đơn chưa được ghi. Báo admin của shop',
+  // Đơn do seller, manager lên (sellerSession): script không ghi để người lên đơn đăng nhập lại rồi gửi lại, không mất hoa hồng
+  'seller-login': 'Phiên đăng nhập trang quản trị đã hết hạn nên đơn chưa được ghi. Bấm “Trang quản trị” ở đầu trang, đăng nhập lại ngay trong tab này rồi quay lại bấm gửi',
+  'seller-off': 'Tài khoản này chưa được admin cho lên đơn trên web nên đơn chưa được ghi. Báo admin của shop',
 };
 
-/* ---------- Seller lên đơn cho khách ----------
-   Seller đăng nhập quan-tri.html rồi mở trang đặt hàng ngay trong tab đó: trang quản trị giữ phiên trong tab
-   (sessionStorage, cùng khoá với admin.js), nên đơn gửi từ tab này kèm mã phiên seller để script ghi tên seller,
+/* ---------- Seller, manager lên đơn cho khách ----------
+   Seller (hay manager) đăng nhập quan-tri.html rồi mở trang đặt hàng ngay trong tab đó: trang quản trị giữ phiên trong
+   tab (sessionStorage, cùng khoá với admin.js), nên đơn gửi từ tab này kèm mã phiên để script ghi tên người lên đơn,
    tính hoa hồng. Tab khác, máy khác: đơn khách tự đặt như thường. */
 const ADMIN_SESSION_KEY = 'sctech_admin_v1';
 const SELLER_TYPES = ['don-hang', 'in-3d']; // Đơn bộ xe, đơn In 3D; yêu cầu tư vấn thì không
+const ORDER_ROLES = { seller: 'seller', manager: 'manager' }; // Vai trò lên đơn được → chữ ở dải báo
 
-/** Seller đang đăng nhập trang quản trị trong tab này ({ token, user }), hoặc null. */
+/** Seller, manager đang đăng nhập trang quản trị trong tab này ({ token, user, role }), hoặc null. */
 function sellerSession() {
   try {
     const s = JSON.parse(sessionStorage.getItem(ADMIN_SESSION_KEY) || 'null');
-    return s && s.role === 'seller' && typeof s.token === 'string' && typeof s.user === 'string' ? s : null;
+    return s && Object.hasOwn(ORDER_ROLES, s.role) && typeof s.token === 'string' && typeof s.user === 'string' ? s : null;
   } catch {
     return null;
   }
@@ -319,7 +320,7 @@ async function showSellerBar(site) {
     bar.innerHTML = `<div class="container seller-bar__inner">${icon(ok ? 'shield' : 'info')}<p class="seller-bar__text">${html}</p>
       <a class="seller-bar__link" href="quan-tri.html">Trang quản trị</a></div>`;
   };
-  say(`Đang lên đơn cho khách bằng tài khoản seller <strong>${esc(s.user)}</strong>: đơn gửi từ tab này ghi tên bạn.`, true);
+  say(`Đang lên đơn cho khách bằng tài khoản ${ORDER_ROLES[s.role]} <strong>${esc(s.user)}</strong>: đơn gửi từ tab này ghi tên bạn.`, true);
   const skip = $('.skip-link');
   if (skip) skip.after(bar);
   else document.body.prepend(bar);
@@ -330,13 +331,13 @@ async function showSellerBar(site) {
     return;
   }
   if (!out || typeof out !== 'object' || (out.ok && out.order)) return;
-  if (out.ok && out.role !== 'seller') {
+  if (out.ok && !Object.hasOwn(ORDER_ROLES, out.role)) {
     bar.remove();
     return;
   }
   say(out.ok
-    ? 'Tài khoản seller này chưa được admin cho lên đơn: đơn gửi lúc này chưa ghi được. Báo admin của shop.'
-    : 'Phiên đăng nhập seller đã hết hạn: bấm “Trang quản trị” để đăng nhập lại trong tab này trước khi lên đơn, để đơn ghi tên bạn.', false);
+    ? `Tài khoản ${ORDER_ROLES[out.role]} này chưa được admin cho lên đơn: đơn gửi lúc này chưa ghi được. Báo admin của shop.`
+    : 'Phiên đăng nhập trang quản trị đã hết hạn: bấm “Trang quản trị” để đăng nhập lại trong tab này trước khi lên đơn, để đơn ghi tên bạn.', false);
 }
 
 /**
@@ -354,7 +355,10 @@ export async function sendToShop({ site, payload, message, button, busyLabel, er
   const seller = SELLER_TYPES.includes(payload.type) ? sellerSession() : null;
   const reply = await postToEndpoint(site, seller ? { ...payload, seller: seller.token } : payload);
   const saved = reply === 'ok';
-  if (saved && seller) toast(`Đơn đã ghi tên seller ${seller.user}: xem ở trang quản trị, mục Đơn và hoa hồng của tôi.`, { timeout: 6000 });
+  if (saved && seller) {
+    const where = seller.role === 'manager' ? 'Hoa hồng của tôi' : 'Đơn và hoa hồng của tôi';
+    toast(`Đơn đã ghi tên ${ORDER_ROLES[seller.role]} ${seller.user}: xem ở trang quản trị, mục ${where}.`, { timeout: 6000 });
+  }
 
   button.innerHTML = label;
   button.disabled = false;

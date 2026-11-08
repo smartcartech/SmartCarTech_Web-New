@@ -77,15 +77,16 @@ const MONEY_COLS = [ORDER_RECEIVED_COL, ORDER_SHIP_COL, ORDER_REVENUE_COL, ORDER
 const ORDER_NET_COL = 'Lợi nhuận sau hoa hồng';
 const ORDER_STATUS_COL = 'Trạng thái'; // Đơn web mới ghi "Mới", shop chọn tiếp ở ô thả xuống; seller theo dõi đơn của mình ở đây
 const ORDER_STATUSES = ['Mới', 'Đã xác nhận', 'Đang giao', 'Đã giao', 'Huỷ'];
-// Hoa hồng: đơn có seller (seller lên trên trang Đặt hàng, In 3D, hay admin ghi) thì seller nhận, % theo sản phẩm ở trang
-// COMMISSION_SHEET; đơn ở trang Đơn hàng không có seller, từ ngày admin bật % cho manager, thì manager nhận. Hoa hồng (₫) =
-// % hoa hồng × Doanh thu sau điều chỉnh, tự tính khi đơn có doanh thu. Admin tích "Đã trả hoa hồng" khi đã trả
-const SELLER_COL = 'Seller';
+// Hoa hồng: đơn có người lên đơn ở cột Seller (seller hay manager lên trên trang Đặt hàng, In 3D, hay admin ghi) thì người
+// đó nhận hoa hồng lên đơn, % theo sản phẩm ở trang COMMISSION_SHEET; đơn ở trang Đơn hàng không có người lên đơn (khách tự
+// đặt), từ ngày admin bật % cho manager, thì manager nhận hoa hồng quản lý (cột Manager). Hoa hồng (₫) = % hoa hồng ×
+// Doanh thu sau điều chỉnh, tự tính khi đơn có doanh thu. Admin tích "Đã trả hoa hồng" khi đã trả
+const SELLER_COL = 'Seller'; // Người lên đơn: tên tài khoản seller, hay manager tự lên đơn
 const COMMISSION_COL = 'Hoa hồng (₫)';
 const COMMISSION_PAID_COL = 'Đã trả hoa hồng';
 const SELLER_COLS = [SELLER_COL, COMMISSION_COL, COMMISSION_PAID_COL];
 const COMMISSION_PCT_COL = '% hoa hồng'; // % của đơn, ghi 1 lần khi biết người nhận; đổi % ở trang mức hay ở manager không đổi đơn cũ
-const MANAGER_COL = 'Manager';           // Manager nhận hoa hồng của đơn (chỉ trang Đơn hàng)
+const MANAGER_COL = 'Manager';           // Manager nhận hoa hồng quản lý của đơn khách tự đặt (chỉ trang Đơn hàng)
 const COMMISSION_SHEET = 'Hoa hồng seller'; // Script tạo, mỗi sản phẩm trên web một dòng; admin điền %. Chỉ admin xem được
 const COMMISSION_HEADER = ['Mã', 'Sản phẩm', 'Giá bán (₫)', '% hoa hồng seller'];
 const COMMISSION_OLD_RATE = 'Hoa hồng mỗi sản phẩm (₫)'; // Tên cột mức ở bản trước (số tiền): script đổi tên thành cột %
@@ -243,12 +244,12 @@ function saveOrder_(data) {
       [ORDER_STATUS_COL]: ORDER_STATUSES[0],
     }, receivedCell_(sh, total), sellerCells_(seller.name, pct)));
     orderCells_(sh, added, ORDER_STATUSES, Boolean(seller.name));
-    syncProfit_(sh, added, added); // đơn không có seller: manager nhận hoa hồng (nếu admin đã bật)
+    syncProfit_(sh, added, added); // khách tự đặt (không có người lên đơn): manager nhận hoa hồng quản lý (nếu admin đã bật)
   });
   dashStale_();
   notify_(`Đơn mới #${code} – ${name}`, [
     `${name} – ${phone}`, address, '', ...products, '',
-    `Tổng: ${money_(total)} ₫`, `Ghi chú: ${note}`, ...sellerLines_(seller.name, pct),
+    `Tổng: ${money_(total)} ₫`, `Ghi chú: ${note}`, ...sellerLines_(seller.name, pct, seller.role),
     ...(checks.length ? ['', `Cần kiểm tra: ${checks.join(' ')}`] : []),
   ].join('\n'));
   return 'ok';
@@ -260,18 +261,18 @@ function receivedCell_(sh, total) {
 }
 
 /**
- * Đơn do seller lên: trang đặt hàng gửi kèm mã phiên trang quản trị của seller (`data.seller`). Trả { name } (rỗng: đơn
- * khách tự đặt) hoặc { error } là câu trả lời cho web: "seller-login" phiên đã hết hạn, "seller-off" admin chưa cho
- * seller này lên đơn. Không ghi đơn trong 2 trường hợp đó, để seller đăng nhập lại rồi gửi lại, không mất hoa hồng.
- * Mã phiên của admin, manager: đơn thường.
+ * Đơn do seller, manager lên: trang đặt hàng gửi kèm mã phiên trang quản trị của người đó (`data.seller`). Trả { name,
+ * role } (name rỗng: đơn khách tự đặt) hoặc { error } là câu trả lời cho web: "seller-login" phiên đã hết hạn,
+ * "seller-off" admin chưa cho tài khoản này lên đơn. Không ghi đơn trong 2 trường hợp đó, để người lên đơn đăng nhập lại
+ * rồi gửi lại, không mất hoa hồng. Tên ghi ở cột Seller (người lên đơn), % theo sản phẩm như nhau. Mã phiên admin: đơn thường.
  */
 function orderSeller_(data) {
   if (data.seller == null || data.seller === '') return { name: '' };
   const session = adminSession_(data.seller);
   if (!session) return { error: 'seller-login' };
-  if (session.role !== 'seller') return { name: '' };
+  if (!ORDER_ROLES.includes(session.role)) return { name: '' };
   if (!adminPerms_(session.user).order) return { error: 'seller-off' };
-  return { name: session.user };
+  return { name: session.user, role: session.role };
 }
 
 /**
@@ -287,12 +288,12 @@ function pctText_(pct) {
   return `${String(Math.round(pct * 10000) / 100).replace('.', ',')}%`;
 }
 
-/** Dòng trong email báo đơn mới: seller nào lên, % hoa hồng. Email chỉ gửi tới shop (NOTIFY_EMAIL). */
-function sellerLines_(name, pct) {
+/** Dòng trong email báo đơn mới: seller (manager) nào lên, % hoa hồng. Email chỉ gửi tới shop (NOTIFY_EMAIL). */
+function sellerLines_(name, pct, role) {
   if (!name) return [];
   const rate = pct === '' ? `chưa có % hoa hồng (điền ở trang "${COMMISSION_SHEET}" rồi ghi vào đơn)`
     : `hoa hồng ${pctText_(pct)} ${ORDER_REVENUE_COL} (tự tính khi đơn có doanh thu)`;
-  return ['', `Seller lên đơn: ${name}, ${rate}`];
+  return ['', `${role === 'manager' ? 'Manager' : 'Seller'} lên đơn: ${name}, ${rate}`];
 }
 
 /** Ô "Đã trả hoa hồng" thành ô tích (đơn có người nhận hoa hồng); ô đang trống thì ghi "chưa tích". */
@@ -365,7 +366,7 @@ function savePrint_(data) {
     orderCells_(sh, added, PRINT_STATUSES, Boolean(seller.name));
   });
   dashStale_();
-  notify_(`${row.title} #${code} – ${name}`, [`${name} – ${phone}`, ...row.email, ...sellerLines_(seller.name, pct)].join('\n'));
+  notify_(`${row.title} #${code} – ${name}`, [`${name} – ${phone}`, ...row.email, ...sellerLines_(seller.name, pct, seller.role)].join('\n'));
   return 'ok';
 }
 
@@ -1400,9 +1401,10 @@ function orderDay_(value, tz) {
  * Các ô tự tính ở dòng from–to của trang Đơn hàng, In 3D, lần lượt:
  * 1. Đơn web: Doanh thu sau điều chỉnh = Tiền thu người nhận − Phí ship (đơn web).
  * 2. Lợi nhuận = Doanh thu sau điều chỉnh − Chi phí.
- * 3. Người nhận hoa hồng, ghi 1 lần khi ô % còn trống: đơn có seller lấy % theo ô Sản phẩm (trang Đơn hàng; In 3D admin ghi
- *    %); đơn ở trang Đơn hàng không có seller, ngày đơn từ ngày admin bật hoa hồng cho manager: tên và % của manager. Kèm ô
- *    tích Đã trả hoa hồng. % gõ 10 được ghi lại thành 10%.
+ * 3. Người nhận hoa hồng, ghi 1 lần khi ô % còn trống: đơn có người lên đơn ở cột Seller (seller, hay manager tự lên đơn)
+ *    lấy % theo ô Sản phẩm (trang Đơn hàng; In 3D admin ghi %); đơn ở trang Đơn hàng không có người lên đơn (khách tự đặt),
+ *    ngày đơn từ ngày admin bật hoa hồng quản lý: tên và % của manager ở cột Manager. Kèm ô tích Đã trả hoa hồng. % gõ 10
+ *    được ghi lại thành 10%.
  * 4. Hoa hồng (₫) = % hoa hồng × Doanh thu sau điều chỉnh.
  * 5. Lợi nhuận sau hoa hồng = Lợi nhuận − Hoa hồng (₫).
  * Công thức chỉ đặt khi các ô nó dùng đều có số và ô còn trống; thiếu số thì xoá đúng công thức đó (không hiện số sai, VD
@@ -1606,7 +1608,7 @@ const ADMIN_RULES = {
   [COMMISSION_SHEET]: {
     header: true, noAdd: true,
     readOnly: { [COMMISSION_HEADER[0]]: ADMIN_AUTO_PRODUCT, [COMMISSION_HEADER[1]]: ADMIN_AUTO_PRODUCT, [COMMISSION_HEADER[2]]: ADMIN_AUTO_PRODUCT },
-    tip: `% hoa hồng seller cho mỗi sản phẩm (gõ "10%"): đơn seller lên tự tính ${COMMISSION_COL} = % × ${ORDER_REVENUE_COL} của đơn (đơn nhiều sản phẩm: % theo tỷ trọng giá bán). Đổi % chỉ áp dụng cho đơn mới, đơn đã có thì sửa ở cột "${COMMISSION_PCT_COL}" của đơn đó. Chỉ admin xem được trang này.`,
+    tip: `% hoa hồng seller cho mỗi sản phẩm (gõ "10%"), cũng là % của manager tự lên đơn: đơn seller, manager lên tự tính ${COMMISSION_COL} = % × ${ORDER_REVENUE_COL} của đơn (đơn nhiều sản phẩm: % theo tỷ trọng giá bán). Đổi % chỉ áp dụng cho đơn mới, đơn đã có thì sửa ở cột "${COMMISSION_PCT_COL}" của đơn đó. Chỉ admin xem được trang này.`,
   },
   [CODE_SHEET]: {
     header: true, noAdd: true, noDelete: true,
@@ -1642,6 +1644,9 @@ const ADMIN_ONLY_ACTIONS = ['tai-khoan', 'luu-tai-khoan', 'xoa-tai-khoan']; // Q
    manager không bao giờ thấy cột hoa hồng; seller ở trang Đơn hàng, In 3D chỉ thấy đơn mình lên. Tài khoản tạo từ trước
    khi có vai trò (không ghi role) là admin. */
 const ADMIN_ROLES = { admin: 'Admin', manager: 'Manager', seller: 'Seller' };
+// Lên đơn cho khách trên trang Đặt hàng, In 3D (khi admin tích "Được lên đơn"): tên ghi ở cột Seller, hoa hồng % theo
+// sản phẩm (trang Hoa hồng seller), như nhau cho seller và manager. Đơn manager tự lên không tính hoa hồng quản lý.
+const ORDER_ROLES = ['seller', 'manager'];
 const ADMIN_PERMS_KEY = 'quan-tri:quyen:'; // + tên: { sheets: { id trang tính: { view, edit, add, del, cols? } }, order }
 const ADMIN_ONLY_SHEETS = [ADMIN_LOG_SHEET, COMMISSION_SHEET]; // Không cấp cho manager, seller được
 const OWN_ROW_SHEETS = [ORDER_SHEET, PRINT_SHEET];            // Seller chỉ thấy dòng có cột Seller là tên mình
@@ -1953,18 +1958,22 @@ function adminPerms_(name) {
   };
 }
 
-/** Tên, vai trò của người đang đăng nhập cho trang quản trị; `order`: seller được lên đơn trên trang Đặt hàng, In 3D. */
+/**
+ * Tên, vai trò của người đang đăng nhập cho trang quản trị; `order`: seller, manager được lên đơn trên trang Đặt hàng,
+ * In 3D; `earns`: có mục Hoa hồng của tôi (seller; manager có hoa hồng quản lý hay được lên đơn).
+ */
 function whoami_(me) {
+  const taker = ORDER_ROLES.includes(me.role);
   return {
-    user: me.user, role: me.role, label: ADMIN_ROLES[me.role], order: me.role === 'seller' && me.perms.order,
-    earns: me.role === 'seller' || (me.role === 'manager' && me.perms.pct > 0), // có mục Hoa hồng của tôi
+    user: me.user, role: me.role, label: ADMIN_ROLES[me.role], order: taker && me.perms.order,
+    earns: me.role === 'seller' || (me.role === 'manager' && (me.perms.pct > 0 || me.perms.order)),
   };
 }
 
-/** Tên các tài khoản seller: ô thả xuống ở cột Seller (chỉ admin thấy). */
+/** Tên các tài khoản seller, manager (người lên đơn được): ô thả xuống ở cột Seller (chỉ admin thấy). */
 function sellerNames_() {
   const accounts = adminAccounts_();
-  return Object.keys(accounts).filter((name) => roleOf_(accounts[name]) === 'seller').sort();
+  return Object.keys(accounts).filter((name) => ORDER_ROLES.includes(roleOf_(accounts[name]))).sort();
 }
 
 /** Cột tiền hoa hồng: tên cột có chữ "hoa hồng", ở bất kỳ trang nào. Manager không bao giờ thấy, chỉ admin sửa được. */
@@ -2870,27 +2879,38 @@ function adminPassword_(data, user) {
 }
 
 /**
- * Việc "hoa-hong": hoa hồng ở trang Đơn hàng, In 3D theo người nhận (seller của đơn; đơn Đơn hàng không có seller: manager
- * ở cột Manager): đang chờ (đơn chưa giao xong), chưa trả (đơn đã giao), đã trả (đã tích "Đã trả hoa hồng"); đơn huỷ không
- * tính. Đơn chưa có số tiền: `noRate` chưa có %, `noBase` chờ Doanh thu sau điều chỉnh. Admin: mọi người nhận, các đơn cần
- * làm (trả hoa hồng, ghi %, nhập doanh thu) và lợi nhuận theo tháng sau khi trừ hoa hồng. Seller, manager: của mình và các
- * đơn mình nhận hoa hồng.
+ * Việc "hoa-hong": hoa hồng ở trang Đơn hàng, In 3D theo người nhận và phần hoa hồng (`kind`): "sale" hoa hồng lên đơn
+ * (cột Seller: seller hay manager tự lên đơn, % theo sản phẩm), "manage" hoa hồng quản lý (đơn Đơn hàng không có người lên
+ * đơn: manager ở cột Manager). Mỗi phần: đang chờ (đơn chưa giao xong), chưa trả (đơn đã giao), đã trả (đã tích "Đã trả
+ * hoa hồng"); đơn huỷ không tính. Đơn chưa có số tiền: `noRate` chưa có %, `noBase` chờ Doanh thu sau điều chỉnh. Admin:
+ * mọi người nhận, các đơn cần làm (trả hoa hồng, ghi %, nhập doanh thu) và lợi nhuận theo tháng sau khi trừ hoa hồng.
+ * Seller, manager: của mình (manager luôn thấy đủ 2 phần) và các đơn mình nhận hoa hồng.
  */
 function adminCommission_(data, user, me) {
   const admin = me.role === 'admin';
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const tz = ss.getSpreadsheetTimeZone();
+  const accounts = adminAccounts_();
   const people = new Map();
-  const of = (name, role) => {
-    if (!people.has(name)) people.set(name, { name, role, orders: 0, sales: 0, wait: 0, due: 0, paid: 0, noRate: 0, noBase: 0, cancelled: 0 });
-    return people.get(name);
+  const of = (name, kind) => {
+    const key = `${kind}:${name}`;
+    if (!people.has(key)) {
+      // Tài khoản đã xoá mà còn đơn: đoán vai trò theo phần hoa hồng
+      const role = accounts.hasOwnProperty(name) ? roleOf_(accounts[name]) : kind === 'manage' ? 'manager' : 'seller';
+      people.set(key, { name, role, kind, orders: 0, sales: 0, wait: 0, due: 0, paid: 0, noRate: 0, noBase: 0, cancelled: 0 });
+    }
+    return people.get(key);
   };
   const manager = managerCommission_();
   if (admin) {
-    sellerNames_().forEach((name) => of(name, 'seller'));
-    if (manager) of(manager.name, 'manager');
+    Object.keys(accounts).forEach((name) => {
+      const role = roleOf_(accounts[name]);
+      if (role === 'seller' || (role === 'manager' && adminPerms_(name).order)) of(name, 'sale');
+    });
+    if (manager) of(manager.name, 'manage');
   } else {
-    of(user, me.role);
+    if (me.role === 'manager') of(user, 'manage');
+    of(user, 'sale');
   }
   const orders = [];
   const months = new Map(); // admin: "yyyy-MM" → lợi nhuận, hoa hồng của các đơn đã có lợi nhuận
@@ -2925,9 +2945,10 @@ function adminCommission_(data, user, me) {
         }
       }
       const who = seller || managed;
+      const kind = seller ? 'sale' : 'manage';
       if (!who) return;
-      if (!admin && (me.role === 'seller' ? seller !== user : seller !== '' || managed !== user)) return;
-      const s = of(who, seller ? 'seller' : 'manager'); // admin: cả người đã xoá tài khoản mà còn đơn
+      if (!admin && who !== user) return; // seller, manager: chỉ đơn mình nhận hoa hồng
+      const s = of(who, kind); // admin: cả người đã xoá tài khoản mà còn đơn
       const pct = pctOf_(cell(row, c.pct), dec);
       const status = String(cell(row, c.status)).trim();
       const state = commissionState_(status, paidCell_(cell(row, c.paid)));
@@ -2948,7 +2969,7 @@ function adminCommission_(data, user, me) {
       }
       if (admin && !task) return;
       orders.push({
-        sheet: name, row: i + 2, who, role: seller ? 'seller' : 'manager', code: String(cell(row, c.code)),
+        sheet: name, row: i + 2, who, kind, code: String(cell(row, c.code)),
         customer: String(cell(row, c.customer)), what: String(cell(row, c.what)).split('\n')[0].slice(0, 80),
         total: Number(cell(row, c.total)) || 0, status, pct, amount, state, task: admin ? task : '', at: date ? date.getTime() : 0,
         time: date ? Utilities.formatDate(date, tz, 'dd/MM/yyyy') : String(time),
@@ -2959,9 +2980,12 @@ function adminCommission_(data, user, me) {
   const limit = admin ? 200 : 300;
   const out = {
     ok: true, me: whoami_(me), updated: adminNow_(),
-    people: [...people.values()].sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name)),
+    // Manager trước seller; một người: hoa hồng quản lý trước hoa hồng lên đơn
+    people: [...people.values()].sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name) || a.kind.localeCompare(b.kind)),
     orders: orders.slice(0, limit), more: Math.max(0, orders.length - limit),
   };
+  // Manager: % quản lý của chính mình (không phải của ai khác), được lên đơn không
+  if (me.role === 'manager') out.mine = { pct: me.perms.pct, since: me.perms.pct ? dayText_(me.perms.since) : '', order: me.perms.order };
   if (admin) {
     syncCommission_(ss);
     const table = commissionTable_(ss);
@@ -2987,7 +3011,8 @@ function paidCell_(value) {
   return value === true || /^(true|x|co|da tra)$/.test(matchText_(value));
 }
 
-// Quyền gợi ý khi tạo tài khoản, admin chỉnh lại được: manager quản lý đơn; seller xem đơn mình lên, tình trạng, hoa hồng
+// Quyền gợi ý khi tạo tài khoản, admin chỉnh lại được: manager quản lý đơn, lên đơn được; seller lên đơn, xem đơn mình
+// lên, tình trạng, hoa hồng
 const MANAGER_SHEETS = [ORDER_SHEET, PRINT_SHEET, LEAD_SHEET];
 // Theo thứ tự cột trên Sheet (gộp Customer Infor xong, mở lại Sheet): khung quyền trên web gửi lên đúng thứ tự này
 const SELLER_SHEET_COLS = {
@@ -3004,7 +3029,7 @@ function defaultPerms_(role, ss) {
     if (role === 'manager' && MANAGER_SHEETS.includes(s.getName())) sheets[id] = { view: true, edit: true, add: true };
     if (role === 'seller' && SELLER_SHEET_COLS.hasOwnProperty(s.getName())) sheets[id] = { view: true, cols: SELLER_SHEET_COLS[s.getName()] };
   });
-  return { sheets, order: role === 'seller', ship: false, pct: 0, since: '' };
+  return { sheets, order: ORDER_ROLES.includes(role), ship: false, pct: 0, since: '' };
 }
 
 /** Quyền admin gửi lên, chỉ giữ phần hợp lệ: trang tính có thật (trừ trang chỉ admin), cờ đúng/sai, tên cột ngắn. */
@@ -3034,7 +3059,7 @@ function cleanPerms_(raw, ss, role) {
     : Utilities.formatDate(new Date(), ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd');
   return {
     sheets,
-    order: role === 'seller' && Boolean(raw && raw.order === true),
+    order: ORDER_ROLES.includes(role) && Boolean(raw && raw.order === true),
     ship: role !== 'admin' && Boolean(raw && raw.ship === true),
     pct,
     since: pct ? since : '',
@@ -3062,7 +3087,7 @@ function permsText_(role, perms, ss) {
     return `${s.getName()}: ${can}${p.cols ? ` (${p.cols.length} cột)` : ''}`;
   });
   return [ADMIN_ROLES[role], ...(parts.length ? parts : ['chưa xem được trang tính nào']), ...(perms.order ? ['được lên đơn'] : []),
-    ...(perms.ship ? ['nhập phí ship'] : []), ...(perms.pct ? [`hoa hồng ${pctText_(perms.pct)} từ ${dayText_(perms.since)}`] : [])].join(' · ');
+    ...(perms.ship ? ['nhập phí ship'] : []), ...(perms.pct ? [`hoa hồng quản lý ${pctText_(perms.pct)} từ ${dayText_(perms.since)}`] : [])].join(' · ');
 }
 
 /** Việc "tai-khoan" (chỉ admin): các tài khoản (không có mật khẩu, khoá mã 2 bước), các trang tính và cột để cấp quyền. */
@@ -4620,7 +4645,7 @@ input:focus, select:focus { outline: 2px solid #0B6E8A; outline-offset: 0; borde
   <label for="role">Vai trò</label>
   <select id="role">
     <option value="admin">Admin: xem, sửa mọi thứ, quản lý tài khoản</option>
-    <option value="manager">Manager: quản lý đơn, không thấy hoa hồng</option>
+    <option value="manager">Manager: quản lý đơn, lên đơn được, chỉ thấy hoa hồng của mình</option>
     <option value="seller">Seller: lên đơn, xem đơn và hoa hồng của mình</option>
   </select>
   <label for="pass">Mật khẩu mới</label>

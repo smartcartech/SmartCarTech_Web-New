@@ -1,9 +1,10 @@
 /* SmartCarTech — Trang quản trị (quan-tri.html)
    Đăng nhập bằng tài khoản admin tạo (mục Tài khoản ở đây, hoặc menu SmartCarTech → "Tài khoản trang quản trị…" trong
    Google Sheet), rồi xem, sửa, thêm, xoá dòng của các trang tính trong Sheet của shop theo vai trò:
-   - admin: mọi trang tính, mọi việc, quản lý tài khoản, xem hoa hồng của mọi seller;
+   - admin: mọi trang tính, mọi việc, quản lý tài khoản, xem hoa hồng của mọi seller, manager;
    - manager, seller: chỉ các trang tính, các cột admin cho. Manager không thấy cột hoa hồng; seller ở trang Đơn hàng,
-     In 3D chỉ thấy đơn mình lên, xem hoa hồng của mình và lên đơn ở trang Đặt hàng, In 3D trong cùng tab.
+     In 3D chỉ thấy đơn mình lên. Cả hai xem hoa hồng của mình và lên đơn ở trang Đặt hàng, In 3D trong cùng tab (khi
+     admin cho); manager có thêm hoa hồng quản lý (đơn khách tự đặt).
    google-apps-script.gs kiểm tra phiên và quyền trước mỗi việc (cột ẩn không được gửi về trình duyệt), và chỉ ghi khi dòng
    chưa bị đổi ở nơi khác (web gửi kèm mã của dòng lúc tải). Web giữ mã phiên trong tab đang mở (sessionStorage): đóng tab
    là đăng xuất. Tài khoản đã bật mã 2 bước: đúng mật khẩu thì script trả vé (`ticket`), web hỏi thêm mã 6 số.
@@ -11,7 +12,7 @@
 import { $, $$, esc, icon, toast, loadData, trapFocus, fmtPrice, NO_COUNT_KEY } from './core.js';
 import { renderDashboard, redrawDashboard } from './dashboard.js';
 
-const SESSION_KEY = 'sctech_admin_v1'; // core.js đọc cùng khoá: seller đang đăng nhập thì đơn gửi từ tab này ghi tên seller
+const SESSION_KEY = 'sctech_admin_v1'; // core.js đọc cùng khoá: seller, manager đang đăng nhập thì đơn gửi từ tab này ghi tên người đó
 const SHEET_KEY = 'sctech_admin_sheet';
 const VISITS_KEY = 'sctech_admin_visits'; // + ":tên": số lần mở mỗi trang tính, để tải trước trang hay mở
 const CACHE_MAX = 16;            // Số trang tính nhớ trong tab: quá thì bỏ trang lâu nhất chưa mở lại
@@ -31,7 +32,7 @@ const app = {
   token: '',
   user: '',
   role: '',       // admin, manager, seller (script trả khi đăng nhập và trong mỗi lần "doc")
-  order: false,   // seller được lên đơn trên trang Đặt hàng, In 3D
+  order: false,   // seller, manager được lên đơn trên trang Đặt hàng, In 3D
   view: '',       // mục đang mở thay cho trang tính: "hoa-hong", "tai-khoan" ('' = trang tính)
   doc: null,      // trả lời "doc" gần nhất: { user, me, url, log, sheets, sheet (null: chưa được xem trang nào) }
   query: '',
@@ -619,7 +620,7 @@ function takeMe(me) {
   const changed = me.role !== app.role;
   app.role = me.role;
   app.order = Boolean(me.order);
-  app.earns = Boolean(me.earns); // seller, manager có % hoa hồng: có mục Hoa hồng của tôi
+  app.earns = Boolean(me.earns); // seller; manager có % quản lý hay được lên đơn: có mục Hoa hồng của tôi
   if (changed) saveSession();
 }
 
@@ -669,14 +670,14 @@ function headerRowOf(sh) {
 }
 
 /* ---------- Cột trang tính, công cụ ---------- */
-/** Mục Hoa hồng, Tài khoản (theo vai trò) và nút lên đơn của seller, ở đầu cột trái. */
+/** Mục Hoa hồng, Tài khoản (theo vai trò) và nút lên đơn của seller, manager, ở đầu cột trái. */
 function renderViews() {
   const items = [];
   const label = { admin: 'Hoa hồng, lợi nhuận', seller: 'Đơn và hoa hồng của tôi', manager: 'Hoa hồng của tôi' }[app.role];
   if (app.role === 'admin' || app.role === 'seller' || app.earns) items.push(['hoa-hong', 'cash', label]);
   if (app.role === 'admin') items.push(['tai-khoan', 'shield', 'Tài khoản']);
-  // Mở ngay trong tab này: trang đặt hàng đọc phiên seller của tab (sessionStorage) để ghi tên seller vào đơn
-  const links = app.role === 'seller' && app.order ? [['san-pham.html', 'cart', 'Lên đơn bộ xe'], ['in-3d.html', 'bag', 'Lên đơn In 3D']] : [];
+  // Mở ngay trong tab này: trang đặt hàng đọc phiên của tab (sessionStorage) để ghi tên người lên đơn vào đơn
+  const links = app.role !== 'admin' && app.order ? [['san-pham.html', 'cart', 'Lên đơn bộ xe'], ['in-3d.html', 'bag', 'Lên đơn In 3D']] : [];
   els.views.hidden = !items.length && !links.length;
   els.views.innerHTML = [
     ...items.map(([name, ic, label]) => `<button type="button" class="admin-tab admin-tab--view" data-view="${name}" aria-pressed="${app.view === name}">${icon(ic)}<span>${esc(label)}</span></button>`),
@@ -1374,6 +1375,7 @@ const VIEWS = {
 };
 const STATES = { wait: 'Đang chờ', due: 'Chưa trả', paid: 'Đã trả', cancelled: 'Đơn huỷ' };
 const TASKS = { pay: 'Trả hoa hồng', rate: 'Ghi %', base: 'Nhập doanh thu' }; // Việc admin cần làm với một đơn
+const KINDS = { manage: 'Quản lý', sale: 'Lên đơn' }; // Phần hoa hồng: đơn khách tự đặt (manager), đơn tự lên (% như seller)
 const REVENUE_COL = 'Doanh thu sau điều chỉnh'; // Giống ORDER_REVENUE_COL, ORDER_SHIP_COL trong google-apps-script.gs
 const SHIP_COL = 'Phí ship (đơn web)';
 const MIN_PASSWORD = 10; // Giống ADMIN_MIN_PASSWORD trong google-apps-script.gs (script kiểm tra lại)
@@ -1444,9 +1446,10 @@ function kpiHtml(label, value, note) {
 }
 
 /**
- * Hoa hồng (script tính từ trang Đơn hàng, In 3D): người nhận là seller của đơn; đơn ở trang Đơn hàng không có seller là
- * manager đang nhận %. Admin: tổng, từng người nhận, các đơn cần làm (trả hoa hồng, ghi %, nhập doanh thu) kèm nút mở đơn,
- * lợi nhuận theo tháng sau khi trừ hoa hồng. Seller (kèm nút lên đơn), manager: hoa hồng của mình, các đơn mình nhận.
+ * Hoa hồng (script tính từ trang Đơn hàng, In 3D), mỗi người nhận theo phần (`kind`): "sale" hoa hồng lên đơn (người ở cột
+ * Seller: seller, hay manager tự lên đơn), "manage" hoa hồng quản lý (đơn Đơn hàng khách tự đặt: manager đang nhận %).
+ * Admin: tổng, từng người nhận, các đơn cần làm (trả hoa hồng, ghi %, nhập doanh thu) kèm nút mở đơn, lợi nhuận theo tháng
+ * sau khi trừ hoa hồng. Seller, manager (kèm nút lên đơn): hoa hồng của mình, các đơn mình nhận; manager thấy 2 phần riêng.
  */
 function renderCommission(out) {
   const admin = app.role === 'admin';
@@ -1457,31 +1460,45 @@ function renderCommission(out) {
   const amount = (o) => (o.amount !== null ? esc(vnd(o.amount)) : o.pct === null ? 'Chưa có %' : 'Chờ doanh thu');
   const chip = (o) => `<span class="admin-chip is-${o.state}">${esc(STATES[o.state] || '')}</span>`;
   const task = (o) => (TASKS[o.task] ? `<span class="admin-chip${o.task === 'pay' ? ' is-due' : ''}">${esc(TASKS[o.task])}</span>` : '');
-  const sell = admin || manager ? '' : app.order ? `
+  const kind = (k) => esc(KINDS[k] || k);
+  const sell = admin ? '' : app.order ? `
     <section class="dash-card admin-sell" aria-labelledby="hh-sell">
       <h2 class="dash-card__title" id="hh-sell">Lên đơn cho khách</h2>
-      <p class="admin-sell__text">Mở trang đặt hàng ngay trong tab này rồi điền thông tin khách đưa. Đầu trang có dòng “Đang lên đơn bằng tài khoản seller <strong>${esc(app.user)}</strong>”: đơn gửi đi tự ghi tên bạn và % hoa hồng.</p>
+      <p class="admin-sell__text">Mở trang đặt hàng ngay trong tab này rồi điền thông tin khách đưa. Đầu trang có dòng “Đang lên đơn cho khách bằng tài khoản ${esc(app.role)} <strong>${esc(app.user)}</strong>”: đơn gửi đi tự ghi tên bạn và % hoa hồng${manager ? ' theo sản phẩm như seller (hoa hồng lên đơn; đơn bạn lên không tính hoa hồng quản lý)' : ''}.</p>
       <div class="admin-sell__actions">
         <a class="btn btn--primary btn--sm" href="san-pham.html">${icon('cart')} Lên đơn bộ xe</a>
         <a class="btn btn--ghost btn--sm" href="in-3d.html">${icon('bag')} Lên đơn In 3D</a>
       </div>
-    </section>` : '<p class="dash-card admin-sell__text">Tài khoản của bạn chưa được lên đơn trên web: báo admin của shop.</p>';
+    </section>` : manager ? '' : '<p class="dash-card admin-sell__text">Tài khoản của bạn chưa được lên đơn trên web: báo admin của shop.</p>';
   const missing = sum('noRate') + sum('noBase');
+  const names = new Set(people.map((p) => p.name)).size;
   const kpis = `
     <section class="dash__kpis" aria-labelledby="hh-kpis">
-      <h2 class="dash__caption" id="hh-kpis">${admin ? `Hoa hồng của ${people.length} người nhận` : 'Hoa hồng của bạn'}, đơn huỷ không tính</h2>
+      <h2 class="dash__caption" id="hh-kpis">${admin ? `Hoa hồng của ${names} người nhận` : manager ? 'Hoa hồng của bạn (cả 2 phần)' : 'Hoa hồng của bạn'}, đơn huỷ không tính</h2>
       ${kpiHtml('Chưa trả', vnd(sum('due')), 'Đơn đã giao, shop chưa trả hoa hồng')}
       ${kpiHtml('Đang chờ', vnd(sum('wait')), 'Đơn chưa giao xong')}
       ${kpiHtml('Đã trả', vnd(sum('paid')), 'Shop đã trả hoa hồng')}
       ${kpiHtml('Chưa tính được', `${missing} đơn`, admin ? `${sum('noRate')} đơn chưa có %, ${sum('noBase')} đơn chờ ${REVENUE_COL}` : 'Tự tính khi shop có % và doanh thu của đơn')}
     </section>`;
+  const totals = (s) => [s.orders, esc(vnd(s.sales)), esc(vnd(s.due)), esc(vnd(s.wait)), esc(vnd(s.paid)), s.noRate + s.noBase];
+  const totalCols = [{ label: 'Đơn', num: true }, { label: 'Doanh số', num: true }, { label: 'Chưa trả', num: true }, { label: 'Đang chờ', num: true },
+    { label: 'Đã trả', num: true }, { label: 'Chưa tính được', num: true }];
   const byPerson = !admin ? '' : `
     <section class="dash-card dash-tables" aria-labelledby="hh-people">
       <h2 class="dash-card__title" id="hh-people">Theo người nhận</h2>
-      ${people.length ? viewTable('hh-people', [{ label: 'Người nhận' }, { label: 'Vai trò' }, { label: 'Đơn', num: true }, { label: 'Doanh số', num: true },
-        { label: 'Chưa trả', num: true }, { label: 'Đang chờ', num: true }, { label: 'Đã trả', num: true }, { label: 'Chưa tính được', num: true }],
-      people.map((s) => [esc(s.name), esc(ROLES[s.role] || s.role), s.orders, esc(vnd(s.sales)), esc(vnd(s.due)), esc(vnd(s.wait)), esc(vnd(s.paid)), s.noRate + s.noBase]))
+      ${people.length ? viewTable('hh-people', [{ label: 'Người nhận' }, { label: 'Vai trò' }, { label: 'Hoa hồng' }, ...totalCols],
+      people.map((s) => [esc(s.name), esc(ROLES[s.role] || s.role), kind(s.kind), ...totals(s)]))
         : '<p class="dash-empty">Chưa có seller nào, chưa có manager nhận hoa hồng: tạo, bật ở mục Tài khoản.</p>'}
+    </section>`;
+  // Manager: hoa hồng quản lý (đơn khách tự đặt, % admin đặt riêng) và hoa hồng lên đơn (đơn mình lên, % như seller)
+  const mine = out.mine || {};
+  const parts = !manager ? '' : `
+    <section class="dash-card dash-tables" aria-labelledby="hh-parts">
+      <h2 class="dash-card__title" id="hh-parts">2 phần hoa hồng của bạn</h2>
+      ${viewTable('hh-parts', [{ label: 'Phần' }, ...totalCols], people.map((s) => [kind(s.kind), ...totals(s)]))}
+      <p class="dash__foot"><strong>Quản lý:</strong> ${mine.pct ? `${esc(pctText(mine.pct))} × ${REVENUE_COL} của các đơn ở trang Đơn hàng khách tự đặt (không do seller hay bạn lên), đặt từ ngày ${esc(mine.since)}.`
+        : 'shop chưa bật hoa hồng quản lý cho bạn.'} <strong>Lên đơn:</strong> ${mine.order ? '% theo sản phẩm như seller, cho đơn bạn lên ở trang Đặt hàng, In 3D (bấm Lên đơn ở trên).'
+        : 'tài khoản của bạn chưa được lên đơn trên web: báo admin của shop.'}</p>
     </section>`;
   const months = !admin ? '' : `
     <section class="dash-card dash-tables" aria-labelledby="hh-months">
@@ -1494,14 +1511,16 @@ function renderCommission(out) {
   const cols = admin
     ? [{ label: 'Ngày' }, { label: 'Người nhận' }, { label: 'Mã' }, { label: 'Khách' }, { label: 'Sản phẩm' }, { label: 'Trạng thái đơn' },
       { label: '%', num: true }, { label: 'Hoa hồng', num: true }, { label: 'Cần làm' }, { label: 'Đơn' }]
-    : [{ label: 'Ngày' }, { label: 'Mã' }, { label: 'Khách' }, { label: 'Sản phẩm' }, { label: 'Tổng', num: true }, { label: 'Trạng thái đơn' },
-      { label: '%', num: true }, { label: 'Hoa hồng', num: true }, { label: 'Hoa hồng đã' }];
+    : [{ label: 'Ngày' }, ...(manager ? [{ label: 'Phần' }] : []), { label: 'Mã' }, { label: 'Khách' }, { label: 'Sản phẩm' }, { label: 'Tổng', num: true },
+      { label: 'Trạng thái đơn' }, { label: '%', num: true }, { label: 'Hoa hồng', num: true }, { label: 'Hoa hồng đã' }];
+  // Admin: đơn hoa hồng quản lý ghi thêm chữ "quản lý" cạnh tên manager
+  const who = (o) => `${esc(o.who)}${o.kind === 'manage' ? ` <span class="admin-chip">${kind(o.kind)}</span>` : ''}`;
   const rows = out.orders.map((o) => (admin
-    ? [esc(o.time), esc(o.who), esc(o.code), esc(o.customer), esc(o.what), esc(o.status || '–'), pct(o), amount(o), task(o),
+    ? [esc(o.time), who(o), esc(o.code), esc(o.customer), esc(o.what), esc(o.status || '–'), pct(o), amount(o), task(o),
       `<button type="button" class="btn btn--ghost btn--sm" data-goto-sheet="${esc(o.sheet)}" data-goto-row="${o.row}">Mở đơn</button>`]
-    : [esc(o.time), esc(o.code), esc(o.customer), esc(o.what), esc(vnd(o.total)), esc(o.status || '–'), pct(o), amount(o), chip(o)]));
+    : [esc(o.time), ...(manager ? [kind(o.kind)] : []), esc(o.code), esc(o.customer), esc(o.what), esc(vnd(o.total)), esc(o.status || '–'), pct(o), amount(o), chip(o)]));
   const none = admin ? 'Không có đơn nào cần trả hoa hồng, ghi % hay nhập doanh thu.'
-    : manager ? 'Chưa có đơn nào: đơn ở trang Đơn hàng không có seller, từ ngày shop bật hoa hồng cho bạn, sẽ hiện ở đây.'
+    : manager ? 'Chưa có đơn nào: đơn khách tự đặt ở trang Đơn hàng (từ ngày shop bật hoa hồng quản lý cho bạn) và đơn bạn lên sẽ hiện ở đây.'
       : 'Chưa có đơn nào. Bấm Lên đơn ở trên để lên đơn đầu tiên.';
   const orders = `
     <section class="dash-card dash-tables" aria-labelledby="hh-orders">
@@ -1514,12 +1533,12 @@ function renderCommission(out) {
     const r = out.rates;
     notes = `% hoa hồng seller cho mỗi sản phẩm ở trang <button type="button" class="link-inline" data-goto-sheet="${esc(r.sheet)}">${esc(r.sheet)}</button>${r.missing
       ? `: còn ${r.missing}/${r.products} sản phẩm chưa có %` : ': đủ % cho mọi sản phẩm'}${r.bad ? `, ${r.bad} ô không phải % (sửa thành % như “10%”)` : ''}. ${out.manager
-      ? `Manager ${esc(out.manager.name)} nhận ${esc(pctText(out.manager.pct))} các đơn ở trang Đơn hàng không có seller, từ ngày ${esc(out.manager.since)}.`
-      : 'Chưa có manager nào nhận hoa hồng: bật ở mục Tài khoản.'} Trả hoa hồng xong thì mở đơn, tích “Đã trả hoa hồng”. `;
+      ? `Manager ${esc(out.manager.name)} nhận hoa hồng quản lý ${esc(pctText(out.manager.pct))} các đơn ở trang Đơn hàng khách tự đặt (cột Seller trống), từ ngày ${esc(out.manager.since)}.`
+      : 'Chưa có manager nào nhận hoa hồng quản lý: bật ở mục Tài khoản.'} Manager được lên đơn thì đơn mình lên ghi tên ở cột Seller, nhận % theo sản phẩm như seller. Trả hoa hồng xong thì mở đơn, tích “Đã trả hoa hồng”. `;
   }
   els.view.innerHTML = `
     <div class="dash__grid">
-      ${sell}${kpis}${byPerson}${orders}${months}
+      ${sell}${kpis}${parts}${byPerson}${orders}${months}
       <p class="dash__foot">${notes}Hoa hồng = % × ${REVENUE_COL} của đơn, trả khi đơn giao xong (trạng thái Đã giao); đơn huỷ không có hoa hồng. Số liệu lúc ${esc(out.updated)}.</p>
     </div>`;
   renderViewInfo(admin ? 'Hoa hồng, lợi nhuận' : manager ? 'Hoa hồng của tôi' : 'Đơn và hoa hồng của tôi', `${out.orders.length} đơn · số liệu lúc ${out.updated}`);
@@ -1546,12 +1565,12 @@ function renderAccounts(out) {
           </button></li>`).join('')}
         </ul>
       </section>
-      <p class="dash__foot">Admin xem, sửa được mọi thứ và quản lý tài khoản. Manager, seller chỉ xem được các trang tính, các cột bạn chọn: manager không bao giờ thấy cột hoa hồng (manager có % thì xem hoa hồng của mình ở mục Hoa hồng của tôi), seller chỉ thấy đơn của mình. Mã 2 bước bật trong Google Sheet: menu SmartCarTech → Tài khoản trang quản trị…; mọi lần tạo, sửa, xoá tài khoản được ghi ở Nhật ký quản trị.</p>
+      <p class="dash__foot">Admin xem, sửa được mọi thứ và quản lý tài khoản. Manager, seller chỉ xem được các trang tính, các cột bạn chọn: manager không bao giờ thấy cột hoa hồng (hoa hồng quản lý, hoa hồng lên đơn của mình xem ở mục Hoa hồng của tôi), seller chỉ thấy đơn của mình. Mã 2 bước bật trong Google Sheet: menu SmartCarTech → Tài khoản trang quản trị…; mọi lần tạo, sửa, xoá tài khoản được ghi ở Nhật ký quản trị.</p>
     </div>`;
   renderViewInfo('Tài khoản', `${out.accounts.length} tài khoản`);
 }
 
-/** "Đơn hàng: xem, sửa · In 3D: xem · được lên đơn · nhập phí ship" (manager: "· hoa hồng 5% từ 01/11/2026") */
+/** "Đơn hàng: xem, sửa · In 3D: xem · được lên đơn · nhập phí ship" (manager: "· hoa hồng quản lý 5% từ 01/11/2026") */
 function permsSummary(a, sheets) {
   if (a.role === 'admin') return 'Xem, sửa mọi thứ, quản lý tài khoản';
   const own = a.perms?.sheets || {};
@@ -1560,9 +1579,9 @@ function permsSummary(a, sheets) {
     return `${s.name}: ${['xem', p.edit && 'sửa', p.add && 'thêm dòng', p.del && 'xoá dòng'].filter(Boolean).join(', ')}${Array.isArray(p.cols) ? ` (${p.cols.length} cột)` : ''}`;
   });
   if (!parts.length) parts.push('Chưa xem được trang tính nào');
-  if (a.role === 'seller') parts.push(a.perms?.order ? 'được lên đơn' : 'chưa được lên đơn');
+  parts.push(a.perms?.order ? 'được lên đơn' : 'chưa được lên đơn');
   if (a.perms?.ship) parts.push('nhập phí ship');
-  if (a.role === 'manager' && a.perms?.pct) parts.push(`hoa hồng ${pctText(a.perms.pct)} từ ${dayText(a.perms.since)}`);
+  if (a.role === 'manager' && a.perms?.pct) parts.push(`hoa hồng quản lý ${pctText(a.perms.pct)} từ ${dayText(a.perms.since)}`);
   return parts.join(' · ');
 }
 
@@ -1604,11 +1623,11 @@ function permsHtml(role, perms, sheets) {
   const own = perms?.sheets || {};
   const pct = perms?.pct ? Math.round(perms.pct * 10000) / 100 : '';
   return `
-    ${seller ? `<label class="check admin-perm__order"><input type="checkbox" data-ac-order${perms?.order ? ' checked' : ''}> <span>Được lên đơn trên trang Đặt hàng, In 3D: đơn ghi tên seller, tự ghi % hoa hồng</span></label>` : ''}
+    <label class="check admin-perm__order"><input type="checkbox" data-ac-order${perms?.order ? ' checked' : ''}> <span>Được lên đơn trên trang Đặt hàng, In 3D: đơn ghi tên ${seller ? 'seller' : 'manager này'} ở cột Seller, tự ghi % hoa hồng theo sản phẩm${seller ? '' : ' (như seller; đơn manager tự lên không tính hoa hồng quản lý)'}</span></label>
     <label class="check admin-perm__order"><input type="checkbox" data-ac-ship${perms?.ship ? ' checked' : ''}> <span>Được nhập “${SHIP_COL}” ở đơn web${seller ? ' của mình' : ''} (không tích: chỉ admin nhập)</span></label>
     ${seller ? '' : `<fieldset class="admin-perms admin-pct">
-      <legend class="field__label">Hoa hồng của manager</legend>
-      <p class="admin-field__hint">Nhận % này × ${REVENUE_COL} của các đơn ở trang Đơn hàng không có seller, đặt từ ngày chọn (đơn In 3D không tính). Để trống: không nhận. Mỗi lúc chỉ một manager nhận.</p>
+      <legend class="field__label">Hoa hồng quản lý của manager</legend>
+      <p class="admin-field__hint">Nhận % này × ${REVENUE_COL} của các đơn ở trang Đơn hàng khách tự đặt (không do seller hay manager lên), đặt từ ngày chọn (đơn In 3D không tính). Để trống: không nhận. Mỗi lúc chỉ một manager nhận.</p>
       <div class="admin-pct__row">
         <div class="field admin-field">
           <label class="field__label" for="ac-pct">% hoa hồng</label>
@@ -1696,7 +1715,7 @@ function openAccount(name) {
   const start = a ? a.role : 'seller';
   const roleOptions = Object.entries({
     admin: 'Admin: xem, sửa mọi thứ, quản lý tài khoản',
-    manager: 'Manager: quản lý đơn, không thấy hoa hồng seller',
+    manager: 'Manager: quản lý đơn, lên đơn được, chỉ thấy hoa hồng của mình',
     seller: 'Seller: lên đơn, xem đơn và hoa hồng của mình',
   }).map(([value, label]) => `<option value="${value}"${value === start ? ' selected' : ''}>${esc(label)}</option>`).join('');
   const el = openDrawer({
