@@ -733,7 +733,7 @@ textarea.field__input { padding: 14px 16px; line-height: 1.5; resize: vertical; 
 .field__input:focus { outline: none; border-color: var(--c-accent); box-shadow: 0 0 0 3px var(--accent-15); }
 .field__input[aria-invalid="true"] { border-color: var(--c-danger); }
 /* Ô chọn và ô số: mũi tên, nút tăng giảm, danh sách thả xuống theo nền tối */
-select.field__input, input[type="number"].field__input { color-scheme: dark; }
+select.field__input, input[type="number"].field__input, input[type="date"].field__input { color-scheme: dark; }
 select.field__input {
   appearance: none;
   padding-right: 44px;

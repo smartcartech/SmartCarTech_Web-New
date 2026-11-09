@@ -130,6 +130,19 @@ const NEWEST_FIRST = [ORDER_SHEET, LEAD_SHEET, PRINT_SHEET, CODE_SHEET, ADMIN_LO
 // Trang shop tự tạo: thêm dòng trên trang quản trị thì dòng mới cũng nằm trên cùng, ngay dưới dòng tiêu đề.
 // Tên không phân biệt hoa thường, dấu, dấu cách thừa; đổi tên trang thì sửa tên ở đây
 const ADMIN_NEWEST_FIRST = ['Task Tracking'];
+// Ô đặc biệt trên trang quản trị cho trang shop tự tạo (tên so khớp như trên; cột tìm theo tên ở dòng tiêu đề):
+// - dates: ô chọn ngày. Ghi đúng kiểu các ô đang có trong cột: chữ dạng "Nov132026" như shop vẫn gõ, hay ngày thật.
+// - choices: ô thả xuống; defaults: lựa chọn điền sẵn khi thêm dòng.
+// - colors: tô ô theo lựa chọn, giống các ô cùng chữ đã tô trong cột; cột chưa có ô nào tô thì dùng màu nền ghi ở đây.
+const ADMIN_SHOP_RULES = {
+  'Task Tracking': {
+    dates: ['Deadline'],
+    choices: { Status: ['Waiting', 'Done'] },
+    defaults: { Status: 'Waiting' },
+    colors: { Status: { Waiting: '#fce5cd', Done: '#00b050' } }, // cam nhạt, xanh lá
+  },
+};
+const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const ADMIN_IDLE_HOURS = 3;    // Không thao tác quá bấy nhiêu giờ thì phải đăng nhập lại (tối đa 6)
 const ADMIN_MAX_HOURS = 12;    // Mỗi lần đăng nhập dùng được tối đa bấy nhiêu giờ
 const ADMIN_MAX_FAILS = 5;     // 1 tài khoản sai mật khẩu quá bấy nhiêu lần trong 15 phút thì tạm khoá 15 phút (cả web: gấp 6 lần)
@@ -2272,6 +2285,8 @@ function restrict_(rules, access) {
     web: rules.web.filter(visible),
     notWeb: rules.notWeb.filter(visible),
     qty: rules.qty.filter((col) => choices[col]),
+    dates: rules.dates.filter((col) => visible(col) && !access.lock[col]),
+    defaults: Object.fromEntries(Object.entries(rules.defaults).filter(([col]) => choices[col])),
     add: rules.add && access.add,
     del: rules.del && access.del,
     hide: [...access.hide].sort((a, b) => a - b),
@@ -2503,12 +2518,15 @@ function sheetGone_(name) {
 }
 
 /**
- * Luật của trang tính cho trang quản trị, cột tìm theo tên ở dòng 1 (cột không có thì bỏ qua). `lists`: tính cả các lựa
- * chọn cần đọc products.json (chỉ khi gửi trang tính cho web; lúc sửa, thêm dòng không cần).
+ * Luật của trang tính cho trang quản trị, cột tìm theo tên ở dòng 1 (trang shop tự tạo trong ADMIN_SHOP_RULES: ở dòng tiêu đề),
+ * cột không có thì bỏ qua. `lists`: tính cả các lựa chọn cần đọc products.json (chỉ khi gửi trang tính cho web; lúc sửa, thêm
+ * dòng không cần).
  */
 function adminRules_(sh, lists) {
-  const rule = ADMIN_RULES.hasOwnProperty(sh.getName()) ? ADMIN_RULES[sh.getName()] : {};
-  const head = rule.readOnly || rule.web || rule.choices ? header_(sh).map(matchText_) : [];
+  const own = ADMIN_RULES.hasOwnProperty(sh.getName()) ? ADMIN_RULES[sh.getName()] : null;
+  const shop = own ? null : shopRule_(sh.getName());
+  const rule = own || shop || {};
+  const head = rule.readOnly || rule.web || rule.choices || rule.dates ? headNames_(sh, Boolean(shop)) : [];
   const at = (name) => head.indexOf(matchText_(name)) + 1;
   const cols = [];
   const why = {};
@@ -2538,11 +2556,78 @@ function adminRules_(sh, lists) {
     notWebWhy: rule.notWeb ? rule.notWeb.why : '',
     choices,
     qty: (rule.qty || []).map(at).filter((col) => col && choices[col]),
+    dates: (rule.dates || []).map(at).filter(Boolean), // ô chọn ngày (dateInput_)
+    defaults: Object.fromEntries(Object.entries(rule.defaults || {}).map(([name, v]) => [at(name), v]).filter(([col]) => choices[col])),
+    colors: Object.fromEntries(Object.entries(rule.colors || {}).map(([name, c]) => [at(name), c]).filter(([col]) => col)),
     add: !rule.all && !rule.noAdd,
     del: !rule.all && !rule.noDelete,
     tip: rule.tip || '',
     top: NEWEST_FIRST.includes(sh.getName()) || ADMIN_NEWEST_FIRST.some((name) => matchText_(name) === matchText_(sh.getName())),
   };
+}
+
+/** Luật ô đặc biệt của trang shop tự tạo (ADMIN_SHOP_RULES), tên trang không phân biệt hoa thường, dấu; không có thì null. */
+function shopRule_(name) {
+  const key = Object.keys(ADMIN_SHOP_RULES).find((k) => matchText_(k) === matchText_(name));
+  return key ? ADMIN_SHOP_RULES[key] : null;
+}
+
+/** Tên các cột (matchText_) để tìm cột theo tên: dòng 1 ở trang script ghi; trang shop tự tạo (`shop`): dòng tiêu đề (headRow_). */
+function headNames_(sh, shop) {
+  if (!shop) return header_(sh).map(matchText_);
+  const row = headRow_(sh, {});
+  return row && sh.getLastColumn() ? sh.getRange(row, 1, 1, sh.getLastColumn()).getDisplayValues()[0].map(matchText_) : [];
+}
+
+/**
+ * Ô chọn ngày (rules.dates) gửi "yyyy-mm-dd": ghi theo kiểu các ô đang có trong cột từ dòng `from`: chữ dạng "Nov132026" như
+ * shop vẫn gõ (cả khi cột chưa có gì), hay ngày thật khi cột đa số là ngày thật. Chữ khác (VD ô cũ chưa sửa): null.
+ */
+function dateInput_(sh, col, input, ctx, from) {
+  const m = String(input == null ? '' : input).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const date = m ? dateFrom_(`${m[3]}/${m[2]}/${m[1]}`, ctx.tz) : null;
+  if (!date) return null;
+  const last = sh.getLastRow();
+  const values = last >= from ? sh.getRange(from, col, last - from + 1, 1).getValues().map(([v]) => v) : [];
+  const dates = values.filter((v) => v instanceof Date).length;
+  const texts = values.filter((v) => typeof v === 'string' && /^[A-Za-z]{3}\d{8}$/.test(v.trim())).length;
+  return dates > texts ? { value: date } : { value: `${MONTHS_EN[Number(m[2]) - 1]}${m[3]}${m[1]}` };
+}
+
+/**
+ * Ô chọn có màu (rules.colors, VD Status: Waiting cam nhạt, Done xanh lá) ở dòng `row`: tô theo chữ đang ghi, giống các ô cùng
+ * chữ đã tô trong cột (màu nền, màu chữ, chữ đậm mà nhiều ô dùng nhất); cột chưa có ô nào tô thì màu nền mặc định, chữ đen.
+ * Chữ ngoài các lựa chọn (VD để trống): giữ nguyên màu.
+ */
+function choiceColors_(sh, row, rules) {
+  const cols = Object.keys(rules.colors || {}).map(Number);
+  if (!cols.length) return;
+  const from = headRow_(sh, rules) + 1;
+  const last = sh.getLastRow();
+  cols.forEach((col) => {
+    const cell = sh.getRange(row, col);
+    const value = matchText_(cell.getValue());
+    const option = Object.keys(rules.colors[col]).find((o) => matchText_(o) === value);
+    if (!option) return;
+    let style = [String(rules.colors[col][option]).toLowerCase(), '#000000', 'normal'];
+    if (last >= from) {
+      const range = sh.getRange(from, col, last - from + 1, 1);
+      const [values, bgs, fcs, ws] = [range.getValues(), range.getBackgrounds(), range.getFontColors(), range.getFontWeights()];
+      const count = new Map();
+      values.forEach(([v], i) => {
+        const bg = String(bgs[i][0] || '').toLowerCase();
+        if (from + i === row || matchText_(v) !== value || !bg || bg === '#ffffff') return;
+        const key = [bg, String(fcs[i][0] || '#000000').toLowerCase(), ws[i][0] || 'normal'].join('|');
+        count.set(key, (count.get(key) || 0) + 1);
+      });
+      const top = [...count.entries()].sort((a, b) => b[1] - a[1])[0];
+      if (top) style = top[0].split('|');
+    }
+    const [bg, fc, w] = style;
+    if (String(cell.getBackgrounds()[0][0]).toLowerCase() !== bg) cell.setBackground(bg);
+    if (String(cell.getFontColors()[0][0]).toLowerCase() !== fc) cell.setFontColor(fc);
+    if (cell.getFontWeights()[0][0] !== w) cell.setFontWeight(w);
+  });
 }
 
 /**
@@ -2917,6 +3002,7 @@ function adminEdit_(data, user, me) {
     const shown = range.getDisplayValues()[0];
     const names = rules.web.length || rules.notWeb.length ? header_(sh).map(matchText_) : null;
     const web = Boolean(names) && webRow_(sh, values, names);
+    const from = rules.dates.length ? headRow_(sh, rules) + 1 : 0; // dòng dữ liệu đầu: xem kiểu các ô ngày đang có
     const changes = [];
     for (const item of items) {
       const col = Number(item && item.col);
@@ -2926,7 +3012,7 @@ function adminEdit_(data, user, me) {
       if (lock) return { ok: false, error: lockText_(sh, row, col, lock) };
       const cell = sh.getRange(row, col);
       const kind = cellKind_(values[col - 1]) || columnKind_(sh, col);
-      const next = cellInput_(item.value, kind, cell.getNumberFormat(), ctx);
+      const next = (rules.dates.includes(col) && dateInput_(sh, col, item.value, ctx, from)) || cellInput_(item.value, kind, cell.getNumberFormat(), ctx);
       if (!sameCell_(values[col - 1], formulas[col - 1], next)) changes.push({ cell, col, next, before: formulas[col - 1] || shown[col - 1] });
     }
     changes.forEach((ch) => (ch.next.formula !== undefined ? ch.cell.setFormula(ch.next.formula) : ch.cell.setValue(ch.next.value)));
@@ -2935,6 +3021,7 @@ function adminEdit_(data, user, me) {
     const linked = changes.some((ch) => watchesCodes_(sh, ch.col, ch.col)) ? linkCodes_(sh, row, row) || {} : null;
     costsEdited_(sh, row, row, (c) => changes.some((ch) => ch.col === c)); // admin gõ Chi phí: giữ số đó; sửa sản phẩm: tự điền
     if (changes.some((ch) => watchesProfit_(sh, ch.col, ch.col))) syncProfit_(sh, row, row);
+    if (changes.length) choiceColors_(sh, row, rules); // VD Status: Waiting cam nhạt, Done xanh lá
     const fresh = gridRows_(sh.getRange(row, 1, 1, sh.getLastColumn()), ctx, access.hide)[0];
     changes.forEach((ch) => {
       const cell = fresh.cells[ch.col - 1];
@@ -2979,6 +3066,7 @@ function adminAppend_(data, user, me) {
     const head = rules.header ? header_(sh) : [];
     const names = rules.notWeb.length ? header_(sh).map(matchText_) : null;
     const web = Boolean(names) && webRow_(sh, input.map((v) => (v == null ? '' : v)), names);
+    const from = rules.dates.length ? headRow_(sh, rules) + 1 : 0;
     const row = [];
     const text = [];
     for (let c = 0; c < width; c++) {
@@ -2993,9 +3081,11 @@ function adminAppend_(data, user, me) {
         const why = rules.why[c + 1];
         return { ok: false, error: why ? `Cột ${colName_(c + 1)} (${head[c] || header_(sh)[c]}): ${why}` : `Cột ${colName_(c + 1)} chỉ sửa được trên Google Sheet.` };
       }
-      const next = cellInput_(value, majorityKind_(old.map((r) => cellKind_(r[c]))), formats[c] || '', ctx);
+      const dated = rules.dates.includes(c + 1) && dateInput_(sh, c + 1, value, ctx, from);
+      const next = dated || cellInput_(value, majorityKind_(old.map((r) => cellKind_(r[c]))), formats[c] || '', ctx);
       row.push(next.formula !== undefined ? next.formula : next.value);
-      text.push(`${head[c] || colName_(c + 1)}: ${typeof value === 'boolean' ? (value ? 'đã tích' : 'chưa tích') : value}`);
+      const said = dated && typeof dated.value === 'string' ? dated.value : value;
+      text.push(`${head[c] || colName_(c + 1)}: ${typeof said === 'boolean' ? (said ? 'đã tích' : 'chưa tích') : said}`);
     }
     while (row.length && row[row.length - 1] === '') row.pop();
     if (!text.length) return { ok: false, error: 'Dòng mới còn trống: điền ít nhất một ô.' };
@@ -3012,6 +3102,7 @@ function adminAppend_(data, user, me) {
     }
     if (watchesCodes_(sh, 1, width)) linkCodes_(sh, added, added);
     fillCosts_(sh, added, added); // đơn mới (VD Shopee): Chi phí theo trang COST_SHEET, trừ khi admin đã gõ
+    choiceColors_(sh, added, rules);
     syncProfit_(sh, added, added);
     dashStale_(sh);
     adminLog_(user, 'Thêm dòng', sh.getName(), `Dòng ${added}`, '', text.join('\n'));

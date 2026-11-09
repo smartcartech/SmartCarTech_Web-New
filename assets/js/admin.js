@@ -969,13 +969,15 @@ function buildFields(sh, mode, row, i) {
     const why = lockOf(sh, mode === 'add' ? sh.rows + 1 : row, c, cell);
     let original = editOf(cell);
     if (mode === 'add') {
-      // Ô thả xuống của Sheet lấy lựa chọn đầu (VD Trạng thái "Mới"); lựa chọn của script để trống cho shop tự chọn
+      // Ô thả xuống của Sheet lấy lựa chọn đầu (VD Trạng thái "Mới"); lựa chọn của script để trống cho shop tự chọn, trừ khi
+      // script có lựa chọn điền sẵn (VD Status "Waiting" ở Task Tracking)
       const list = typeof own === 'number' ? sh.lists[own] : null;
-      original = / · Thời gian$/.test(label) && sh.kinds[c - 1] === 'd' ? nowText() : list && list.length ? list[0] : '';
+      original = / · Thời gian$/.test(label) && sh.kinds[c - 1] === 'd' ? nowText()
+        : sh.rules.defaults?.[c] ?? (list && list.length ? list[0] : '');
     }
     const list = typeof v === 'number' ? sh.lists[v] || [] : null;
     fields.push({
-      col: c, cell, label, v, list, locked: Boolean(why), why, kind: sh.kinds[c - 1] || '',
+      col: c, cell, label, v, list, locked: Boolean(why), why, kind: sh.kinds[c - 1] || '', date: Boolean(sh.rules.dates?.includes(c)),
       qty: Boolean(list) && Boolean(sh.rules.qty?.includes(c)),
       original: v === 'c' ? original === 'TRUE' : original,
       empty: mode === 'edit' && !editOf(cell) && !(cell && cell.n),
@@ -1005,6 +1007,8 @@ function controlHtml(sh, f) {
       <label class="admin-product__qty"><span>SL</span><input class="field__input" type="number" inputmode="numeric" min="1" max="99" step="1" data-qty="${f.col}" aria-label="Số lượng"></label>
     </div>`;
   }
+  // Ô chọn ngày (VD Deadline ở Task Tracking): script ghi theo kiểu các ô đang có trong cột
+  if (f.date) return `<input class="field__input admin-field__date" type="date" id="${id}" data-col="${f.col}">`;
   // Ô công thức luôn chỉ xem (lockOf): ô sửa được là chữ, số hoặc ngày
   const hint = f.kind === 'd' || f.cell?.t === 'd' ? 'dd/mm/yyyy hh:mm' : '';
   const numeric = f.cell?.t === 'n' || (!f.cell && f.kind === 'n');
@@ -1014,6 +1018,7 @@ function controlHtml(sh, f) {
 function fieldHtml(sh, f) {
   const hints = [];
   if (f.locked && f.cell?.t !== 'o') hints.push(`${icon('lock', 'icon--sm')}<span>${esc(f.why)}</span>`);
+  if (f.date && !f.locked && f.original && !isoOf(f.original)) hints.push(`<span>Ô đang ghi “${esc(f.original)}”: chọn ngày để thay.</span>`);
   if (f.cell?.n) hints.push(`<span>Ghi chú: ${esc(f.cell.n)}</span>`);
   return `
     <div class="admin-field" data-field="${f.col}"${f.empty ? ' data-empty' : ''}>
@@ -1052,11 +1057,28 @@ function syncQty(select) {
   if (qty && f) qty.disabled = !f.list.includes(select.value);
 }
 
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+/** Ngày đang ghi trong ô → "yyyy-mm-dd" cho ô chọn ngày: chữ "Nov132026", hay "13/11/2026" (ô ngày thật). Không đọc ra: "". */
+function isoOf(text) {
+  const s = String(text ?? '').trim();
+  let m = /^([A-Za-z]{3})(\d{2})(\d{4})$/.exec(s);
+  let [d, mo, y] = m ? [Number(m[2]), MONTHS.indexOf(m[1].toLowerCase()) + 1, Number(m[3])] : [0, 0, 0];
+  if (!m) {
+    m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(\s|$)/.exec(s);
+    if (m) [d, mo, y] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  }
+  const ok = mo >= 1 && mo <= 12 && d >= 1 && d <= new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  return ok ? `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}` : '';
+}
+
 /** Giá trị sẽ ghi của một ô trong khung (ô tích: true/false); ô chỉ xem: null. */
 function fieldValue(f) {
   const input = inputOf(f);
   if (!input || f.locked) return null;
   if (input.type === 'checkbox') return input.checked;
+  // Ô chọn ngày chưa đổi: giữ đúng chữ đang có trong ô (VD "Nov132026"), không gửi lại
+  if (input.type === 'date') return input.value === isoOf(f.original) ? f.original : input.value;
   if (f.qty && f.list.includes(input.value)) {
     const n = Math.round(Number($(`[data-qty="${f.col}"]`, panel.el)?.value));
     return `${input.value} × ${Number.isFinite(n) ? Math.min(99, Math.max(1, n)) : 1}`;
@@ -1134,6 +1156,8 @@ function openPanel(mode, row = 0, focusCol = 0, { notice = '', typed = [] } = {}
     if (!input) return;
     if (input.type === 'checkbox') {
       input.checked = f.original === true;
+    } else if (input.type === 'date') {
+      input.value = isoOf(f.original);
     } else if (f.list) {
       const picked = productOf(f);
       const value = picked ? picked.name : f.original;
