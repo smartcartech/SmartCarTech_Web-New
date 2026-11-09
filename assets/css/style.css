@@ -2698,6 +2698,11 @@ a.contact-item:hover .contact-item__value { color: var(--c-accent); }
 .admin-tools__buttons .btn { flex: none; }
 .admin-tools__icon { width: 44px; padding: 0; }
 .admin-tools__label { display: none; }
+.admin-summary { flex: none; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 4px 12px; margin: 0 12px 6px; padding: 8px 12px; border: 1px solid var(--c-line); border-radius: var(--r-opt); background: var(--c-card); font-size: 13px; line-height: 1.5; color: var(--c-text-2); }
+.admin-summary__list { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin: 0; padding: 0; list-style: none; overflow-wrap: anywhere; }
+.admin-summary strong { font-weight: 600; color: var(--c-text); }
+.admin-summary__state, .admin-summary__by { color: var(--c-muted); }
+.admin-summary__more { font-size: 13px; }
 .admin-notes { flex: none; display: flex; flex-direction: column; gap: 4px; margin: 0 12px 6px; padding: 8px 12px; border: 1px solid var(--c-line); border-radius: var(--r-opt); background: var(--c-card); font-size: 13px; line-height: 1.5; color: var(--c-text-2); }
 .admin-notes__item { display: flex; align-items: flex-start; gap: 8px; }
 .admin-notes__item .icon { flex: none; margin-top: 2px; color: var(--c-accent); }
@@ -2892,6 +2897,8 @@ a.contact-item:hover .contact-item__value { color: var(--c-accent); }
 .admin-panel__sub { margin-top: 2px; overflow: hidden; font-size: 13px; color: var(--c-muted); text-overflow: ellipsis; white-space: nowrap; }
 .admin-panel__body { padding: 16px 20px 24px; }
 .admin-panel__intro { margin-bottom: 16px; font-size: 14px; line-height: 1.55; color: var(--c-text-2); }
+.admin-panel__locked { display: flex; align-items: flex-start; gap: 8px; }
+.admin-panel__locked .icon { flex: none; margin-top: 3px; }
 .admin-fields { display: flex; flex-direction: column; gap: 18px; }
 .admin-field { display: flex; flex-direction: column; gap: 6px; }
 .admin-field .field__label { font-size: 13px; }

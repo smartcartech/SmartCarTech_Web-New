@@ -102,6 +102,19 @@ const COST_SHEET = 'Chi Phí';
 const COST_HEADER = [...COMMISSION_HEADER.slice(0, 3), 'Chi phí mỗi sản phẩm (₫)'];
 const COST_NOTE = `Tự điền theo trang "${COST_SHEET}"`; // Đầu ghi chú ô Chi phí script điền: còn ghi chú, đúng số thì sửa số lượng là tính lại
 const COST_START_KEY = 'chi-phi:tu-ngay'; // Script Properties: ngày có trang COST_SHEET. Đơn đặt trước ngày đó là đơn cũ: không tự điền
+// Nhiệm vụ trong tháng của manager (script tạo trang): admin giao, mỗi nhiệm vụ một dòng ghi tháng ("11/2026") và tên tài khoản
+// manager. Manager tự thấy các nhiệm vụ của mình (không cần cấp ở mục Tài khoản), tích Hoàn thành hay Không hoàn thành, ghi phần
+// đã làm được / lý do. Hết tháng là chốt: manager không sửa được nữa, các tháng cũ giữ lại làm báo cáo. Admin sửa được mọi lúc
+const TASK_SHEET = 'Nhiệm vụ trong tháng';
+const TASK_MONTH_COL = 'Tháng';
+const TASK_DONE_COL = 'Hoàn thành';
+const TASK_FAIL_COL = 'Không hoàn thành';
+const TASK_NOTE_COL = 'Phần đã làm được / Lý do không hoàn thành';
+const TASK_HEADER = [TASK_MONTH_COL, MANAGER_COL, 'Nhiệm vụ', 'Target', TASK_DONE_COL, TASK_FAIL_COL, TASK_NOTE_COL];
+const TASK_MANAGER_COLS = [TASK_DONE_COL, TASK_FAIL_COL, TASK_NOTE_COL]; // Manager chỉ sửa các cột này, khi tháng chưa chốt
+const TASK_WIDTHS = [90, 110, 240, 460, 110, 140, 380];
+const TASK_ADMIN_ONLY = 'Admin giao nhiệm vụ: chỉ admin sửa.';
+const TASK_CLOSED = 'Tháng này đã chốt: manager không sửa được nữa. Cần sửa thì báo admin.';
 const ORDER_HEADER = ['Thời gian', 'Mã đơn', 'Họ tên', 'SĐT', 'Địa chỉ', 'Sản phẩm', 'Tổng (₫)', ORDER_CHECK_COL, 'Ghi chú', ORDER_KEY_COL,
   ORDER_STATUS_COL, ...SELLER_COLS];
 const PHONE_RE = /^(0|\+?84)(3|5|7|8|9)\d{8}$/; // Giống assets/js/core.js
@@ -134,8 +147,11 @@ const ADMIN_NEWEST_FIRST = ['Task Tracking'];
 // - dates: ô chọn ngày. Ghi đúng kiểu các ô đang có trong cột: chữ dạng "Nov132026" như shop vẫn gõ, hay ngày thật.
 // - choices: ô thả xuống; defaults: lựa chọn điền sẵn khi thêm dòng.
 // - colors: tô ô theo lựa chọn, giống các ô cùng chữ đã tô trong cột; cột chưa có ô nào tô thì dùng màu nền ghi ở đây.
+// - sortBy: cột ngày để tự xếp các dòng, ngày xa nhất ở trên cùng; dòng chưa có ngày ở dưới cùng (sortRows_). Xếp khi thêm,
+//   sửa dòng trên trang quản trị và khi trang quản trị mở trang đó mà thứ tự chưa đúng (VD vừa gõ thêm dòng trên Sheet).
 const ADMIN_SHOP_RULES = {
   'Task Tracking': {
+    sortBy: 'Deadline',
     dates: ['Deadline'],
     choices: { Status: ['Waiting', 'Done'] },
     defaults: { Status: 'Waiting' },
@@ -1198,6 +1214,7 @@ function checkSetup() {
   lines.push(...adminStatus_());
   lines.push(commissionStatus_());
   lines.push(costStatus_());
+  lines.push(taskStatus_());
   const ui = SpreadsheetApp.getUi();
   ui.alert('Kiểm tra cài đặt', lines.join('\n\n'), ui.ButtonSet.OK);
 }
@@ -1372,12 +1389,16 @@ function onEdit(e) {
   if (!e || !e.range) return;
   const sh = e.range.getSheet();
   const name = sh.getName();
-  if (e.range.getLastRow() < 2 || ![ORDER_SHEET, PRINT_SHEET, COMMISSION_SHEET, LEAD_SHEET].includes(name)) return;
+  if (e.range.getLastRow() < 2 || ![ORDER_SHEET, PRINT_SHEET, COMMISSION_SHEET, LEAD_SHEET, TASK_SHEET].includes(name)) return;
   if (name === LEAD_SHEET) {
     dashStale_(sh); // Tư vấn: chỉ Tổng quan cần biết
     return;
   }
   const [rowFrom, rowTo, colFrom, colTo] = [e.range.getRow(), e.range.getLastRow(), e.range.getColumn(), e.range.getLastColumn()];
+  if (name === TASK_SHEET) {
+    withDocLock_(() => taskTicks_(sh, rowFrom, rowTo, colFrom, colTo)); // tích Hoàn thành thì bỏ tích Không hoàn thành và ngược lại
+    return;
+  }
   dashStale_(sh);
   if (name === COMMISSION_SHEET) {
     withDocLock_(() => fixRates_(sh, rowFrom, rowTo, colFrom, colTo));
@@ -1835,6 +1856,18 @@ const ADMIN_RULES = {
     readOnly: { [COMMISSION_HEADER[0]]: ADMIN_AUTO_PRODUCT, [COMMISSION_HEADER[1]]: ADMIN_AUTO_PRODUCT, [COMMISSION_HEADER[2]]: ADMIN_AUTO_PRODUCT },
     tip: `% hoa hồng seller cho mỗi sản phẩm (gõ "10%"), cũng là % của manager tự lên đơn: đơn seller, manager lên tự tính ${COMMISSION_COL} = % × ${ORDER_REVENUE_COL} của đơn (đơn nhiều sản phẩm: % theo tỷ trọng giá bán). Đổi % chỉ áp dụng cho đơn mới, đơn đã có thì sửa ở cột "${COMMISSION_PCT_COL}" của đơn đó. Chỉ admin xem được trang này.`,
   },
+  [TASK_SHEET]: {
+    header: true,
+    choices: { [TASK_MONTH_COL]: () => taskMonths_(), [MANAGER_COL]: () => managerNames_() },
+    defaults: { [TASK_MONTH_COL]: () => monthText_(0) },
+    sortBy: TASK_MONTH_COL, sortKind: 'month', sortThen: MANAGER_COL, // tháng mới nhất ở trên, trong tháng theo tên manager
+    oneOf: [[TASK_DONE_COL, TASK_FAIL_COL]], // tích ô này thì ô kia tự bỏ tích
+    live: true, // web tự tải lại khi đang mở: admin vừa giao, sửa nhiệm vụ thì manager thấy ngay
+    summary: { month: TASK_MONTH_COL, done: TASK_DONE_COL, fail: TASK_FAIL_COL, by: MANAGER_COL }, // web: dòng tóm tắt mỗi tháng
+    copyMonth: true, // admin có nút chép nhiệm vụ tháng trước sang tháng này (adminTaskCopy_)
+    own: { why: 'Chỉ hiện các nhiệm vụ admin giao cho bạn (cột Manager là tên tài khoản của bạn).', unit: 'nhiệm vụ', none: 'Chưa có nhiệm vụ nào admin giao cho bạn.' },
+    tip: `Mỗi dòng là một nhiệm vụ admin giao cho manager trong tháng. Manager tích ${TASK_DONE_COL} hoặc ${TASK_FAIL_COL} (tích ô này thì ô kia tự bỏ) và ghi phần đã làm được / lý do. Hết tháng là chốt: manager không sửa được nữa, các tháng cũ giữ lại làm báo cáo. Admin sửa, thêm, xoá nhiệm vụ lúc nào cũng được; trang này tự cập nhật nên manager thấy ngay.`,
+  },
   [CODE_SHEET]: {
     header: true, noAdd: true, noDelete: true,
     // "Số lần tải" vẫn sửa được: khách hết lượt tải thì shop đặt lại về 0
@@ -1862,8 +1895,10 @@ const ADMIN_RULES = {
 const ADMIN_ACTIONS = {
   doc: adminRead_, sua: adminEdit_, them: adminAppend_, xoa: adminDelete_, phien: adminWho_, 'doi-mat-khau': adminPassword_,
   'hoa-hong': adminCommission_, 'tai-khoan': adminAccountList_, 'luu-tai-khoan': adminAccountSave_, 'xoa-tai-khoan': adminAccountRemove_,
+  'chep-nhiem-vu': adminTaskCopy_,
 };
-const ADMIN_ONLY_ACTIONS = ['tai-khoan', 'luu-tai-khoan', 'xoa-tai-khoan']; // Quản lý tài khoản: chỉ admin
+// Quản lý tài khoản, chép nhiệm vụ tháng trước: chỉ admin
+const ADMIN_ONLY_ACTIONS = ['tai-khoan', 'luu-tai-khoan', 'xoa-tai-khoan', 'chep-nhiem-vu'];
 
 /* Vai trò: admin làm được mọi việc. Manager, seller chỉ thấy các trang tính admin cho (quyền lưu ở ADMIN_PERMS_KEY + tên):
    manager không bao giờ thấy cột hoa hồng; seller ở trang Đơn hàng, In 3D chỉ thấy đơn mình lên. Tài khoản tạo từ trước
@@ -1874,6 +1909,7 @@ const ADMIN_ROLES = { admin: 'Admin', manager: 'Manager', seller: 'Seller' };
 const ORDER_ROLES = ['seller', 'manager'];
 const ADMIN_PERMS_KEY = 'quan-tri:quyen:'; // + tên: { sheets: { id trang tính: { view, edit, add, del, cols? } }, order }
 const ADMIN_ONLY_SHEETS = [ADMIN_LOG_SHEET, COMMISSION_SHEET]; // Không cấp cho manager, seller được
+const ROLE_SHEETS = { [TASK_SHEET]: ['manager'] };            // Không cấp ở mục Tài khoản: các vai trò này luôn xem (dòng của mình)
 const VIEW_ONLY_SHEETS = [COST_SHEET];                         // Cấp cho manager, seller được, nhưng chỉ xem: chỉ admin sửa
 const OWN_ROW_SHEETS = [ORDER_SHEET, PRINT_SHEET];            // Seller chỉ thấy dòng có cột Seller là tên mình
 const ADMIN_NOT_ALLOWED = 'Tài khoản của bạn không làm được việc này.';
@@ -2212,6 +2248,7 @@ function commissionCol_(label) {
 function canSee_(me, sh) {
   if (me.role === 'admin') return true;
   if (ADMIN_ONLY_SHEETS.includes(sh.getName())) return false;
+  if (ROLE_SHEETS.hasOwnProperty(sh.getName())) return ROLE_SHEETS[sh.getName()].includes(me.role);
   const id = String(sh.getSheetId());
   return Object.prototype.hasOwnProperty.call(me.perms.sheets, id) && Boolean(me.perms.sheets[id]) && me.perms.sheets[id].view === true;
 }
@@ -2240,6 +2277,7 @@ function columnKeys_(sh, rules) {
 function sheetAccess_(me, sh, rules) {
   if (me.role === 'admin') return { admin: true, edit: true, add: true, del: true, hide: new Set(), lock: {}, extra: new Set(), own: 0 };
   if (!canSee_(me, sh)) return null;
+  if (sh.getName() === TASK_SHEET) return taskAccess_(sh);
   const p = me.perms.sheets[String(sh.getSheetId())];
   const shown = Array.isArray(p.cols) ? new Set(p.cols.map(matchText_)) : null;
   const orders = OWN_ROW_SHEETS.includes(sh.getName());
@@ -2291,6 +2329,9 @@ function restrict_(rules, access) {
     del: rules.del && access.del,
     hide: [...access.hide].sort((a, b) => a - b),
     own: Boolean(access.own),
+    ownText: access.own ? rules.ownText : null,
+    copyMonth: null, // chép nhiệm vụ tháng trước: chỉ admin
+    rowWhy: access.closed ? TASK_CLOSED : '', // dòng trong sheet.lockedRows (VD nhiệm vụ tháng đã chốt) chỉ xem, vì lý do này
     viewOnly: !access.edit && !rules.all && !access.extra.size,
   });
 }
@@ -2303,6 +2344,188 @@ function maskRow_(values, hide) {
 /** Dòng của seller `user`: ô ở cột `own` là tên tài khoản đó (không phân biệt hoa thường, dấu cách thừa). */
 function ownRow_(values, own, user) {
   return own > 0 && String(values[own - 1] == null ? '' : values[own - 1]).trim().toLowerCase() === user;
+}
+
+/* ---------- Nhiệm vụ trong tháng (TASK_SHEET) ---------- */
+
+/**
+ * Quyền của manager ở trang TASK_SHEET: chỉ các dòng có cột Manager là tên mình (trang thiếu cột đó: không dòng nào), chỉ sửa
+ * các cột TASK_MANAGER_COLS, không thêm, xoá dòng. `closed`: dòng của tháng đã qua là đã chốt, chỉ xem (closedRow_).
+ */
+function taskAccess_(sh) {
+  const head = header_(sh).map(matchText_);
+  const at = (name) => head.indexOf(matchText_(name)) + 1;
+  const open = TASK_MANAGER_COLS.map(at);
+  const lock = {};
+  head.forEach((name, i) => { if (!open.includes(i + 1)) lock[i + 1] = TASK_ADMIN_ONLY; });
+  const month = at(TASK_MONTH_COL);
+  const tz = sh.getParent().getSpreadsheetTimeZone();
+  return {
+    admin: false, edit: true, add: false, del: false, hide: new Set(), lock, extra: new Set(), own: at(MANAGER_COL) || -1,
+    closed: month ? { col: month, tz, now: monthKey_(new Date(Date.now()), tz) } : null,
+  };
+}
+
+/** Dòng (các ô `values`) thuộc tháng đã qua với quyền `access` (taskAccess_): manager chỉ xem. Ô Tháng không đọc ra tháng: chưa chốt. */
+function closedRow_(access, values) {
+  if (!access || !access.closed) return false;
+  const month = monthKey_(values[access.closed.col - 1], access.closed.tz);
+  return Boolean(month) && month < access.closed.now;
+}
+
+/** Tháng của ô Tháng → "yyyy-MM": chữ "11/2026" (hay "Tháng 11/2026", "2026-11"), ô ngày thật; không đọc ra thì "". */
+function monthKey_(value, tz) {
+  if (value instanceof Date) return Utilities.formatDate(value, tz, 'yyyy-MM');
+  const s = String(value == null ? '' : value).trim();
+  let m = s.match(/^(?:tháng\s*)?(\d{1,2})\s*[\/.-]\s*(\d{4})$/i);
+  let [mo, y] = m ? [Number(m[1]), m[2]] : [0, ''];
+  if (!m) {
+    m = s.match(/^(\d{4})-(\d{1,2})$/);
+    if (m) [mo, y] = [Number(m[2]), m[1]];
+  }
+  return mo >= 1 && mo <= 12 ? `${y}-${String(mo).padStart(2, '0')}` : '';
+}
+
+/** Tháng hiện tại cộng `offset` tháng (theo múi giờ của Sheet), viết như ô Tháng: "11/2026". */
+function monthText_(offset) {
+  const tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+  const [y, m] = Utilities.formatDate(new Date(Date.now()), tz, 'yyyy-MM').split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + offset, 1));
+  return `${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
+}
+
+/** Ô thả xuống cột Tháng khi admin giao nhiệm vụ: tháng sau, tháng này, tháng trước. */
+function taskMonths_() {
+  return [monthText_(1), monthText_(0), monthText_(-1)];
+}
+
+/**
+ * Trang TASK_SHEET (tạo nếu chưa có, giống bảng shop gửi: dòng tiêu đề xanh đậm chữ trắng, cột cuối nền kem): cột Tháng để
+ * dạng chữ (Sheet không đổi "11/2026" thành ngày), 2 cột Hoàn thành, Không hoàn thành là ô tích. Gọi trong khoá của Sheet.
+ */
+function taskSheet_(ss) {
+  const had = ss.getSheetByName(TASK_SHEET);
+  if (had) return had;
+  const sh = getSheet_(ss, TASK_SHEET, TASK_HEADER);
+  const width = TASK_HEADER.length;
+  sh.getRange(1, 1, 1, width).setBackground('#1f4e78').setFontColor('#ffffff').setFontWeight('bold')
+    .setHorizontalAlignment('center').setVerticalAlignment('middle').setWrap(true);
+  TASK_WIDTHS.forEach((w, i) => sh.setColumnWidth(i + 1, w));
+  const rows = sh.getMaxRows() - 1;
+  if (rows > 0) {
+    sh.getRange(2, 1, rows, width).setVerticalAlignment('middle').setWrap(true);
+    sh.getRange(2, 1, rows, 1).setNumberFormat('@');
+    const check = SpreadsheetApp.newDataValidation().requireCheckbox().build();
+    sh.getRange(2, TASK_HEADER.indexOf(TASK_DONE_COL) + 1, rows, 2).setDataValidation(check).setHorizontalAlignment('center');
+    sh.getRange(2, width, rows, 1).setBackground('#fff8e7');
+  }
+  return sh;
+}
+
+/**
+ * Dòng admin thêm ở trang TASK_SHEET (`input`: ô theo thứ tự cột, sửa tại chỗ): Tháng để trống thì là tháng này, tháng phải
+ * đọc được, phải chọn manager, không tích cả 2 ô. Trả câu báo lỗi, hợp lệ thì "".
+ */
+function taskInput_(sh, input) {
+  const head = header_(sh).map(matchText_);
+  const at = (name) => head.indexOf(matchText_(name));
+  const blank = (i) => i < 0 || input[i] == null || String(input[i]).trim() === '';
+  const month = at(TASK_MONTH_COL);
+  if (month >= 0 && blank(month)) input[month] = monthText_(0);
+  if (month >= 0 && !monthKey_(input[month], sh.getParent().getSpreadsheetTimeZone())) return `Cột ${TASK_MONTH_COL}: ghi tháng dạng ${monthText_(0)}.`;
+  if (at(MANAGER_COL) >= 0 && blank(at(MANAGER_COL))) return 'Chọn manager nhận nhiệm vụ này.';
+  if ([TASK_DONE_COL, TASK_FAIL_COL].every((name) => at(name) >= 0 && input[at(name)] === true)) return TASK_BOTH;
+  return '';
+}
+
+const TASK_BOTH = `Chỉ tích một trong hai ô: ${TASK_DONE_COL} hoặc ${TASK_FAIL_COL}.`;
+
+/**
+ * Sửa trên Google Sheet ở trang TASK_SHEET (onEdit): vừa tích ô Hoàn thành thì bỏ tích ô Không hoàn thành cùng dòng và ngược
+ * lại (dán cả 2 cột một lúc thì để nguyên). Gọi trong khoá của Sheet.
+ */
+function taskTicks_(sh, rowFrom, rowTo, colFrom, colTo) {
+  const head = header_(sh).map(matchText_);
+  const [done, fail] = [TASK_DONE_COL, TASK_FAIL_COL].map((name) => head.indexOf(matchText_(name)) + 1);
+  if (!done || !fail) return;
+  [[done, fail], [fail, done]].forEach(([col, other]) => {
+    if (col < colFrom || col > colTo || (other >= colFrom && other <= colTo)) return;
+    for (let r = Math.max(rowFrom, 2); r <= rowTo; r++) {
+      if (sh.getRange(r, col).getValue() === true && sh.getRange(r, other).getValue() === true) sh.getRange(r, other).setValue(false);
+    }
+  });
+}
+
+/**
+ * Việc "chep-nhiem-vu" (chỉ admin, nút trên trang quản trị): chép các nhiệm vụ tháng trước sang tháng này ở trang TASK_SHEET,
+ * giữ Manager, Nhiệm vụ, Target; ô tích, ghi chú để trống. Nhiệm vụ tháng này đã có (cùng manager, cùng tên nhiệm vụ) thì bỏ
+ * qua, nên bấm lại không chép trùng. Dòng mới được xếp vào đúng chỗ, ghi nhật ký. Trả số nhiệm vụ đã chép (`added`) và số
+ * nhiệm vụ tháng trước (`found`).
+ */
+function adminTaskCopy_(data, user) {
+  const sh = adminSheet_(TASK_SHEET);
+  if (!sh) return sheetGone_(TASK_SHEET);
+  const tz = sh.getParent().getSpreadsheetTimeZone();
+  const [from, to] = [monthText_(-1), monthText_(0)];
+  return withDocLock_(() => {
+    const width = sh.getLastColumn();
+    const head = header_(sh).map(matchText_);
+    const at = (name) => head.indexOf(matchText_(name));
+    const [month, manager, task, target] = [TASK_MONTH_COL, MANAGER_COL, TASK_HEADER[2], TASK_HEADER[3]].map(at);
+    if (month < 0 || manager < 0 || task < 0) {
+      return { ok: false, error: `Trang "${TASK_SHEET}" thiếu cột ${TASK_MONTH_COL}, ${MANAGER_COL} hay ${TASK_HEADER[2]} ở dòng 1: chưa chép được.` };
+    }
+    const last = sh.getLastRow();
+    const rows = last > 1 ? sh.getRange(2, 1, last - 1, width).getValues() : [];
+    const key = (r) => `${matchText_(r[manager])}\u0001${matchText_(r[task])}`;
+    const [fromKey, toKey] = [from, to].map((m) => monthKey_(m, tz));
+    const have = new Set(rows.filter((r) => monthKey_(r[month], tz) === toKey).map(key));
+    const source = rows.filter((r) => monthKey_(r[month], tz) === fromKey && String(r[task]).trim());
+    const copy = [];
+    source.forEach((r) => {
+      if (have.has(key(r))) return;
+      have.add(key(r));
+      copy.push(r);
+    });
+    if (!copy.length) return { ok: true, added: 0, found: source.length, from, to };
+    const start = last + 1;
+    const more = start + copy.length - 1 - sh.getMaxRows();
+    if (more > 0) sh.insertRowsAfter(sh.getMaxRows(), more);
+    // Dòng mới như dòng admin thêm: cột Tháng để dạng chữ ("11/2026" không thành ngày), 2 cột Hoàn thành, Không hoàn thành là ô tích
+    sh.getRange(start, month + 1, copy.length, 1).setNumberFormat('@');
+    const check = SpreadsheetApp.newDataValidation().requireCheckbox().build();
+    [TASK_DONE_COL, TASK_FAIL_COL].map(at).filter((c) => c >= 0).forEach((c) => sh.getRange(start, c + 1, copy.length, 1).setDataValidation(check));
+    const formats = sh.getRange(start, 1, 1, width).getNumberFormats()[0];
+    // Chữ chép sang giữ nguyên là chữ: Sheet không đổi "15/11" thành ngày, "=…" thành công thức
+    const text = (v, c) => (typeof v !== 'string' || formats[c] === '@' || !/^[+\-=@0-9.,$₫(']|^(true|false)$/i.test(v.trim()) ? v : `'${v}`);
+    const kept = [manager, task, target].filter((c) => c >= 0);
+    sh.getRange(start, 1, copy.length, width).setValues(copy.map((r) => r.map((v, c) => (c === month ? to : kept.includes(c) ? text(v, c) : ''))));
+    sortRows_(sh, adminRules_(sh), 0);
+    adminLog_(user, 'Chép nhiệm vụ', TASK_SHEET, `Tháng ${from} → ${to}`, '', copy.map((r) => `${r[manager]}: ${r[task]}`).join('\n'));
+    return { ok: true, added: copy.length, found: source.length, from, to };
+  });
+}
+
+/** Dòng "Kiểm tra cài đặt" về trang TASK_SHEET (tạo nếu chưa có): tháng này đã giao bao nhiêu nhiệm vụ. */
+function taskStatus_() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sh = withDocLock_(() => taskSheet_(ss));
+    const head = header_(sh).map(matchText_);
+    const missing = [TASK_MONTH_COL, MANAGER_COL, TASK_DONE_COL, TASK_FAIL_COL].filter((name) => head.indexOf(matchText_(name)) < 0);
+    if (missing.length) {
+      return `✗ Trang "${TASK_SHEET}" đã có sẵn nhưng dòng 1 không có cột ${missing.map((n) => `"${n}"`).join(', ')} (có thể shop tự tạo trước): ` +
+        `manager không thấy nhiệm vụ nào. Đổi tên trang đó (VD "${TASK_SHEET} cũ") rồi chạy lại mục này: script tạo trang mới.`;
+    }
+    const tz = ss.getSpreadsheetTimeZone();
+    const now = monthKey_(new Date(Date.now()), tz);
+    const col = head.indexOf(matchText_(TASK_MONTH_COL));
+    const rows = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, head.length).getValues() : [];
+    const count = rows.filter((r) => monthKey_(r[col], tz) === now).length;
+    return `✓ Trang "${TASK_SHEET}": tháng ${monthText_(0)} đã giao ${count} nhiệm vụ. Manager tự thấy nhiệm vụ của mình trên trang quản trị.`;
+  } catch (err) {
+    return `✗ Chưa kiểm tra được trang "${TASK_SHEET}" (${err.message}).`;
+  }
 }
 
 /** Admin vừa bỏ quyền xem trang này: web tải lại, mở trang khác. */
@@ -2429,6 +2652,8 @@ function adminRead_(data, user, me) {
   const admin = me.role === 'admin';
   const fresh = data.fresh === true;
   let dashboard = admin && !ss.getSheetByName(DASHBOARD_SHEET) ? dashboardFor_(ss, true) : null;
+  // Trang Nhiệm vụ trong tháng có ngay từ lần đầu admin hay manager mở trang quản trị sau khi dán script
+  if (ROLE_SHEETS[TASK_SHEET].concat('admin').includes(me.role) && !ss.getSheetByName(TASK_SHEET)) withDocLock_(() => taskSheet_(ss));
   const wanted = adminSheet_(data.sheet);
   let sh = wanted && canSee_(me, wanted) ? wanted : null;
   // Trang muốn mở không còn, hay không được xem: gửi lại cả danh sách để web vẽ lại cột trang tính
@@ -2436,6 +2661,12 @@ function adminRead_(data, user, me) {
   if (!sh) sh = sheets[0] || null;
   if (sh && admin && sh.getName() === COMMISSION_SHEET) syncCommission_(ss); // sản phẩm mới trên web có dòng ngay
   if (sh && admin && sh.getName() === COST_SHEET) syncCosts_(ss);
+  // Trang tự xếp (VD Task Tracking theo Deadline, Nhiệm vụ trong tháng theo tháng): dòng vừa gõ thêm trên Google Sheet chưa
+  // đúng chỗ thì xếp lại trước khi gửi
+  if (sh && (ADMIN_RULES[sh.getName()] || shopRule_(sh.getName()) || {}).sortBy) {
+    const rules = adminRules_(sh);
+    if (sortPlan_(sh, rules)) withDocLock_(() => sortRows_(sh, rules, 0));
+  }
   const own = Boolean(sh) && sh.getName() === DASHBOARD_SHEET;
   if (own && !dashboard) dashboard = dashboardFor_(ss, fresh);
   // Trang cùng tên do shop tự tạo (không có ghi chú của script ở ô A1): hiện như trang tính thường
@@ -2505,7 +2736,7 @@ function dashStale_(sh) {
 function sheetStub_(sh, access) {
   return {
     name: sh.getName(), id: sh.getSheetId(), rows: 0, cols: 0, frozen: 0, rules: restrict_(adminRules_(sh), access),
-    dec: ',', images: 0, formulas: false, widths: [], kinds: [], merges: [], lists: [], rowNums: [], hashes: [], cells: [], webRows: [],
+    dec: ',', images: 0, formulas: false, widths: [], kinds: [], merges: [], lists: [], rowNums: [], hashes: [], cells: [], webRows: [], lockedRows: [],
   };
 }
 
@@ -2526,7 +2757,7 @@ function adminRules_(sh, lists) {
   const own = ADMIN_RULES.hasOwnProperty(sh.getName()) ? ADMIN_RULES[sh.getName()] : null;
   const shop = own ? null : shopRule_(sh.getName());
   const rule = own || shop || {};
-  const head = rule.readOnly || rule.web || rule.choices || rule.dates ? headNames_(sh, Boolean(shop)) : [];
+  const head = rule.readOnly || rule.web || rule.choices || rule.dates || rule.sortBy ? headNames_(sh, Boolean(shop)) : [];
   const at = (name) => head.indexOf(matchText_(name)) + 1;
   const cols = [];
   const why = {};
@@ -2557,8 +2788,20 @@ function adminRules_(sh, lists) {
     choices,
     qty: (rule.qty || []).map(at).filter((col) => col && choices[col]),
     dates: (rule.dates || []).map(at).filter(Boolean), // ô chọn ngày (dateInput_)
-    defaults: Object.fromEntries(Object.entries(rule.defaults || {}).map(([name, v]) => [at(name), v]).filter(([col]) => choices[col])),
+    defaults: Object.fromEntries(Object.entries(rule.defaults || {})
+      .map(([name, v]) => [at(name), typeof v === 'function' ? v() : v]).filter(([col]) => choices[col])),
     colors: Object.fromEntries(Object.entries(rule.colors || {}).map(([name, c]) => [at(name), c]).filter(([col]) => col)),
+    sortBy: rule.sortBy ? at(rule.sortBy) : 0, // cột ngày để tự xếp dòng, xa nhất ở trên (sortRows_)
+    sortKind: rule.sortKind || 'day', // 'month': cột tháng (monthKey_), tháng mới nhất ở trên
+    sortThen: rule.sortThen ? at(rule.sortThen) : 0, // cùng ngày, tháng: xếp theo chữ ở cột này (A→Z)
+    oneOf: (rule.oneOf || []).map((pair) => pair.map(at)).filter((pair) => pair.every(Boolean)), // cặp ô tích chỉ tích được 1
+    live: Boolean(rule.live), // web tự tải lại trang này khi đang mở
+    ownText: rule.own || null, // chữ trên web khi chỉ thấy dòng của mình (VD nhiệm vụ của manager)
+    // Dòng tóm tắt mỗi tháng trên web (VD "Tháng 11/2026: 3/5 hoàn thành"): cột tháng, 2 cột ô tích, cột người làm; `now`: tháng này
+    summary: rule.summary && at(rule.summary.month) && at(rule.summary.done)
+      ? { month: at(rule.summary.month), done: at(rule.summary.done), fail: at(rule.summary.fail), by: at(rule.summary.by), now: monthKey_(new Date(Date.now()), sh.getParent().getSpreadsheetTimeZone()) }
+      : null,
+    copyMonth: rule.copyMonth ? { from: monthText_(-1), to: monthText_(0) } : null, // nút chép tháng trước (restrict_: chỉ admin)
     add: !rule.all && !rule.noAdd,
     del: !rule.all && !rule.noDelete,
     tip: rule.tip || '',
@@ -2628,6 +2871,67 @@ function choiceColors_(sh, row, rules) {
     if (String(cell.getFontColors()[0][0]).toLowerCase() !== fc) cell.setFontColor(fc);
     if (cell.getFontWeights()[0][0] !== w) cell.setFontWeight(w);
   });
+}
+
+/** Ngày của ô Deadline "yyyy-MM-dd": ô ngày thật, chữ "Nov132026" hay "13/11/2026"; không đọc ra ngày (trống, "TBD"…) thì "". */
+function deadlineDay_(value, tz) {
+  if (value instanceof Date) return Utilities.formatDate(value, tz, 'yyyy-MM-dd');
+  const s = String(value == null ? '' : value).trim();
+  const m = s.match(/^([A-Za-z]{3})(\d{2})(\d{4})$/);
+  if (m) {
+    const mo = MONTHS_EN.findIndex((x) => x.toLowerCase() === m[1].toLowerCase()) + 1;
+    return mo && dateFrom_(`${m[2]}/${mo}/${m[3]}`, tz) ? `${m[3]}-${String(mo).padStart(2, '0')}-${m[2]}` : '';
+  }
+  return orderDay_(s, tz);
+}
+
+/**
+ * Thứ tự mới các dòng dữ liệu của trang có rules.sortBy: ngày (sortKind 'month': tháng) xa nhất trước, dòng chưa có ngày sau
+ * cùng; cùng ngày thì theo chữ ở cột rules.sortThen (A→Z, VD tên manager), rồi giữ thứ tự cũ. Trả { from, n, rank } (rank[i]:
+ * chỗ mới của dòng thứ i) hoặc null khi đã đúng thứ tự, không có gì để xếp.
+ */
+function sortPlan_(sh, rules) {
+  if (!rules.sortBy) return null;
+  const from = headRow_(sh, rules) + 1;
+  const n = sh.getLastRow() - from + 1;
+  if (n < 2) return null;
+  const tz = sh.getParent().getSpreadsheetTimeZone();
+  const read = (col) => sh.getRange(from, col, n, 1).getValues().map(([v]) => v);
+  const dayOf = rules.sortKind === 'month' ? monthKey_ : deadlineDay_;
+  const days = read(rules.sortBy).map((v) => dayOf(v, tz));
+  const then = rules.sortThen ? read(rules.sortThen).map(matchText_) : days.map(() => '');
+  const order = days.map((d, i) => i).sort((a, b) => (days[b] > days[a] ? 1 : days[b] < days[a] ? -1
+    : then[a] > then[b] ? 1 : then[a] < then[b] ? -1 : a - b));
+  if (order.every((i, at) => i === at)) return null;
+  const rank = [];
+  order.forEach((i, at) => { rank[i] = at; });
+  return { from, n, rank };
+}
+
+/**
+ * Tự xếp các dòng của trang có rules.sortBy (VD Task Tracking theo Deadline, xa nhất ở trên) bằng lệnh sắp xếp của Google
+ * Sheet: màu ô, ghi chú, ô thả xuống đi theo dòng. Khoá xếp ghi tạm vào cột trống ngay sau cột cuối rồi xoá. Trả số dòng mới
+ * của dòng `track` (không xếp thì như cũ) và `moved`: có dòng nào đổi chỗ. Trang có ô gộp nhiều dòng thì Google không xếp
+ * được: để nguyên. Gọi trong khoá của Sheet.
+ */
+function sortRows_(sh, rules, track) {
+  const plan = sortPlan_(sh, rules);
+  if (!plan) return { row: track, moved: false };
+  const { from, n, rank } = plan;
+  const key = sh.getLastColumn() + 1;
+  if (key > sh.getMaxColumns()) sh.insertColumnsAfter(sh.getMaxColumns(), 1);
+  const keys = sh.getRange(from, key, n, 1);
+  try {
+    keys.setValues(rank.map((r) => [r]));
+    sh.getRange(from, 1, n, key).sort({ column: key, ascending: true });
+  } catch (err) {
+    console.warn(err); // VD có ô gộp nhiều dòng: giữ thứ tự cũ
+    return { row: track, moved: false };
+  } finally {
+    keys.clearContent();
+  }
+  const i = track - from;
+  return { row: i >= 0 && i < n ? from + rank[i] : track, moved: true };
 }
 
 /**
@@ -2704,15 +3008,15 @@ function sheetView_(sh, access, user, fresh) {
   const view = {
     name: sh.getName(), id: sh.getSheetId(), rows, cols, frozen: sh.getFrozenRows(), rules: restrict_(adminRules_(sh, true), access),
     dec: ctx.dec, images: tryGet_(() => sh.getImages().length) || 0, formulas: false,
-    widths: [], kinds: [], merges: [], lists: [], rowNums: [], hashes: [], cells: [], webRows: [],
+    widths: [], kinds: [], merges: [], lists: [], rowNums: [], hashes: [], cells: [], webRows: [], lockedRows: [],
   };
   if (!rows || !cols) return view;
   const hide = access ? access.hide : null;
   const own = access ? access.own : 0;
   const head = Math.min(rows, Math.max(view.frozen, 1));
   const fit = Math.max(head + 1, Math.floor(ADMIN_MAX_CELLS / cols));
-  // Trang mới nhất ở trên: các dòng đầu; trang khác: dòng tiêu đề và các dòng cuối
-  const parts = rows <= fit ? [[1, rows]] : view.rules.top ? [[1, fit]] : [[1, head], [rows - (fit - head) + 1, rows]];
+  // Trang mới nhất ở trên, trang tự xếp (mới nhất, xa nhất ở trên): các dòng đầu; trang khác: dòng tiêu đề và các dòng cuối
+  const parts = rows <= fit ? [[1, rows]] : view.rules.top || view.rules.sortBy ? [[1, fit]] : [[1, head], [rows - (fit - head) + 1, rows]];
   const names = view.rules.web.length || view.rules.notWeb.length ? header_(sh).map(matchText_) : null;
   const kinds = [];
   parts.forEach(([from, to]) => {
@@ -2724,6 +3028,7 @@ function sheetView_(sh, access, user, fresh) {
       view.cells.push(r.cells);
       if (at > head) kinds.push(r.kinds);
       if (names && at > 1 && webRow_(sh, r.shown, names)) view.webRows.push(at);
+      if (at > head && closedRow_(access, r.values)) view.lockedRows.push(at); // VD nhiệm vụ tháng đã chốt: manager chỉ xem
     });
   });
   view.kinds = Array.from({ length: cols }, (_, c) => majorityKind_(kinds.map((k) => k[c])));
@@ -2997,6 +3302,7 @@ function adminEdit_(data, user, me) {
     const values = range.getValues()[0];
     if (rowHash_(maskRow_(values, access.hide)) !== data.hash) return { ok: false, conflict: true, error: ADMIN_CONFLICT };
     if (access.own && !ownRow_(values, access.own, user)) return { ok: false, conflict: true, error: ADMIN_CONFLICT };
+    if (closedRow_(access, values)) return { ok: false, error: TASK_CLOSED }; // VD nhiệm vụ của tháng đã qua
     const ctx = gridContext_(sh);
     const formulas = range.getFormulas()[0];
     const shown = range.getDisplayValues()[0];
@@ -3015,6 +3321,17 @@ function adminEdit_(data, user, me) {
       const next = (rules.dates.includes(col) && dateInput_(sh, col, item.value, ctx, from)) || cellInput_(item.value, kind, cell.getNumberFormat(), ctx);
       if (!sameCell_(values[col - 1], formulas[col - 1], next)) changes.push({ cell, col, next, before: formulas[col - 1] || shown[col - 1] });
     }
+    // Cặp ô chỉ tích được 1 (VD Hoàn thành / Không hoàn thành): vừa tích ô này thì bỏ tích ô kia
+    for (const pair of rules.oneOf) {
+      const ticked = (col) => changes.some((ch) => ch.col === col && ch.next.value === true);
+      if (pair.every(ticked)) return { ok: false, error: TASK_BOTH };
+      pair.forEach((col) => {
+        const other = pair.find((c) => c !== col);
+        if (ticked(col) && values[other - 1] === true && !changes.some((ch) => ch.col === other)) {
+          changes.push({ cell: sh.getRange(row, other), col: other, next: { value: false }, before: shown[other - 1] });
+        }
+      });
+    }
     changes.forEach((ch) => (ch.next.formula !== undefined ? ch.cell.setFormula(ch.next.formula) : ch.cell.setValue(ch.next.value)));
     if (changes.length) dashStale_(sh);
     if (sh.getName() === COMMISSION_SHEET) fixRates_(sh, row, row, 1, width);
@@ -3022,15 +3339,18 @@ function adminEdit_(data, user, me) {
     costsEdited_(sh, row, row, (c) => changes.some((ch) => ch.col === c)); // admin gõ Chi phí: giữ số đó; sửa sản phẩm: tự điền
     if (changes.some((ch) => watchesProfit_(sh, ch.col, ch.col))) syncProfit_(sh, row, row);
     if (changes.length) choiceColors_(sh, row, rules); // VD Status: Waiting cam nhạt, Done xanh lá
-    const fresh = gridRows_(sh.getRange(row, 1, 1, sh.getLastColumn()), ctx, access.hide)[0];
+    const sorted = changes.length ? sortRows_(sh, rules, row) : { row, moved: false }; // VD Task Tracking: xếp lại theo Deadline
+    const fresh = gridRows_(sh.getRange(sorted.row, 1, 1, sh.getLastColumn()), ctx, access.hide)[0];
     changes.forEach((ch) => {
       const cell = fresh.cells[ch.col - 1];
-      adminLog_(user, 'Sửa ô', sh.getName(), `${colName_(ch.col)}${row}`, ch.before, cell ? (cell.f ? cell.e : cell.d) || '' : '');
+      const where = `${colName_(ch.col)}${row}${sorted.row !== row ? ` (nay ở dòng ${sorted.row})` : ''}`;
+      adminLog_(user, 'Sửa ô', sh.getName(), where, ch.before, cell ? (cell.f ? cell.e : cell.d) || '' : '');
     });
     return {
       ok: true, saved: changes.length,
       row: { hash: fresh.hash, cells: fresh.cells, lists: ctx.lists, web: Boolean(names) && webRow_(sh, fresh.shown, names) },
-      reload: Boolean(linked), message: linked && linked.issue ? linked.issue : '',
+      moved: sorted.moved ? sorted.row : 0, // dòng vừa sửa đã chuyển tới dòng này: web tải lại cả trang
+      reload: Boolean(linked) || sorted.moved, message: linked && linked.issue ? linked.issue : '',
     };
   });
 }
@@ -3048,7 +3368,9 @@ function adminAppend_(data, user, me) {
   if (!rules.add) {
     return { ok: false, error: access.admin ? 'Trang tính này không thêm dòng trên web được.' : 'Tài khoản của bạn không thêm dòng ở trang tính này được.' };
   }
-  const input = Array.isArray(data.values) ? data.values : [];
+  const input = Array.isArray(data.values) ? data.values.slice(0, 500) : [];
+  const bad = sh.getName() === TASK_SHEET ? taskInput_(sh, input) : ''; // Tháng trống: tháng này; phải chọn manager
+  if (bad) return { ok: false, error: bad };
   return withDocLock_(() => {
     const width = sh.getLastColumn();
     const last = sh.getLastRow();
@@ -3105,6 +3427,7 @@ function adminAppend_(data, user, me) {
     choiceColors_(sh, added, rules);
     syncProfit_(sh, added, added);
     dashStale_(sh);
+    added = sortRows_(sh, rules, added).row; // VD Task Tracking: dòng mới vào đúng chỗ theo Deadline
     adminLog_(user, 'Thêm dòng', sh.getName(), `Dòng ${added}`, '', text.join('\n'));
     return { ok: true, row: added };
   });
@@ -3348,7 +3671,7 @@ function cleanPerms_(raw, ss, role) {
   const sheets = {};
   ss.getSheets().forEach((s) => {
     const id = String(s.getSheetId());
-    if (ADMIN_ONLY_SHEETS.includes(s.getName()) || !Object.prototype.hasOwnProperty.call(src, id)) return;
+    if (!grantable_(s) || !Object.prototype.hasOwnProperty.call(src, id)) return;
     const p = src[id];
     if (!p || p.view !== true) return;
     const out = { view: true };
@@ -3374,6 +3697,11 @@ function cleanPerms_(raw, ss, role) {
     pct,
     since: pct ? since : '',
   };
+}
+
+/** Trang tính admin cấp được ở mục Tài khoản: trừ trang chỉ admin xem và trang theo vai trò (ROLE_SHEETS, VD Nhiệm vụ trong tháng). */
+function grantable_(sh) {
+  return !ADMIN_ONLY_SHEETS.includes(sh.getName()) && !ROLE_SHEETS.hasOwnProperty(sh.getName());
 }
 
 /** Tên các tài khoản manager: ô thả xuống cột Manager (chỉ admin thấy). */
@@ -3410,7 +3738,7 @@ function adminAccountList_(data, user) {
       const role = roleOf_(accounts[name]);
       return { name, role, totp: Boolean(accounts[name].totp), perms: role === 'admin' ? null : adminPerms_(name), self: name === user };
     }),
-    sheets: ss.getSheets().filter((s) => !ADMIN_ONLY_SHEETS.includes(s.getName())).map((s) => ({
+    sheets: ss.getSheets().filter(grantable_).map((s) => ({
       id: String(s.getSheetId()), name: s.getName(), own: OWN_ROW_SHEETS.includes(s.getName()), viewOnly: VIEW_ONLY_SHEETS.includes(s.getName()),
       cols: columnKeys_(s).map(({ key, label }) => ({ key, label, money: commissionCol_(label) })),
     })),

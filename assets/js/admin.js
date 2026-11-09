@@ -18,6 +18,8 @@ const VISITS_KEY = 'sctech_admin_visits'; // + ":tên": số lần mở mỗi tr
 const CACHE_MAX = 16;            // Số trang tính nhớ trong tab: quá thì bỏ trang lâu nhất chưa mở lại
 const PREFETCH_MAX = 8;          // Mở xong trang đầu: tải trước bấy nhiêu trang hay mở nhất
 const LIST_MAX_AGE = 5 * 60000;  // Danh sách trang tính cũ hơn bấy nhiêu thì xin lại (VD vừa thêm trang trên Google Sheet)
+const LIVE_MS = 20 * 1000;       // Trang tự cập nhật (rules.live, VD Nhiệm vụ trong tháng): đang mở thì tải bản mới mỗi bấy nhiêu ms
+const LIVE_FOCUS_MS = 3000;      // Quay lại tab mà bản đang xem cũ hơn bấy nhiêu ms: tải bản mới ngay
 const DASH_NAME = 'Tổng quan';   // Giống DASHBOARD_SHEET trong google-apps-script.gs
 const SIDE_KEY = 'sctech_admin_side_hidden';
 const DEVICE_KEY = 'sctech_admin_trinh_duyet'; // mã ngẫu nhiên của trình duyệt này: script chỉ báo email khi gặp trình duyệt lạ
@@ -80,6 +82,7 @@ function canEdit(sh, row, col) {
 function lockOf(sh, row, col, cell) {
   if (cell?.t === 'o') return '[Hình ảnh trong ô: xem trên Google Sheet]';
   if (sh.rules.header && row === 1) return 'Chỉ sửa trên Google Sheet.';
+  if (sh.lockedRows?.has(row)) return sh.rules.rowWhy || 'Chỉ xem.'; // VD nhiệm vụ của tháng đã chốt
   if (!canEdit(sh, row, col)) return sh.rules.why?.[col] || 'Chỉ sửa trên Google Sheet.';
   const web = sh.webRows.has(row);
   if (web && sh.rules.web?.includes(col)) {
@@ -612,7 +615,42 @@ function showDoc(out, { keepScroll = false, quiet = false } = {}) {
   }
   view.scrollTop = scroll ? scroll.top : 0;
   view.scrollLeft = scroll ? scroll.left : 0;
+  scheduleLive();
 }
+
+/* Trang tự cập nhật (rules.live, VD Nhiệm vụ trong tháng): đang mở trang đó thì cứ LIVE_MS tải ngầm bản mới; có thay đổi (VD
+   admin vừa giao, sửa nhiệm vụ) thì vẽ lại, giữ chỗ đang cuộn và ô tìm. Không tải khi tab đang ẩn, đang mở khung sửa. */
+let liveTimer = 0;
+
+function scheduleLive() {
+  clearTimeout(liveTimer);
+  if (app.doc?.sheet?.rules.live && !app.view && app.token) liveTimer = setTimeout(pollLive, LIVE_MS);
+}
+
+async function pollLive() {
+  const sh = app.doc?.sheet;
+  if (!sh?.rules.live || app.view || !app.token || app.doc.dashboard) return;
+  if (document.hidden || panel || drawer || app.waiting) {
+    scheduleLive();
+    return;
+  }
+  const out = await fetchDoc(sh.name, { background: true });
+  if (app.doc?.sheet?.name !== sh.name || app.view) return; // đã sang trang khác: lần mở đó tự hẹn giờ
+  if (out.ok && out.sheet?.name === sh.name && out.fp !== app.doc.fp && !panel && !drawer) {
+    showDoc(out, { keepScroll: true });
+    return;
+  }
+  if (out.ok) {
+    app.doc.at = out.at;
+    app.loadedAt = out.at;
+    renderInfoAgain();
+  }
+  scheduleLive();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && app.doc?.sheet?.rules.live && Date.now() - (app.loadedAt?.getTime() || 0) > LIVE_FOCUS_MS) pollLive();
+});
 
 /** Vai trò script vừa báo (đổi vai trò thì script đã đăng xuất phiên cũ, đây chỉ để chắc chắn giao diện đúng). */
 function takeMe(me) {
@@ -626,6 +664,7 @@ function takeMe(me) {
 
 /** Phần đang hiện ở khung chính: lưới trang tính, Tổng quan, hay một mục (Hoa hồng, Tài khoản, thông báo). */
 function showMain(kind) {
+  if (kind !== 'grid') els.summary.hidden = true;
   els.grid.hidden = kind !== 'grid';
   els.dash.hidden = kind !== 'dash';
   els.view.hidden = kind !== 'view';
@@ -639,6 +678,7 @@ function prepare(sh) {
   sh.text = sh.cells.map(rowText);
   sh.headerRow = headerRowOf(sh);
   sh.webRows = new Set(sh.webRows || []);
+  sh.lockedRows = new Set(sh.lockedRows || []);
   // Cột admin ẩn với tài khoản này: script không gửi nội dung, web không vẽ cột đó
   sh.hidden = new Set(sh.rules.hide || []);
   sh.shownCols = Array.from({ length: sh.cols }, (_, c) => c + 1).filter((c) => !sh.hidden.has(c));
@@ -737,6 +777,13 @@ function renderTools() {
   const sh = app.doc.sheet;
   const grid = Boolean(sh) && !app.view;
   els.add.hidden = !grid || !sh.rules.add || !sh.cols;
+  const copy = grid && !app.doc.dashboard ? sh.rules.copyMonth : null; // chỉ admin: script chỉ gửi cho admin
+  els.copy.hidden = !copy;
+  if (copy) {
+    const what = `Chép nhiệm vụ tháng ${copy.from} sang tháng ${copy.to}`;
+    els.copy.title = what;
+    els.copy.setAttribute('aria-label', what);
+  }
   const url = grid && /^https:\/\/docs\.google\.com\//.test(app.doc.url || '') ? `${app.doc.url}#gid=${sh.id}` : '';
   els.open.hidden = !url;
   els.open.href = url || '#';
@@ -763,12 +810,13 @@ function renderInfo(shown, total) {
   const time = timeText(app.loadedAt);
   const took = typeof app.doc.ms === 'number' ? ` title="Script trả lời sau ${(app.doc.ms / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} giây"` : '';
   const q = app.query.trim();
-  const unit = sh.rules.own ? 'đơn của bạn' : 'dòng';
+  const unit = sh.rules.own ? sh.rules.ownText?.unit || 'đơn của bạn' : 'dòng';
   const facts = app.doc.dashboard ? [`số liệu lúc ${esc(app.doc.dashboard.updated)}`]
     : [q ? `Đang lọc: ${shown}/${total} ${unit} có “${esc(q)}”` : `${total} ${unit}`, `${sh.shownCols.length} cột`, time && `<span${took}>tải lúc ${time}</span>`].filter(Boolean);
   const admin = app.role === 'admin';
   const notes = [];
-  if (sh.rules.own) notes.push('Chỉ hiện các đơn bạn lên: đơn có cột Seller là tên tài khoản của bạn.');
+  if (sh.rules.own) notes.push(esc(sh.rules.ownText?.why || 'Chỉ hiện các đơn bạn lên: đơn có cột Seller là tên tài khoản của bạn.'));
+  if (sh.lockedRows.size) notes.push(`${sh.lockedRows.size} dòng của tháng đã chốt: chỉ xem.`);
   if (sh.rules.viewOnly) notes.push('Tài khoản của bạn chỉ xem trang tính này. Cần sửa thì báo admin.');
   if (sh.hidden.size) notes.push('Một số cột admin không cho tài khoản của bạn xem.');
   if (sh.rules.tip) notes.push(esc(sh.rules.tip));
@@ -780,9 +828,11 @@ function renderInfo(shown, total) {
   if (app.doc.dashboard && admin) notes.push('Trên Google Sheet, trang Tổng quan có cùng số liệu và biểu đồ của Google.');
   const shownRows = sh.cells.length - sh.headRows;
   if (!app.doc.dashboard && !sh.rules.own && sh.rows - sh.headRows > shownRows) {
-    notes.push(`Trang tính lớn: chỉ hiện ${shownRows} dòng ${sh.rules.top ? 'đầu (mới nhất)' : 'cuối'}, dòng cũ hơn xem trên Google Sheet.`);
+    notes.push(sh.rules.sortBy ? `Trang tính lớn: chỉ hiện ${shownRows} dòng đầu (${esc(sortName(sh))} xa nhất), các dòng còn lại xem trên Google Sheet.`
+      : `Trang tính lớn: chỉ hiện ${shownRows} dòng ${sh.rules.top ? 'đầu (mới nhất)' : 'cuối'}, dòng cũ hơn xem trên Google Sheet.`);
   }
-  if (sh.rules.top && !sh.rules.own) notes.push('Dòng mới nhất ở trên cùng: đơn, yêu cầu, mã, dòng thêm trên web đều chèn ngay dưới dòng tiêu đề.');
+  if (sh.rules.sortBy) notes.push(`Các dòng tự xếp theo cột ${esc(sortName(sh))}: ${esc(sortOrder(sh))}. Thêm, sửa dòng trên web là xếp lại ngay; dòng gõ trên Google Sheet được xếp khi mở trang này.`);
+  else if (sh.rules.top && !sh.rules.own) notes.push('Dòng mới nhất ở trên cùng: đơn, yêu cầu, mã, dòng thêm trên web đều chèn ngay dưới dòng tiêu đề.');
   els.info.innerHTML = `
     <p class="admin-info__name" title="${esc(sh.name)}">${esc(sh.name)}</p>
     <div class="admin-info__meta">
@@ -862,6 +912,7 @@ function renderGrid() {
   if (!sh.rows || !sh.cols) {
     els.grid.innerHTML = '<p class="admin-empty">Trang tính này chưa có dữ liệu.</p>';
     renderInfo(0, 0);
+    renderSummary(sh);
     return;
   }
   const q = plain(app.query.trim());
@@ -896,13 +947,99 @@ function renderGrid() {
     html.push(`<tr class="sheet__gap"><td colspan="${span}">… ${sh.rows - prev} dòng cũ hơn: xem trên Google Sheet</td></tr>`);
   }
   if (!body.length) {
-    const none = sh.rules.own ? 'Chưa có đơn nào bạn lên.' : 'Chưa có dòng dữ liệu nào.';
+    const none = sh.rules.own ? sh.rules.ownText?.none || 'Chưa có đơn nào bạn lên.' : 'Chưa có dòng dữ liệu nào.';
     html.push(`<tr class="sheet__gap"><td colspan="${span}">${q ? 'Không có dòng nào khớp.' : none}</td></tr>`);
   }
   html.push('</tbody></table>');
   els.grid.innerHTML = html.join('');
   stickHead();
-  renderInfo(body.length, sh.rows - sh.headRows);
+  // Chỉ thấy dòng của mình (đơn của seller, nhiệm vụ của manager): đếm các dòng đó, không phải số dòng của cả trang tính
+  renderInfo(body.length, sh.rules.own ? sh.cells.length - sh.headRows : sh.rows - sh.headRows);
+  renderSummary(sh);
+}
+
+const SUMMARY_MONTHS = 3; // Dòng tóm tắt: hiện bấy nhiêu tháng gần nhất, bấm "Xem cả … tháng" để hiện hết
+
+/** Tháng của ô Tháng → "yyyy-mm": chữ "11/2026" (hay "Tháng 11/2026", "2026-11"), ngày "01/11/2026"; không đọc ra: "". */
+function monthKey(text) {
+  const s = String(text ?? '').trim();
+  let m = /^(?:tháng\s*)?(\d{1,2})\s*[/.-]\s*(\d{4})$/i.exec(s) || /^\d{1,2}\/(\d{1,2})\/(\d{4})(\s|$)/.exec(s);
+  let [mo, y] = m ? [Number(m[1]), m[2]] : [0, ''];
+  if (!m && (m = /^(\d{4})-(\d{1,2})$/.exec(s))) [mo, y] = [Number(m[2]), m[1]];
+  return mo >= 1 && mo <= 12 ? `${y}-${String(mo).padStart(2, '0')}` : '';
+}
+
+/**
+ * Số liệu mỗi tháng của trang có rules.summary (VD Nhiệm vụ trong tháng), tháng mới nhất trước: { key, total, done, fail,
+ * by: Map tên → { total, done } }. Tính trên mọi dòng đang có (không theo ô tìm); dòng không đọc ra tháng thì bỏ qua.
+ */
+function monthStats(sh, s) {
+  const months = new Map();
+  for (let i = sh.headRows; i < sh.cells.length; i++) {
+    const cells = sh.cells[i] || [];
+    if (sh.rowNums[i] === sh.headerRow) continue;
+    const key = monthKey(editOf(cells[s.month - 1]));
+    if (!key) continue;
+    if (!months.has(key)) months.set(key, { key, total: 0, done: 0, fail: 0, by: new Map() });
+    const m = months.get(key);
+    const done = editOf(cells[s.done - 1]) === 'TRUE';
+    m.total++;
+    if (done) m.done++;
+    else if (s.fail && editOf(cells[s.fail - 1]) === 'TRUE') m.fail++;
+    const name = (s.by && cells[s.by - 1]?.d?.trim()) || '(chưa giao)';
+    const p = m.by.get(name) || { total: 0, done: 0 };
+    p.total++;
+    if (done) p.done++;
+    m.by.set(name, p);
+  }
+  return [...months.values()].sort((a, b) => (a.key < b.key ? 1 : -1));
+}
+
+/**
+ * Dòng tóm tắt mỗi tháng ở trên lưới (rules.summary), VD "Tháng 11/2026 (đang làm): 3/5 hoàn thành · 1 không hoàn thành · 1
+ * chưa tích — lan 2/3, tuan 1/2" (tên từng người khi tháng đó có nhiều người). Trang khác: ẩn.
+ */
+function renderSummary(sh) {
+  const s = !app.view && sh && !app.doc?.dashboard ? sh.rules.summary : null;
+  const months = s ? monthStats(sh, s) : [];
+  els.summary.hidden = !months.length;
+  if (!months.length) {
+    els.summary.textContent = '';
+    return;
+  }
+  const line = (m) => {
+    const [y, mo] = m.key.split('-');
+    const state = m.key === s.now ? 'đang làm' : m.key < s.now ? 'đã chốt' : 'sắp tới';
+    const open = m.total - m.done - m.fail;
+    const parts = [`${m.done}/${m.total} hoàn thành`, m.fail && `${m.fail} không hoàn thành`, open && `${open} chưa tích`].filter(Boolean);
+    const by = m.by.size > 1 ? ` <span class="admin-summary__by">— ${[...m.by].map(([n, p]) => `${esc(n)} ${p.done}/${p.total}`).join(', ')}</span>` : '';
+    return `<li data-month="${m.key}"><strong>Tháng ${mo}/${y}</strong> <span class="admin-summary__state">(${state})</span>: ${parts.join(' · ')}${by}</li>`;
+  };
+  const shown = app.summaryAll ? months : months.slice(0, SUMMARY_MONTHS);
+  const more = months.length > SUMMARY_MONTHS
+    ? `<button type="button" class="link-arrow admin-summary__more" data-summary-more aria-expanded="${Boolean(app.summaryAll)}">${app.summaryAll ? 'Thu gọn' : `Xem cả ${months.length} tháng`}</button>` : '';
+  els.summary.innerHTML = `<ul class="admin-summary__list">${shown.map(line).join('')}</ul>${more}`;
+}
+
+/** Nút "Chép tháng trước" (chỉ admin, trang Nhiệm vụ trong tháng): script chép nhiệm vụ tháng trước sang tháng này, bỏ qua việc đã có. */
+async function copyTasks() {
+  const sh = app.doc?.sheet;
+  const m = sh?.rules.copyMonth;
+  if (!m || els.copy.disabled) return;
+  els.copy.disabled = true;
+  setStatus(`Đang chép nhiệm vụ tháng ${m.from} sang tháng ${m.to}…`);
+  const out = await api('chep-nhiem-vu', { sheet: sh.name });
+  els.copy.disabled = false;
+  setStatus('');
+  if (!out.ok) {
+    if (!out.login) setStatus(out.error || 'Chưa chép được nhiệm vụ. Thử lại sau ít phút.', true);
+    return;
+  }
+  const skipped = out.found - out.added;
+  toast(out.added ? `Đã chép ${out.added} nhiệm vụ của tháng ${out.from} sang tháng ${out.to}${skipped ? ` (${skipped} nhiệm vụ đã có nên bỏ qua)` : ''}.`
+    : out.found ? `Tháng ${out.to} đã có đủ ${out.found} nhiệm vụ của tháng ${out.from}: không chép thêm.`
+      : `Tháng ${out.from} chưa có nhiệm vụ nào để chép.`, { timeout: 7000 });
+  if (out.added && app.doc?.sheet?.name === sh.name) loadSheet(sh.name, { keepScroll: true, wait: true });
 }
 
 /** Dòng chữ cột A, B, C… và các dòng tiêu đề đứng yên khi cuộn: mỗi dòng nằm ngay dưới dòng trên nó. */
@@ -965,7 +1102,8 @@ function buildFields(sh, mode, row, i) {
     const cell = cells[c - 1] || null;
     const label = labelOf(sh, c);
     const own = mode === 'add' ? template[c - 1]?.v : cell?.v;
-    const v = own ?? sh.choice[c];
+    // Cặp ô chỉ tích được 1 (VD Hoàn thành / Không hoàn thành) luôn là ô tích, cả khi trang chưa có dòng nào để lấy mẫu
+    const v = own ?? sh.choice[c] ?? (sh.rules.oneOf?.some((pair) => pair.includes(c)) ? 'c' : undefined);
     const why = lockOf(sh, mode === 'add' ? sh.rows + 1 : row, c, cell);
     let original = editOf(cell);
     if (mode === 'add') {
@@ -981,6 +1119,7 @@ function buildFields(sh, mode, row, i) {
       qty: Boolean(list) && Boolean(sh.rules.qty?.includes(c)),
       original: v === 'c' ? original === 'TRUE' : original,
       empty: mode === 'edit' && !editOf(cell) && !(cell && cell.n),
+      rowLocked: mode === 'edit' && sh.lockedRows.has(row), // cả dòng chỉ xem (VD tháng đã chốt): báo 1 lần ở đầu khung
     });
   }
   return fields;
@@ -989,7 +1128,7 @@ function buildFields(sh, mode, row, i) {
 function controlHtml(sh, f) {
   const id = `ap-f${f.col}`;
   if (f.locked) {
-    const text = f.cell?.t === 'o' ? '[Hình ảnh trong ô: xem trên Google Sheet]' : f.cell?.d || '—';
+    const text = f.cell?.t === 'o' ? '[Hình ảnh trong ô: xem trên Google Sheet]' : f.v === 'c' ? (f.original === true ? 'Đã tích' : 'Chưa tích') : f.cell?.d || '—';
     return `<div class="admin-field__value" id="${id}">${esc(text)}</div>`;
   }
   if (f.v === 'c') {
@@ -1017,7 +1156,7 @@ function controlHtml(sh, f) {
 
 function fieldHtml(sh, f) {
   const hints = [];
-  if (f.locked && f.cell?.t !== 'o') hints.push(`${icon('lock', 'icon--sm')}<span>${esc(f.why)}</span>`);
+  if (f.locked && !f.rowLocked && f.cell?.t !== 'o') hints.push(`${icon('lock', 'icon--sm')}<span>${esc(f.why)}</span>`);
   if (f.date && !f.locked && f.original && !isoOf(f.original)) hints.push(`<span>Ô đang ghi “${esc(f.original)}”: chọn ngày để thay.</span>`);
   if (f.cell?.n) hints.push(`<span>Ghi chú: ${esc(f.cell.n)}</span>`);
   return `
@@ -1127,7 +1266,9 @@ function openPanel(mode, row = 0, focusCol = 0, { notice = '', typed = [] } = {}
     </div>
     <div class="drawer__body admin-panel__body">
       ${notice ? `<div class="admin-notice" role="alert"><p>${esc(notice)}</p>${typed.length ? `<p>Nội dung bạn vừa gõ:</p><ul>${typed.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}</div>` : ''}
-      ${mode === 'add' ? `<p class="admin-panel__intro">Dòng mới được thêm vào ${sh.rules.top ? 'đầu trang tính, ngay dưới dòng tiêu đề' : 'cuối trang tính'}. Ô để trống thì bỏ qua.</p>` : ''}
+      ${fields.some((f) => f.rowLocked) ? `<p class="admin-panel__intro admin-panel__locked">${icon('lock', 'icon--sm')}<span>${esc(sh.rules.rowWhy || 'Chỉ xem.')}</span></p>` : ''}
+      ${mode === 'add' ? `<p class="admin-panel__intro">${sh.rules.sortBy ? `Dòng mới được xếp theo cột ${esc(sortName(sh))}: ${esc(sortOrder(sh))}.`
+        : `Dòng mới được thêm vào ${sh.rules.top ? 'đầu trang tính, ngay dưới dòng tiêu đề' : 'cuối trang tính'}.`} Ô để trống thì bỏ qua.</p>` : ''}
       <div class="admin-fields${hasHeader || mode === 'add' ? '' : ' is-compact'}">${fields.map((f) => fieldHtml(sh, f)).join('')}</div>
       ${mode === 'edit' && !hasHeader && empties ? `<button type="button" class="link-arrow admin-panel__more" data-ap-empty aria-expanded="false">Hiện ${empties} ô trống</button>` : ''}
     </div>
@@ -1177,6 +1318,14 @@ function openPanel(mode, row = 0, focusCol = 0, { notice = '', typed = [] } = {}
 
   el.addEventListener('change', (e) => {
     if (e.target.matches('[data-product]')) syncQty(e.target);
+    // Cặp ô chỉ tích được 1 (VD Hoàn thành / Không hoàn thành): tích ô này thì bỏ tích ô kia
+    if (e.target.type === 'checkbox' && e.target.checked) {
+      const col = Number(e.target.dataset.col);
+      (sh.rules.oneOf || []).filter((pair) => pair.includes(col)).forEach((pair) => {
+        const other = $(`input[type="checkbox"][data-col="${pair.find((c) => c !== col)}"]`, el);
+        if (other) other.checked = false;
+      });
+    }
   });
   el.addEventListener('input', (e) => {
     if (e.target.tagName === 'TEXTAREA') autosize(e.target);
@@ -1364,16 +1513,33 @@ async function save() {
   }
   closePanel();
   if (out.saved) {
-    mergeRow(sh, row, out.row);
+    // Dòng đã chuyển chỗ (trang tự xếp, VD Task Tracking theo Deadline): không vẽ đè vào chỗ cũ, tải lại cả trang bên dưới
+    if (!out.moved) mergeRow(sh, row, out.row);
     app.cache.delete(DASH_NAME);
   }
   renderGrid();
   if (out.message) toast(`Đã lưu dòng ${row}. Lưu ý: ${out.message}`, { timeout: 9000 });
+  else if (out.moved && out.moved !== row) toast(`Đã lưu. Dòng ${row} chuyển tới dòng ${out.moved} (tự xếp theo ${sortName(sh)}).`, { timeout: 6000 });
   else toast(out.saved ? `Đã lưu dòng ${row}.` : 'Nội dung giống hệt trên Sheet: không có gì thay đổi.');
   // Công thức ở dòng khác có thể đổi theo; gán mã tải code đổi màu ô ở dòng khác
   if (out.saved && (out.reload || sh.formulas || (out.row && out.row.cells.length > sh.cols))) {
-    loadSheet(sh.name, { keepScroll: true, wait: true });
+    const moved = out.moved;
+    loadSheet(sh.name, { keepScroll: true, wait: true }).then(() => {
+      if (moved) $(`tr[data-row="${moved}"]`, els.grid)?.scrollIntoView({ block: 'center' });
+    });
   }
+}
+
+/** Tên cột trang tự xếp theo (VD "Deadline"), lấy ở dòng tiêu đề. */
+function sortName(sh, col = sh.rules.sortBy) {
+  return labelOf(sh, col).replace(/^[A-Z]+ · /, '');
+}
+
+/** Thứ tự tự xếp, VD "ngày xa nhất ở trên cùng, dòng chưa có ngày ở dưới cùng". */
+function sortOrder(sh) {
+  const month = sh.rules.sortKind === 'month';
+  const then = sh.rules.sortThen ? `, cùng tháng thì theo ${sortName(sh, sh.rules.sortThen)}` : '';
+  return month ? `tháng mới nhất ở trên cùng${then}` : `ngày xa nhất ở trên cùng${then}, dòng chưa có ngày ở dưới cùng`;
 }
 
 async function doDelete() {
@@ -2078,6 +2244,8 @@ function bind() {
   els.open = $('[data-admin-open]');
   els.info = $('[data-admin-info]');
   els.notes = $('[data-admin-notes]');
+  els.copy = $('[data-admin-copy]');
+  els.summary = $('[data-admin-summary]');
   els.side = $('[data-admin-side]');
   els.sideOverlay = $('[data-admin-side-overlay]');
   els.sideClose = $('[data-admin-side-close]');
@@ -2126,6 +2294,12 @@ function bind() {
     else if (b.matches('[data-ac-open]')) openAccount(b.dataset.acOpen);
   });
   els.add.addEventListener('click', () => openPanel('add'));
+  els.copy.addEventListener('click', copyTasks);
+  els.summary.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-summary-more]')) return;
+    app.summaryAll = !app.summaryAll;
+    renderSummary(app.doc?.sheet);
+  });
   try { els.work.classList.toggle('is-collapsed', Boolean(localStorage.getItem(SIDE_KEY))); } catch { /* private mode */ }
   syncMenu();
   els.menu.addEventListener('click', toggleSide);
