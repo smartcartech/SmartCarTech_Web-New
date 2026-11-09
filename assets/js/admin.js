@@ -1506,7 +1506,7 @@ function renderCommission(out) {
       ${out.months?.length ? viewTable('hh-months', [{ label: 'Tháng' }, { label: 'Đơn có lợi nhuận', num: true }, { label: 'Lợi nhuận', num: true },
         { label: 'Hoa hồng', num: true }, { label: 'Lợi nhuận sau hoa hồng', num: true }],
       out.months.map((m) => [esc(m.label), m.orders, esc(vnd(m.profit)), esc(vnd(m.commission)), esc(vnd(m.net))]))
-        : '<p class="dash-empty">Chưa có đơn nào có lợi nhuận: nhập Doanh thu sau điều chỉnh, Chi phí ở trang Đơn hàng, In 3D.</p>'}
+        : '<p class="dash-empty">Chưa có đơn nào có lợi nhuận: nhập Doanh thu sau điều chỉnh ở trang Đơn hàng, In 3D (Chi phí của đơn mới tự điền theo trang Chi Phí).</p>'}
     </section>`;
   const cols = admin
     ? [{ label: 'Ngày' }, { label: 'Người nhận' }, { label: 'Mã' }, { label: 'Khách' }, { label: 'Sản phẩm' }, { label: 'Trạng thái đơn' },
@@ -1565,7 +1565,7 @@ function renderAccounts(out) {
           </button></li>`).join('')}
         </ul>
       </section>
-      <p class="dash__foot">Admin xem, sửa được mọi thứ và quản lý tài khoản. Manager, seller chỉ xem được các trang tính, các cột bạn chọn: manager không bao giờ thấy cột hoa hồng (hoa hồng quản lý, hoa hồng lên đơn của mình xem ở mục Hoa hồng của tôi), seller chỉ thấy đơn của mình. Mã 2 bước bật trong Google Sheet: menu SmartCarTech → Tài khoản trang quản trị…; mọi lần tạo, sửa, xoá tài khoản được ghi ở Nhật ký quản trị.</p>
+      <p class="dash__foot">Admin xem, sửa được mọi thứ và quản lý tài khoản. Manager, seller chỉ xem được các trang tính, các cột bạn chọn: manager không bao giờ thấy cột hoa hồng (hoa hồng quản lý, hoa hồng lên đơn của mình xem ở mục Hoa hồng của tôi), seller chỉ thấy đơn của mình. Trang Chi Phí chỉ admin sửa: tích Xem để cho ai xem. Mã 2 bước bật trong Google Sheet: menu SmartCarTech → Tài khoản trang quản trị…; mọi lần tạo, sửa, xoá tài khoản được ghi ở Nhật ký quản trị.</p>
     </div>`;
   renderViewInfo('Tài khoản', `${out.accounts.length} tài khoản`);
 }
@@ -1585,11 +1585,15 @@ function permsSummary(a, sheets) {
   return parts.join(' · ');
 }
 
-/** Quyền ở một trang tính trong khung sửa tài khoản: xem, sửa, thêm, xoá dòng, và các cột được xem. */
+/**
+ * Quyền ở một trang tính trong khung sửa tài khoản: xem, sửa, thêm, xoá dòng, và các cột được xem. Trang chỉ admin sửa
+ * (`viewOnly`, VD Chi Phí): chỉ tích được Xem.
+ */
 function sheetPermHtml(s, p, role) {
   const own = role === 'seller' && s.own;
+  const fixed = Boolean(s.viewOnly);
   const view = Boolean(p && p.view);
-  const edit = view && Boolean(p.edit);
+  const edit = view && Boolean(p.edit) && !fixed;
   const all = !view || !Array.isArray(p.cols);
   const shown = new Set(all ? [] : p.cols);
   const flag = (name, label, on, off) => `<label class="check"><input type="checkbox" data-flag="${name}"${on ? ' checked' : ''}${off ? ' disabled' : ''}> <span>${label}</span></label>`;
@@ -1598,11 +1602,11 @@ function sheetPermHtml(s, p, role) {
     return `<label class="check"><input type="checkbox" data-col-key="${esc(c.key)}"${!blocked && (all || shown.has(c.key)) ? ' checked' : ''}${blocked || all ? ' disabled' : ''}${blocked ? ' data-blocked' : ''}> <span>${esc(c.label)}${blocked ? ' (manager không xem được)' : ''}</span></label>`;
   }).join('');
   return `
-    <div class="admin-perm" data-sheet-id="${esc(s.id)}">
-      <p class="admin-perm__name">${esc(s.name)}${own ? ' <span class="admin-perm__note">chỉ đơn của seller này</span>' : ''}</p>
+    <div class="admin-perm" data-sheet-id="${esc(s.id)}"${own ? ' data-own' : ''}${fixed ? ' data-view-only' : ''}>
+      <p class="admin-perm__name">${esc(s.name)}${own ? ' <span class="admin-perm__note">chỉ đơn của seller này</span>' : ''}${fixed ? ' <span class="admin-perm__note">chỉ xem, chỉ admin sửa</span>' : ''}</p>
       <div class="admin-perm__flags">
         ${flag('view', 'Xem', view, false)}
-        ${flag('edit', 'Sửa', edit, !view)}
+        ${flag('edit', 'Sửa', edit, !view || fixed)}
         ${flag('add', 'Thêm dòng', edit && p.add, !edit || own)}
         ${flag('del', 'Xoá dòng', edit && p.del, !edit || own)}
         <button type="button" class="admin-perm__more" data-cols-toggle aria-expanded="false"${view && s.cols.length ? '' : ' hidden'}></button>
@@ -1641,7 +1645,7 @@ function permsHtml(role, perms, sheets) {
     </fieldset>`}
     <fieldset class="admin-perms">
       <legend class="field__label">Trang tính được xem</legend>
-      <p class="admin-field__hint">${seller ? 'Ở Đơn hàng, In 3D, seller chỉ thấy đơn mình lên và không thêm, xoá dòng.' : 'Manager không bao giờ thấy các cột hoa hồng, ở mọi trang tính.'} Nhật ký quản trị, Hoa hồng seller chỉ admin xem được.</p>
+      <p class="admin-field__hint">${seller ? 'Ở Đơn hàng, In 3D, seller chỉ thấy đơn mình lên và không thêm, xoá dòng.' : 'Manager không bao giờ thấy các cột hoa hồng, ở mọi trang tính.'} Nhật ký quản trị, Hoa hồng seller chỉ admin xem được. Chi Phí: tích Xem thì người đó xem được chi phí từng sản phẩm, không sửa được. Cột Chi phí ở Đơn hàng, In 3D chỉ admin sửa.</p>
       ${sheets.map((s) => sheetPermHtml(s, Object.hasOwn(own, s.id) ? own[s.id] : null, role)).join('')}
     </fieldset>`;
 }
@@ -1650,10 +1654,11 @@ function permsHtml(role, perms, sheets) {
 function syncPerm(box) {
   const flag = (name) => $(`[data-flag="${name}"]`, box);
   const view = flag('view').checked;
-  const edit = view && flag('edit').checked;
-  const own = Boolean($('.admin-perm__note', box));
-  flag('edit').disabled = !view;
-  if (!view) flag('edit').checked = false;
+  const fixed = box.hasAttribute('data-view-only');
+  const edit = view && !fixed && flag('edit').checked;
+  const own = box.hasAttribute('data-own');
+  flag('edit').disabled = !view || fixed;
+  if (!view || fixed) flag('edit').checked = false;
   ['add', 'del'].forEach((name) => {
     flag(name).disabled = !edit || own;
     if (!edit || own) flag(name).checked = false;

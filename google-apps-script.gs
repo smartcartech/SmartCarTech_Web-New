@@ -1,7 +1,7 @@
 /**
  * SmartCarTech — Google Apps Script cho website. Hướng dẫn cài từng bước: README.md, mục 5.
  *
- * Script này làm 4 việc:
+ * Script này làm 5 việc:
  * 1. Lưu đơn hàng & yêu cầu tư vấn từ web vào Google Sheet: mỗi đơn là 1 dòng ở trang tính
  *    "Đơn hàng", mỗi yêu cầu tư vấn ở trang tính "Tư vấn". Đơn bảng tên, giá đỡ điện thoại và yêu cầu in theo
  *    file từ trang In 3D (in-3d.html) ở trang tính "In 3D", có cột "Trạng thái" để shop theo dõi từng đơn.
@@ -25,6 +25,8 @@
  *    menu "SmartCarTech" → "Bật hoặc tắt trang quản trị…".
  * 4. Trang tính "Tổng quan": lợi nhuận, doanh thu, số đơn theo nền tảng, khách truy cập theo tháng, năm, có biểu đồ; xem
  *    được cả trên trang quản trị. Khách truy cập do web đếm ẩn danh (không cookie, không lưu IP), lưu ở trang "Lượt truy cập".
+ * 5. Trang tính "Chi Phí": admin điền chi phí mỗi sản phẩm; đơn mới tự ghi cột "Chi phí" = chi phí mỗi sản phẩm × số lượng,
+ *    nên Lợi nhuận tự tính. Admin chọn ai được xem trang này ở mục Tài khoản của trang quản trị; chỉ admin sửa.
  *
  * Cách cài tóm tắt:
  * 1. Tạo 1 Google Sheet mới → Tiện ích mở rộng (Extensions) → Apps Script.
@@ -69,7 +71,7 @@ const ORDER_PLATFORMS = ['Shopee', 'Tiktok']; // Ô thả xuống "Nền tảng"
 const ORDER_RECEIVED_COL = 'Tiền thu người nhận';
 const ORDER_SHIP_COL = 'Phí ship (đơn web)'; // Chỉ đơn web. Admin nhập; cho manager, seller nhập thì tích ở mục Tài khoản
 const ORDER_REVENUE_COL = 'Doanh thu sau điều chỉnh';
-const ORDER_COST_COL = 'Chi phí';
+const ORDER_COST_COL = 'Chi phí'; // Đơn mới tự điền theo trang COST_SHEET (fillCosts_). Trên trang quản trị chỉ admin sửa
 const ORDER_PROFIT_COL = 'Lợi nhuận';
 const MONEY_COLS = [ORDER_RECEIVED_COL, ORDER_SHIP_COL, ORDER_REVENUE_COL, ORDER_COST_COL, ORDER_PROFIT_COL];
 // Lợi nhuận trừ Hoa hồng (₫) (seller hay manager: mỗi đơn chỉ một người nhận), tự tính cùng Lợi nhuận. Tên có chữ "hoa hồng" nên
@@ -93,6 +95,13 @@ const COMMISSION_OLD_RATE = 'Hoa hồng mỗi sản phẩm (₫)'; // Tên cột
 // Cột "Mã" ở trang đó: bộ xe là "dòng:bộ" như products.json (VD "pro:day-du"); bảng tên thêm id kiểu bảng (1-tang, 2-tang)
 const COMMISSION_PLATE = 'in-3d:bang-ten:';
 const COMMISSION_STAND = 'in-3d:gia-do';
+// Chi phí của đơn (cột Chi phí ở trang Đơn hàng, In 3D) tự điền khi có đơn mới: chi phí mỗi sản phẩm ở trang COST_SHEET × số
+// lượng. Trang đó script tạo như trang Hoa hồng seller (mỗi sản phẩm trên web một dòng, admin điền chi phí); chỉ admin sửa, admin
+// cho manager, seller xem (chỉ xem) ở mục Tài khoản. Sửa chi phí ở đó thì đơn mới dùng số mới ngay; đơn đã có giữ số đã ghi
+const COST_SHEET = 'Chi Phí';
+const COST_HEADER = [...COMMISSION_HEADER.slice(0, 3), 'Chi phí mỗi sản phẩm (₫)'];
+const COST_NOTE = `Tự điền theo trang "${COST_SHEET}"`; // Đầu ghi chú ô Chi phí script điền: còn ghi chú, đúng số thì sửa số lượng là tính lại
+const COST_START_KEY = 'chi-phi:tu-ngay'; // Script Properties: ngày có trang COST_SHEET. Đơn đặt trước ngày đó là đơn cũ: không tự điền
 const ORDER_HEADER = ['Thời gian', 'Mã đơn', 'Họ tên', 'SĐT', 'Địa chỉ', 'Sản phẩm', 'Tổng (₫)', ORDER_CHECK_COL, 'Ghi chú', ORDER_KEY_COL,
   ORDER_STATUS_COL, ...SELLER_COLS];
 const PHONE_RE = /^(0|\+?84)(3|5|7|8|9)\d{8}$/; // Giống assets/js/core.js
@@ -244,6 +253,7 @@ function saveOrder_(data) {
       [ORDER_STATUS_COL]: ORDER_STATUSES[0],
     }, receivedCell_(sh, total), sellerCells_(seller.name, pct)));
     orderCells_(sh, added, ORDER_STATUSES, Boolean(seller.name));
+    fillCosts_(sh, added, added); // Chi phí theo trang COST_SHEET × số lượng
     syncProfit_(sh, added, added); // khách tự đặt (không có người lên đơn): manager nhận hoa hồng quản lý (nếu admin đã bật)
   });
   dashStale_();
@@ -364,6 +374,7 @@ function savePrint_(data) {
     const added = addRow_(sh, Object.assign({ 'Thời gian': new Date(), 'Mã': code, 'Họ tên': name, 'SĐT': phone }, row.cells,
       { [PRINT_STATUS_COL]: PRINT_STATUSES[0] }, receivedCell_(sh, row.cells['Tạm tính (₫)']), sellerCells_(seller.name, pct)));
     orderCells_(sh, added, PRINT_STATUSES, Boolean(seller.name));
+    fillCosts_(sh, added, added); // bảng tên, giá đỡ: chi phí theo trang COST_SHEET × số lượng; in theo file: admin ghi sau
   });
   dashStale_();
   notify_(`${row.title} #${code} – ${name}`, [`${name} – ${phone}`, ...row.email, ...sellerLines_(seller.name, pct, seller.role)].join('\n'));
@@ -555,7 +566,10 @@ function productNames_() {
 
 /* ---------- Hoa hồng seller: mức cho mỗi sản phẩm ở trang COMMISSION_SHEET ---------- */
 
-/** Sản phẩm trên web có hoa hồng: { key (cột "Mã"), name, price }. In theo file chưa có giá nên admin ghi hoa hồng từng đơn. */
+/**
+ * Sản phẩm trên web, mỗi sản phẩm một dòng ở trang COMMISSION_SHEET và COST_SHEET: { key (cột "Mã"), name, price }. In theo file
+ * chưa có giá nên không có dòng: admin ghi % hoa hồng, chi phí ở từng đơn.
+ */
 function commissionProducts_() {
   const data = siteData_();
   const list = [];
@@ -571,14 +585,22 @@ function commissionProducts_() {
 }
 
 /**
- * Trang COMMISSION_SHEET có đủ các sản phẩm đang bán theo products.json: sản phẩm mới thêm dòng (% để trống cho admin
- * điền), tên hay giá đổi thì ghi lại, % đã điền giữ nguyên. Sản phẩm đã bỏ khỏi web vẫn giữ dòng. Không đọc được
- * products.json thì để danh sách như cũ. Trang từ bản trước (cột số tiền "Hoa hồng mỗi sản phẩm (₫)"): đổi tên cột đó thành
- * cột %, số đã gõ giữ nguyên (số ngoài 0–100 không phải %: Kiểm tra cài đặt báo để sửa). Trả trang tính.
+ * Trang COMMISSION_SHEET có đủ các sản phẩm đang bán theo products.json (syncProducts_), % đã điền giữ nguyên. Trang từ bản trước
+ * (cột số tiền "Hoa hồng mỗi sản phẩm (₫)"): đổi tên cột đó thành cột %, số đã gõ giữ nguyên (số ngoài 0–100 không phải %: Kiểm
+ * tra cài đặt báo để sửa). Trả trang tính.
  */
 function syncCommission_(ss) {
   const sh = getSheet_(ss, COMMISSION_SHEET, COMMISSION_HEADER);
   migrateRates_(sh);
+  return syncProducts_(sh, COMMISSION_HEADER, '0.##%');
+}
+
+/**
+ * Trang mỗi sản phẩm một dòng (COMMISSION_SHEET, COST_SHEET; cột theo `header`: Mã, Sản phẩm, Giá bán (₫), rồi cột admin điền):
+ * sản phẩm mới trên web thêm dòng (ô admin điền để trống, định dạng `format`), tên hay giá đổi thì ghi lại, ô admin đã điền giữ
+ * nguyên. Sản phẩm đã bỏ khỏi web vẫn giữ dòng. Không đọc được products.json thì để danh sách như cũ. Trả trang tính.
+ */
+function syncProducts_(sh, header, format) {
   let list;
   try {
     list = commissionProducts_();
@@ -587,7 +609,7 @@ function syncCommission_(ss) {
     return sh;
   }
   withDocLock_(() => {
-    const [key, name, price, rate] = COMMISSION_HEADER.map((col) => colOf_(sh, col, true));
+    const [key, name, price, rate] = header.map((col) => colOf_(sh, col, true));
     const width = sh.getLastColumn();
     const last = sh.getLastRow();
     const rows = last > 1 ? sh.getRange(2, 1, last - 1, width).getValues() : [];
@@ -605,10 +627,29 @@ function syncCommission_(ss) {
       row[price - 1] = p.price;
       sh.appendRow(row);
       sh.getRange(sh.getLastRow(), price).setNumberFormat('#,##0');
-      sh.getRange(sh.getLastRow(), rate).setNumberFormat('0.##%');
+      sh.getRange(sh.getLastRow(), rate).setNumberFormat(format);
     });
   });
   return sh;
+}
+
+/**
+ * Trang COST_SHEET (tạo nếu chưa có) có đủ các sản phẩm đang bán theo products.json, chi phí đã điền giữ nguyên. Lần đầu: ghi
+ * ngày bắt đầu (COST_START_KEY), đơn đặt trước ngày đó là đơn cũ. Trang cùng tên mà dòng 1 không có cột của script (VD shop tự
+ * tạo trước): không đụng tới, costStatus_ báo để đổi tên trang đó.
+ */
+function syncCosts_(ss) {
+  const had = ss.getSheetByName(COST_SHEET);
+  if (had && had.getLastRow() && !costSheetOk_(had)) return had;
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty(COST_START_KEY)) props.setProperty(COST_START_KEY, Utilities.formatDate(new Date(), ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd'));
+  return syncProducts_(getSheet_(ss, COST_SHEET, COST_HEADER), COST_HEADER, '#,##0');
+}
+
+/** Trang COST_SHEET là trang của script: dòng 1 có cột Mã và cột chi phí mỗi sản phẩm (không phân biệt hoa thường, dấu). */
+function costSheetOk_(sh) {
+  const head = header_(sh).map(matchText_);
+  return [COST_HEADER[0], COST_HEADER[3]].every((col) => head.includes(matchText_(col)));
 }
 
 /**
@@ -680,14 +721,173 @@ function commissionOf_(ss, sold) {
   }
 }
 
-/** % hoa hồng theo ô "Sản phẩm" của đơn (mỗi dòng "tên × số lượng", như đơn web và ô thả xuống trên trang quản trị). */
+/** % hoa hồng theo ô "Sản phẩm" của đơn (productLines_). */
 function productsPct_(table, text) {
-  const lines = String(text == null ? '' : text).split('\n').map((s) => s.trim()).filter(Boolean);
+  const lines = productLines_(text);
   if (!lines.length) return '';
-  return weightedPct_(lines.map((line) => {
+  return weightedPct_(lines.map(({ name, qty }) => ({ item: table.byName.get(matchText_(name)), qty })));
+}
+
+/** Ô "Sản phẩm" của đơn: mỗi dòng "tên × số lượng" (như đơn web và ô thả xuống trên trang quản trị), không có "× số" là 1 cái. */
+function productLines_(text) {
+  return String(text == null ? '' : text).split('\n').map((s) => s.trim()).filter(Boolean).map((line) => {
     const m = line.match(/^(.+) × (\d{1,3})$/);
-    return { item: table.byName.get(matchText_(m ? m[1] : line)), qty: m ? Number(m[2]) : 1 };
-  }));
+    return { name: m ? m[1] : line, qty: m ? Number(m[2]) : 1 };
+  });
+}
+
+/* ---------- Chi phí: chi phí mỗi sản phẩm ở trang COST_SHEET, đơn mới tự ghi cột Chi phí ---------- */
+
+/**
+ * Chi phí mỗi sản phẩm ở trang COST_SHEET: { byKey: Map mã → { cost, name }, byName: Map tên sản phẩm (matchText_) → như trên,
+ * bad: số ô gõ không ra số tiền }. `cost` null: chưa điền. Dòng shop tự thêm trên Google Sheet (cột Mã trống, VD sản phẩm chỉ bán
+ * trên Shopee) tìm theo tên. Chưa có trang thì rỗng. Đọc lại mỗi lần cần: admin vừa sửa chi phí thì đơn tiếp theo dùng số mới.
+ */
+function costTable_(ss) {
+  const out = { byKey: new Map(), byName: new Map(), bad: 0 };
+  const sh = ss.getSheetByName(COST_SHEET);
+  if (!sh || sh.getLastRow() < 2) return out;
+  const head = header_(sh).map(matchText_);
+  const [key, name, , costCol] = COST_HEADER.map((col) => head.indexOf(matchText_(col)));
+  if (costCol < 0 || (key < 0 && name < 0)) return out;
+  const dec = gridContext_(sh).dec;
+  sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues().forEach((r) => {
+    const k = key < 0 ? '' : String(r[key]).trim();
+    const n = name < 0 ? '' : String(r[name]).trim();
+    if (!k && !n) return;
+    const typed = String(r[costCol]).trim() !== '';
+    const v = typeof r[costCol] === 'number' ? r[costCol] : typed ? numberFrom_(String(r[costCol]), dec) : null;
+    const cost = v !== null && Number.isFinite(v) && v >= 0 ? v : null;
+    if (typed && cost === null) out.bad++;
+    const item = { cost, name: n };
+    if (k) out.byKey.set(k, item);
+    if (n) out.byName.set(matchText_(n), item);
+  });
+  return out;
+}
+
+/**
+ * Sản phẩm của đơn ở dòng `row` (giá trị các ô; `cols`: profitCols_) để tính chi phí: [{ key, name, qty }], không đọc ra được thì
+ * null. Đơn hàng: ô Sản phẩm (productLines_). In 3D: giá đỡ theo Loại, bảng tên theo Loại và kiểu bảng ở dòng "Kiểu: …" của Nội
+ * dung (như đơn web ghi); Số lượng trống là 1. In theo file không có sản phẩm cố định: null.
+ */
+function costItems_(row, cols) {
+  const cell = (c) => (c > 0 && row[c - 1] != null ? row[c - 1] : '');
+  if (cols.product) {
+    const lines = productLines_(cell(cols.product));
+    return lines.length ? lines.map(({ name, qty }) => ({ key: '', name, qty })) : null;
+  }
+  if (!cols.kind) return null;
+  const qty = cell(cols.qty) === '' ? 1 : cell(cols.qty);
+  if (typeof qty !== 'number' || !Number.isInteger(qty) || qty < 1) return null;
+  const kind = matchText_(cell(cols.kind));
+  if (kind === matchText_(PRINT_KINDS[1])) return [{ key: COMMISSION_STAND, name: PRINT_KINDS[1], qty }];
+  const layout = String(cell(cols.content)).match(/^Kiểu: *(.+)$/m);
+  if (kind === matchText_(PRINT_KINDS[0]) && layout) return [{ key: '', name: `${PRINT_KINDS[0]} – ${layout[1].trim()}`, qty }];
+  return null;
+}
+
+/** Chi phí của đơn: tổng chi phí mỗi sản phẩm × số lượng. Có sản phẩm chưa có chi phí (hay không có ở trang COST_SHEET): null. */
+function orderCost_(table, items) {
+  let sum = 0;
+  for (const { key, name, qty } of items) {
+    const item = (key && table.byKey.get(key)) || table.byName.get(matchText_(name));
+    if (!item || item.cost === null) return null;
+    sum += item.cost * qty;
+  }
+  return sum;
+}
+
+/** Ghi chú ở ô Chi phí script vừa điền: lúc nào, bao nhiêu (autoCost_ đọc lại số này). */
+function costNote_(cost, tz) {
+  return `${COST_NOTE} lúc ${Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm')}: ${money_(cost)} ₫. Sửa sản phẩm, số lượng thì tự tính lại.`;
+}
+
+/** Ô Chi phí vẫn là số script điền: có ghi chú costNote_ ghi đúng số đang có (gõ số khác, xoá ghi chú: số của shop). */
+function autoCost_(value, note) {
+  const text = String(note == null ? '' : note);
+  return typeof value === 'number' && text.startsWith(COST_NOTE) && text.includes(`: ${money_(value)} ₫.`);
+}
+
+/**
+ * Chi phí của đơn ở dòng from–to (trang Đơn hàng, In 3D) theo trang COST_SHEET: chi phí mỗi sản phẩm × số lượng (costItems_), kèm
+ * ghi chú costNote_. Ghi khi ô Chi phí còn trống, hay vẫn là số script tự điền (sửa sản phẩm, số lượng thì tính lại; sản phẩm mới
+ * chưa có chi phí thì xoá, không để số sai). Ô shop gõ (mọi đơn cũ), ô công thức giữ nguyên. Chỉ gọi khi có đơn mới hay vừa sửa
+ * sản phẩm, số lượng (`edited`): sửa chi phí ở trang COST_SHEET không đổi đơn đã có. Vừa sửa một đơn đặt trước ngày có trang
+ * COST_SHEET mà ô Chi phí trống: không điền, đơn cũ giữ nguyên. Gọi trong khoá của Sheet.
+ */
+function fillCosts_(sh, from, to, edited) {
+  const cols = profitCols_(sh);
+  const first = Math.max(from, 2);
+  const last = Math.min(to, sh.getLastRow());
+  if (!cols || last < first) return;
+  const values = sh.getRange(first, 1, last - first + 1, sh.getLastColumn()).getValues();
+  const own = sh.getRange(first, cols.cost, last - first + 1, 1);
+  const formulas = own.getFormulas();
+  const notes = own.getNotes();
+  const tz = sh.getParent().getSpreadsheetTimeZone();
+  const start = edited && cols.time ? PropertiesService.getScriptProperties().getProperty(COST_START_KEY) || '' : '';
+  let table = null; // đọc trang COST_SHEET khi cần, một lần
+  values.forEach((row, i) => {
+    const now = row[cols.cost - 1];
+    const auto = autoCost_(now, notes[i][0]);
+    if (formulas[i][0] || (now !== '' && !auto)) return;
+    const day = start && !auto ? orderDay_(row[cols.time - 1], tz) : '';
+    if (day && day < start) return;
+    const items = costItems_(row, cols);
+    if (items) table = table || costTable_(sh.getParent());
+    const cost = items ? orderCost_(table, items) : null;
+    const cell = sh.getRange(first + i, cols.cost);
+    if (cost === null) {
+      if (auto) cell.clearContent().setNote('');
+    } else if (!auto || cost !== now) {
+      cell.setValue(cost).setNote(costNote_(cost, tz));
+    }
+  });
+}
+
+/** Ô Chi phí ở dòng from–to (cột `col`) vừa được gõ tay: bỏ ghi chú tự điền, số đó là của shop, script không tính lại nữa. */
+function dropCostNotes_(sh, from, to, col) {
+  const first = Math.max(from, 2);
+  const last = Math.min(to, sh.getLastRow());
+  if (last < first) return;
+  const range = sh.getRange(first, col, last - first + 1, 1);
+  const notes = range.getNotes();
+  if (notes.some(([n]) => String(n).startsWith(COST_NOTE))) range.setNotes(notes.map(([n]) => [String(n).startsWith(COST_NOTE) ? '' : n]));
+}
+
+/**
+ * Shop vừa sửa tay (trên Sheet hay trang quản trị) các ô ở dòng from–to, cột `touched(cột)`: gõ vào ô Chi phí thì thôi tự tính ô đó;
+ * sửa sản phẩm (Đơn hàng: Sản phẩm; In 3D: Loại, Nội dung, Số lượng) thì chi phí tự điền, tự tính lại (fillCosts_).
+ */
+function costsEdited_(sh, from, to, touched) {
+  const cols = profitCols_(sh);
+  if (!cols) return;
+  if (touched(cols.cost)) dropCostNotes_(sh, from, to, cols.cost);
+  if ([cols.product, cols.kind, cols.content, cols.qty].some((c) => c > 0 && touched(c))) fillCosts_(sh, from, to, true);
+}
+
+/** Dòng "Kiểm tra cài đặt" về trang COST_SHEET (tạo nếu chưa có, thêm sản phẩm mới trên web): còn sản phẩm nào chưa có chi phí. */
+function costStatus_() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sh = syncCosts_(ss);
+    if (!costSheetOk_(sh)) {
+      return `✗ Trang "${COST_SHEET}" đã có sẵn nhưng dòng 1 không có cột "${COST_HEADER[0]}" và "${COST_HEADER[3]}" (có thể shop tự tạo trước): ` +
+        `script không ghi vào trang đó, đơn mới chưa tự có chi phí. Dòng 1 đang là: ${header_(sh).filter(Boolean).join(' | ')}. ` +
+        `Đổi tên trang đó (VD "${COST_SHEET} cũ") rồi chạy lại mục này: script tạo trang mới, mỗi sản phẩm một dòng.`;
+    }
+    const table = costTable_(ss);
+    const items = [...table.byKey.values()];
+    const missing = items.filter((x) => x.cost === null).length;
+    if (!items.length) return `✗ Trang "${COST_SHEET}" chưa có sản phẩm nào (chưa đọc được products.json): chạy lại mục này sau.`;
+    const bad = table.bad ? ` ${table.bad} ô không phải số tiền: sửa thành số, VD 450.000.` : '';
+    return missing
+      ? `• Trang "${COST_SHEET}": ${missing}/${items.length} sản phẩm chưa có chi phí.${bad} Đơn mới có sản phẩm đó thì ô ${ORDER_COST_COL} để trống, admin tự ghi.`
+      : `✓ Trang "${COST_SHEET}" có chi phí cho cả ${items.length} sản phẩm: đơn mới tự ghi ${ORDER_COST_COL}.`;
+  } catch (err) {
+    return `✗ Chưa kiểm tra được trang "${COST_SHEET}" (${err.message}).`;
+  }
 }
 
 /**
@@ -984,6 +1184,7 @@ function checkSetup() {
   lines.push(visitStatus_());
   lines.push(...adminStatus_());
   lines.push(commissionStatus_());
+  lines.push(costStatus_());
   const ui = SpreadsheetApp.getUi();
   ui.alert('Kiểm tra cài đặt', lines.join('\n\n'), ui.ButtonSet.OK);
 }
@@ -1151,7 +1352,8 @@ function printedText_(value, tz) {
  * Tự chạy khi sửa Sheet. Lúc đóng hàng, shop gõ mã của thẻ bỏ vào hộp vào cột "Mã tải code" của đơn ở
  * trang "Đơn hàng" (nhiều hộp: các mã cách nhau bằng dấu phẩy; có máy quét thì quét QR trên thẻ cũng được).
  * Script ghi "Mã đơn" và "Khách hàng" sang trang "Mã tải code". Sửa mã đơn, tên hoặc SĐT thì cũng cập nhật theo.
- * Sửa Doanh thu, Chi phí thì Lợi nhuận tự tính (syncProfit_).
+ * Sửa Doanh thu, Chi phí thì Lợi nhuận tự tính (syncProfit_). Gõ sản phẩm, số lượng của đơn thì Chi phí tự điền theo trang
+ * COST_SHEET; gõ tay ô Chi phí thì giữ số đó (costsEdited_). Sửa trang COST_SHEET không cần làm gì: đơn mới đọc số mới.
  */
 function onEdit(e) {
   if (!e || !e.range) return;
@@ -1174,7 +1376,10 @@ function onEdit(e) {
     else if (done && done.linked) sh.getParent().toast(`Đã ghi Mã đơn, Khách hàng ở trang "${CODE_SHEET}".`, 'Đã gán mã', 4);
   }
   if (watchesProfit_(sh, colFrom, colTo)) {
-    withDocLock_(() => syncProfit_(sh, rowFrom, rowTo));
+    withDocLock_(() => {
+      costsEdited_(sh, rowFrom, rowTo, (c) => c >= colFrom && c <= colTo);
+      syncProfit_(sh, rowFrom, rowTo);
+    });
   } else {
     // Shop tự gõ, tự xoá ô Lợi nhuận: chỉ cột Lợi nhuận sau hoa hồng theo, ô Lợi nhuận giữ đúng như vừa gõ
     const cols = profitCols_(sh);
@@ -1331,7 +1536,8 @@ function withDocLock_(fn) {
 
 /**
  * Số thứ tự các cột tiền, hoa hồng ở trang Đơn hàng, In 3D (tìm theo tên; 0: trang không có cột đó). Trang khác, hay thiếu
- * Doanh thu sau điều chỉnh, Chi phí, Lợi nhuận: null. `net` chỉ có khi có cột Hoa hồng (₫).
+ * Doanh thu sau điều chỉnh, Chi phí, Lợi nhuận: null. `net` chỉ có khi có cột Hoa hồng (₫). Sản phẩm của đơn (tính chi phí):
+ * `product` ở trang Đơn hàng; `kind`, `content`, `qty` (Loại, Nội dung, Số lượng) ở trang In 3D.
  */
 function profitCols_(sh) {
   if (sh.getName() !== ORDER_SHEET && sh.getName() !== PRINT_SHEET) return null;
@@ -1344,6 +1550,7 @@ function profitCols_(sh) {
     revenue, cost, profit, commission, net: commission ? at(ORDER_NET_COL) : 0,
     received: at(ORDER_RECEIVED_COL), ship: at(ORDER_SHIP_COL), pct: at(COMMISSION_PCT_COL), paid: at(COMMISSION_PAID_COL),
     seller: at(SELLER_COL), manager: orders ? at(MANAGER_COL) : 0, product: orders ? at('Sản phẩm') : 0, time: at('Thời gian'),
+    kind: orders ? 0 : at('Loại'), content: orders ? 0 : at('Nội dung'), qty: orders ? 0 : at('Số lượng'),
   };
 }
 
@@ -1368,15 +1575,15 @@ function netFormula_(cols, row) {
 }
 
 /**
- * Cột colFrom–colTo có ô mà các bước của syncProfit_ dùng (tiền, %, Seller, Sản phẩm, Thời gian) hay ô quyết định đơn web
- * (Nền tảng, mã đơn): sửa thì chạy syncProfit_.
+ * Cột colFrom–colTo có ô mà các bước của syncProfit_ dùng (tiền, %, Seller, Sản phẩm, Thời gian), ô quyết định đơn web (Nền
+ * tảng, mã đơn) hay ô tính chi phí (costsEdited_; In 3D: Loại, Nội dung, Số lượng): sửa thì chạy syncProfit_.
  */
 function watchesProfit_(sh, colFrom, colTo) {
   const cols = profitCols_(sh);
   if (!cols) return false;
   const head = header_(sh);
   const other = [ORDER_PLATFORM_COL, 'Mã đơn', 'Mã'].map((name) => head.indexOf(name) + 1);
-  return [cols.received, cols.ship, cols.revenue, cols.cost, cols.pct, cols.seller, cols.product, cols.time, ...other]
+  return [cols.received, cols.ship, cols.revenue, cols.cost, cols.pct, cols.seller, cols.product, cols.time, cols.kind, cols.content, cols.qty, ...other]
     .some((c) => c > 0 && c >= colFrom && c <= colTo);
 }
 
@@ -1605,6 +1812,11 @@ const ADMIN_RULES = {
     notWeb: ADMIN_SHIP_WEB_ONLY,
     choices: { 'Loại': PRINT_KINDS, [PRINT_STATUS_COL]: PRINT_STATUSES, [SELLER_COL]: () => sellerNames_() },
   },
+  [COST_SHEET]: {
+    header: true, noAdd: true,
+    readOnly: { [COST_HEADER[0]]: ADMIN_AUTO_PRODUCT, [COST_HEADER[1]]: ADMIN_AUTO_PRODUCT, [COST_HEADER[2]]: ADMIN_AUTO_PRODUCT },
+    tip: `Chi phí của 1 sản phẩm (gõ số tiền, VD 450.000). Đơn mới tự ghi cột ${ORDER_COST_COL} = chi phí mỗi sản phẩm × số lượng (đơn nhiều sản phẩm: cộng lại). Sửa ở đây thì đơn mới dùng số mới ngay; đơn đã có giữ chi phí đã ghi. Sản phẩm chưa có chi phí, đơn in theo file: ô ${ORDER_COST_COL} của đơn để trống, admin tự ghi. Chỉ admin sửa trang này; manager, seller xem được khi admin tích ở mục Tài khoản.`,
+  },
   [COMMISSION_SHEET]: {
     header: true, noAdd: true,
     readOnly: { [COMMISSION_HEADER[0]]: ADMIN_AUTO_PRODUCT, [COMMISSION_HEADER[1]]: ADMIN_AUTO_PRODUCT, [COMMISSION_HEADER[2]]: ADMIN_AUTO_PRODUCT },
@@ -1649,9 +1861,11 @@ const ADMIN_ROLES = { admin: 'Admin', manager: 'Manager', seller: 'Seller' };
 const ORDER_ROLES = ['seller', 'manager'];
 const ADMIN_PERMS_KEY = 'quan-tri:quyen:'; // + tên: { sheets: { id trang tính: { view, edit, add, del, cols? } }, order }
 const ADMIN_ONLY_SHEETS = [ADMIN_LOG_SHEET, COMMISSION_SHEET]; // Không cấp cho manager, seller được
+const VIEW_ONLY_SHEETS = [COST_SHEET];                         // Cấp cho manager, seller được, nhưng chỉ xem: chỉ admin sửa
 const OWN_ROW_SHEETS = [ORDER_SHEET, PRINT_SHEET];            // Seller chỉ thấy dòng có cột Seller là tên mình
 const ADMIN_NOT_ALLOWED = 'Tài khoản của bạn không làm được việc này.';
 const ADMIN_ONLY_EDIT = 'Chỉ admin sửa được.';
+const ADMIN_COST_ONLY = `Chỉ admin sửa được. Đơn mới tự điền theo trang "${COST_SHEET}".`;
 const ADMIN_SHIP_ONLY = 'Chỉ admin nhập phí ship (đơn web).';
 const ADMIN_VIEW_ONLY = 'Tài khoản của bạn chỉ xem cột này.';
 const ADMIN_NAME_RE = /^[a-z0-9][a-z0-9._-]{2,29}$/;
@@ -2008,6 +2222,7 @@ function columnKeys_(sh, rules) {
  * Quyền của tài khoản với trang tính `sh` (null: không xem được): sửa, thêm, xoá dòng; các cột ẩn `hide` (không gửi dữ
  * liệu đi); các cột chỉ xem `lock` ({ cột: lý do }); `own` > 0: chỉ các dòng có cột đó là tên seller (-1: trang thiếu
  * cột Seller nên không có dòng nào). Seller không thêm, xoá dòng ở trang đơn: seller lên đơn ở trang Đặt hàng, In 3D.
+ * Trang VIEW_ONLY_SHEETS (Chi Phí) và cột Chi phí của đơn chỉ admin sửa.
  */
 function sheetAccess_(me, sh, rules) {
   if (me.role === 'admin') return { admin: true, edit: true, add: true, del: true, hide: new Set(), lock: {}, extra: new Set(), own: 0 };
@@ -2015,7 +2230,7 @@ function sheetAccess_(me, sh, rules) {
   const p = me.perms.sheets[String(sh.getSheetId())];
   const shown = Array.isArray(p.cols) ? new Set(p.cols.map(matchText_)) : null;
   const orders = OWN_ROW_SHEETS.includes(sh.getName());
-  const edit = p.edit === true;
+  const edit = p.edit === true && !VIEW_ONLY_SHEETS.includes(sh.getName());
   const hide = new Set();
   const lock = {};
   const extra = new Set(); // cột sửa được cả khi trang chỉ xem: Phí ship (đơn web), khi admin cho tài khoản này nhập
@@ -2031,6 +2246,7 @@ function sheetAccess_(me, sh, rules) {
     const money = commissionCol_(label);
     if ((shown && !shown.has(matchText_(key))) || (money && me.role === 'manager')) hide.add(col);
     else if (money || (orders && (name === matchText_(SELLER_COL) || name === matchText_(MANAGER_COL)))) lock[col] = ADMIN_ONLY_EDIT;
+    else if (orders && name === matchText_(ORDER_COST_COL)) lock[col] = ADMIN_COST_ONLY;
   });
   // Trang chỉ xem mà được nhập phí ship: khoá từng cột khác (thay vì khoá cả trang)
   if (!edit && extra.size) keys.forEach(({ col }) => { if (!extra.has(col) && !hide.has(col) && !lock[col]) lock[col] = ADMIN_VIEW_ONLY; });
@@ -2204,6 +2420,7 @@ function adminRead_(data, user, me) {
   const sheets = data.list === false && sh ? null : ss.getSheets().filter((s) => canSee_(me, s));
   if (!sh) sh = sheets[0] || null;
   if (sh && admin && sh.getName() === COMMISSION_SHEET) syncCommission_(ss); // sản phẩm mới trên web có dòng ngay
+  if (sh && admin && sh.getName() === COST_SHEET) syncCosts_(ss);
   const own = Boolean(sh) && sh.getName() === DASHBOARD_SHEET;
   if (own && !dashboard) dashboard = dashboardFor_(ss, fresh);
   // Trang cùng tên do shop tự tạo (không có ghi chú của script ở ô A1): hiện như trang tính thường
@@ -2716,6 +2933,7 @@ function adminEdit_(data, user, me) {
     if (changes.length) dashStale_(sh);
     if (sh.getName() === COMMISSION_SHEET) fixRates_(sh, row, row, 1, width);
     const linked = changes.some((ch) => watchesCodes_(sh, ch.col, ch.col)) ? linkCodes_(sh, row, row) || {} : null;
+    costsEdited_(sh, row, row, (c) => changes.some((ch) => ch.col === c)); // admin gõ Chi phí: giữ số đó; sửa sản phẩm: tự điền
     if (changes.some((ch) => watchesProfit_(sh, ch.col, ch.col))) syncProfit_(sh, row, row);
     const fresh = gridRows_(sh.getRange(row, 1, 1, sh.getLastColumn()), ctx, access.hide)[0];
     changes.forEach((ch) => {
@@ -2793,6 +3011,7 @@ function adminAppend_(data, user, me) {
       }
     }
     if (watchesCodes_(sh, 1, width)) linkCodes_(sh, added, added);
+    fillCosts_(sh, added, added); // đơn mới (VD Shopee): Chi phí theo trang COST_SHEET, trừ khi admin đã gõ
     syncProfit_(sh, added, added);
     dashStale_(sh);
     adminLog_(user, 'Thêm dòng', sh.getName(), `Dòng ${added}`, '', text.join('\n'));
@@ -3042,7 +3261,7 @@ function cleanPerms_(raw, ss, role) {
     const p = src[id];
     if (!p || p.view !== true) return;
     const out = { view: true };
-    if (p.edit === true) {
+    if (p.edit === true && !VIEW_ONLY_SHEETS.includes(s.getName())) {
       out.edit = true;
       const own = role === 'seller' && OWN_ROW_SHEETS.includes(s.getName());
       if (p.add === true && !own) out.add = true;
@@ -3101,7 +3320,7 @@ function adminAccountList_(data, user) {
       return { name, role, totp: Boolean(accounts[name].totp), perms: role === 'admin' ? null : adminPerms_(name), self: name === user };
     }),
     sheets: ss.getSheets().filter((s) => !ADMIN_ONLY_SHEETS.includes(s.getName())).map((s) => ({
-      id: String(s.getSheetId()), name: s.getName(), own: OWN_ROW_SHEETS.includes(s.getName()),
+      id: String(s.getSheetId()), name: s.getName(), own: OWN_ROW_SHEETS.includes(s.getName()), viewOnly: VIEW_ONLY_SHEETS.includes(s.getName()),
       cols: columnKeys_(s).map(({ key, label }) => ({ key, label, money: commissionCol_(label) })),
     })),
     roles: ADMIN_ROLES,

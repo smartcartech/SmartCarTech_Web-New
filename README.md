@@ -326,12 +326,12 @@ Mỗi tài khoản có một vai trò:
 - **Manager**: giúp quản lý đơn, và tự lên đơn cho khách mình tìm được như seller (khi admin tích *Được lên đơn*). Chỉ xem được các trang tính, các cột admin cho. Không bao giờ thấy cột hoa hồng trên trang tính (mọi cột có chữ "hoa hồng", ở mọi trang tính, kể cả % hoa hồng). Manager xem hoa hồng của mình ở mục **Hoa hồng của tôi**, tách 2 phần: *hoa hồng quản lý* và *hoa hồng lên đơn* (xem *Hoa hồng của manager* bên dưới). Không có mục Tài khoản.
 - **Seller**: tự tìm khách rồi lên đơn trên web. Ở Đơn hàng, In 3D chỉ thấy đơn mình lên, không thêm, xoá dòng ở đó; xem tình trạng đơn và hoa hồng của mình.
 
-Nhật ký quản trị và trang Hoa hồng seller chỉ admin xem được. Mọi quyền do script kiểm tra ở mỗi lần bấm: cột bị ẩn, đơn của người khác không được gửi về trình duyệt, nên xem mã nguồn trang cũng không thấy. Seller xem được Doanh thu sau điều chỉnh, % hoa hồng, Hoa hồng (₫), Đã trả hoa hồng của đơn mình; các cột hoa hồng chỉ admin sửa, cột Seller, Manager cũng vậy.
+Nhật ký quản trị và trang Hoa hồng seller chỉ admin xem được. Trang **Chi Phí** chỉ admin sửa; admin tích *Xem* cho ai thì người đó xem được, không sửa được (xem *Chi phí sản phẩm* bên dưới). Mọi quyền do script kiểm tra ở mỗi lần bấm: cột bị ẩn, đơn của người khác không được gửi về trình duyệt, nên xem mã nguồn trang cũng không thấy. Seller xem được Doanh thu sau điều chỉnh, % hoa hồng, Hoa hồng (₫), Đã trả hoa hồng của đơn mình; các cột hoa hồng chỉ admin sửa, cột Seller, Manager, Chi phí cũng vậy.
 
 **Tạo, sửa tài khoản** (đăng nhập bằng tài khoản admin → mục **Tài khoản** ở đầu cột trái):
 
 1. Bấm **Thêm tài khoản**, nhập tên đăng nhập, chọn vai trò, bấm *Tạo mật khẩu* rồi chép lại.
-2. Chọn trang tính được xem và việc được làm ở trang đó: *Xem*, *Sửa*, *Thêm dòng*, *Xoá dòng*. Bấm *Cột* để chỉ cho xem một số cột, hoặc để *Mọi cột, kể cả cột thêm sau này*. Vai trò mới có sẵn quyền gợi ý: manager xem, sửa, thêm dòng ở Đơn hàng, In 3D, Tư vấn và được lên đơn; seller xem đơn của mình ở Đơn hàng, In 3D (các cột khách, sản phẩm, tổng, trạng thái, doanh thu, % và hoa hồng) và được lên đơn.
+2. Chọn trang tính được xem và việc được làm ở trang đó: *Xem*, *Sửa*, *Thêm dòng*, *Xoá dòng* (trang Chi Phí chỉ tích được *Xem*). Bấm *Cột* để chỉ cho xem một số cột, hoặc để *Mọi cột, kể cả cột thêm sau này*. Vai trò mới có sẵn quyền gợi ý: manager xem, sửa, thêm dòng ở Đơn hàng, In 3D, Tư vấn và được lên đơn; seller xem đơn của mình ở Đơn hàng, In 3D (các cột khách, sản phẩm, tổng, trạng thái, doanh thu, % và hoa hồng) và được lên đơn.
 3. **Được nhập "Phí ship (đơn web)"**: mặc định chỉ admin nhập phí ship. Tích ô này thì manager, seller đó nhập được phí ship của đơn web (seller: đơn của mình), kể cả khi trang tính đó chỉ cho xem: các cột khác vẫn chỉ xem.
 4. **Được lên đơn** (seller, manager): tích thì người đó lên đơn cho khách trên trang Đặt hàng, In 3D (xem *Seller, manager lên đơn* bên dưới).
 5. Manager: ô **% hoa hồng** (hoa hồng quản lý) và **Tính cho đơn từ ngày** (xem *Hoa hồng của manager* bên dưới). Để trống: không nhận hoa hồng quản lý.
@@ -359,6 +359,23 @@ Nhật ký quản trị và trang Hoa hồng seller chỉ admin xem được. M�
 - Đơn web mới (khách tự đặt hay seller, manager lên): **Tiền thu người nhận** ghi bằng tổng tiền đơn (sửa được khi khách trả khác). Nhập Phí ship (miễn ship thì gõ 0): **Doanh thu sau điều chỉnh** = Tiền thu người nhận − Phí ship, tự tính. Đổi một trong 2 ô thì doanh thu, lợi nhuận, hoa hồng tự tính lại.
 - Đơn Shopee, Tiktok: ô Phí ship (đơn web) để trống, trang quản trị không cho nhập; Doanh thu sau điều chỉnh gõ như trước.
 - Đơn web có từ trước bản này: số doanh thu đã gõ được giữ nguyên và vẫn sửa được. Muốn tính tự động thì xoá ô doanh thu đó, điền Tiền thu người nhận và Phí ship.
+
+**Chi phí sản phẩm (trang Chi Phí):**
+
+- Trang tính **Chi Phí** do script tạo khi chạy *Kiểm tra cài đặt* (hoặc khi admin mở trang này trên trang quản trị): mỗi sản phẩm trên web một dòng (các bộ xe, bảng tên 1 tầng, 2 tầng, giá đỡ), như trang Hoa hồng seller. Admin điền cột *Chi phí mỗi sản phẩm (₫)*, VD 450.000. Sản phẩm mới trên web tự có dòng (để trống).
+- **Đơn mới** (khách đặt trên web, seller, manager lên đơn, dòng thêm trên trang quản trị, dòng gõ trên Google Sheet): cột **Chi phí** tự ghi = chi phí mỗi sản phẩm × số lượng; đơn nhiều sản phẩm thì cộng lại. Có Doanh thu sau điều chỉnh thì **Lợi nhuận** tự tính như trước. Ô tự ghi có ghi chú "Tự điền theo trang "Chi Phí" lúc …".
+  - Trang Đơn hàng: số lượng đọc ở cột Sản phẩm, dạng "SC Tech Pro – Bộ đầy đủ linh kiện × 2" (như đơn web và ô Sản phẩm + SL trên trang quản trị); dòng không có "× số" là 1 cái.
+  - Trang In 3D: bảng tên theo kiểu bảng (dòng "Kiểu: 1 tầng" ở cột Nội dung), giá đỡ, nhân cột Số lượng. Yêu cầu in theo file chưa có sản phẩm cố định: admin tự ghi chi phí.
+  - Sản phẩm chưa có chi phí ở trang Chi Phí (hay tên gõ tay không có ở đó): ô Chi phí của đơn để trống cho admin ghi, không ghi một phần. *Kiểm tra cài đặt* báo còn bao nhiêu sản phẩm chưa có chi phí.
+- **Sửa chi phí ở trang Chi Phí** (trên trang quản trị hay Google Sheet): đơn tiếp theo dùng số mới ngay, không cần triển khai lại. Đơn đã có giữ nguyên chi phí đã ghi.
+- **Sửa sản phẩm, số lượng của một đơn** mà ô Chi phí do script ghi: chi phí tính lại theo trang Chi Phí lúc sửa. Ô Chi phí admin đã gõ tay thì giữ nguyên, không bao giờ bị tính lại.
+- **Đơn có từ trước** (đặt trước ngày chạy *Kiểm tra cài đặt* tạo trang Chi Phí): không tự điền, không đổi, kể cả khi sửa sản phẩm. Chi phí của các đơn này vẫn gõ tay như trước. Dòng gõ tay trên Google Sheet mà *Thời gian* trước ngày đó cũng tính là đơn cũ; dòng thêm trên trang quản trị thì luôn là đơn mới.
+- **Chỉ admin sửa cột Chi phí** ở Đơn hàng, In 3D trên trang quản trị; manager, seller chỉ xem (nếu được cho xem cột đó). Trang Chi Phí cũng chỉ admin sửa: muốn cho manager, seller xem thì vào mục **Tài khoản**, tích *Xem* ở trang Chi Phí (bấm *Cột* để chọn cột). Không tích thì người đó không thấy trang này.
+- Manager được xem cột Chi phí ở Đơn hàng thì vẫn thấy chi phí của từng đơn (chia số lượng ra chi phí mỗi sản phẩm). Muốn giữ kín chi phí với người đó thì bỏ tích cột Chi phí và Lợi nhuận trong quyền của họ.
+- Sản phẩm bán ngoài web (không có trong `products.json`): thêm dòng ở trang Chi Phí trên Google Sheet, để trống cột Mã, cột Sản phẩm gõ đúng như ở cột Sản phẩm của đơn.
+- Google Sheet đã có sẵn một trang tên "Chi Phí" mà dòng 1 không có cột *Mã* và *Chi phí mỗi sản phẩm (₫)* (VD shop tự tạo trước): script không ghi vào trang đó, *Kiểm tra cài đặt* báo ✗. Đổi tên trang đó (VD "Chi Phí cũ") rồi chạy lại *Kiểm tra cài đặt* để script tạo trang mới.
+
+**Cài đặt phần Chi phí (sau khi dán script mới):** điền lại `NOTIFY_EMAIL`, `CODE_FOLDER_ID`, bấm **Lưu**, tải lại Google Sheet, chạy **Kiểm tra cài đặt…** (tạo trang Chi Phí), điền chi phí cho từng sản phẩm, rồi triển khai phiên bản mới. Từ lúc đó đơn mới tự có chi phí.
 
 **Hoa hồng seller:**
 
@@ -401,7 +418,7 @@ Tính lại Tổng quan khá lâu, nên trang quản trị dùng lại số li�
 **Cách tính:**
 
 - Số đơn: trang Đơn hàng theo cột **Nền tảng** (ô trống mà mã đơn dạng `SC…` là đơn web; tên khác Website, Shopee, TikTok vào nhóm Khác), cộng đơn In 3D đặt trên web (bảng tên, giá đỡ; không tính đơn *Huỷ*). Yêu cầu in theo file là yêu cầu báo giá, đếm riêng. Đơn chưa có *Thời gian* không được tính, cuối trang có ghi số đơn đó.
-- Doanh thu: cột **Doanh thu sau điều chỉnh**; đơn chưa điền thì lấy **Tổng (₫)**. Lợi nhuận: cột **Lợi nhuận**, chỉ có ở đơn đã điền đủ Doanh thu và Chi phí; % lợi nhuận tính trên các đơn đó. Muốn số đúng thì điền Doanh thu sau điều chỉnh và Chi phí cho mọi đơn.
+- Doanh thu: cột **Doanh thu sau điều chỉnh**; đơn chưa điền thì lấy **Tổng (₫)**. Lợi nhuận: cột **Lợi nhuận**, chỉ có ở đơn đã điền đủ Doanh thu và Chi phí; % lợi nhuận tính trên các đơn đó. Muốn số đúng thì điền Doanh thu sau điều chỉnh và Chi phí cho mọi đơn (Chi phí của đơn mới tự ghi theo trang Chi Phí).
 - Khách truy cập: số trình duyệt ghé web, mỗi trình duyệt tính 1 lần trong ngày, trong tháng, trong năm. Tỷ lệ đặt hàng: đơn đặt trên web (bộ xe + In 3D) từ ngày bắt đầu đếm, chia cho khách truy cập.
 
 **Số liệu cập nhật khi nào:** mỗi lần mở trang Tổng quan trên trang quản trị (hoặc bấm *Tải lại*), mỗi lần mở Google Sheet (nếu lần trước đã quá 10 phút, `DASH_REFRESH_MINUTES`), hoặc menu **SmartCarTech → Cập nhật trang Tổng quan**. Trang do script ghi lại mỗi lần cập nhật: đừng sửa tay. Biểu đồ trong Google Sheet có thể kéo đổi chỗ, đổi cỡ; xoá đi thì lần cập nhật sau tự vẽ lại. Sheet đã có trang tên "Tổng quan" do shop tự tạo thì script không đụng tới.
@@ -461,7 +478,7 @@ Cột sau này mới thêm vào Customer Infor cũng theo quy tắc đó: cùng 
 **Sau khi gộp:**
 
 - Đơn web có sẵn và đơn web mới ghi Nền tảng là `Website`. Đơn mới tự ghi cần triển khai phiên bản mới của script (mục 5, *Sửa script sau này*).
-- Các cột tiền của đơn mới để trống, shop tự điền, trên trang quản trị hay trên Sheet đều được. Điền đủ Doanh thu và Chi phí thì Lợi nhuận tự tính.
+- Các cột tiền của đơn mới để trống, shop tự điền, trên trang quản trị hay trên Sheet đều được (riêng Chi phí tự ghi theo trang Chi Phí, xem *Chi phí sản phẩm*). Điền đủ Doanh thu và Chi phí thì Lợi nhuận tự tính.
 - Xoá 1 trong 2 số đó thì Lợi nhuận trống lại. Ô Lợi nhuận shop tự gõ số hoặc công thức khác trên Google Sheet thì được giữ nguyên. Trên trang quản trị ô Lợi nhuận chỉ xem.
 - Tự tính khi sửa trên Sheet chạy ngay sau khi Lưu script; khi sửa trên trang quản trị thì cần triển khai phiên bản mới.
 
